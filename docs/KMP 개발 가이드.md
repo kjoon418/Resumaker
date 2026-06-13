@@ -1,6 +1,4 @@
-# 🏃Runner's Hi KMP 개발 가이드
-
-**Kotlin Multiplatform (KMP)** 프로젝트인 **Runner's Hi**의 개발 가이드입니다.
+# KMP 개발 가이드
 
 ---
 
@@ -27,13 +25,13 @@ KMP는 **"비즈니스 로직은 공유하고(Shared), UI와 플랫폼 기능은
 
 API 통신에 사용하는 Request/Response 모델입니다. 이것을 공유하면 **API 스펙 문서(Swagger 등)를 보고 코드를 칠 필요가 사라집니다.**
 
-* **배치 위치:** `shared/src/commonMain/kotlin/good/space/runnershi/model/dto`
+* **배치 위치:** `shared/src/commonMain/kotlin/.../model/dto`
 
 #### 2\. 상수
 
 서버와 클라이언트가 공통으로 사용하는 상태 값이나 설정 값입니다.
 
-* **배치 위치:** `shared/src/commonMain/kotlin/good/space/runnershi/model/type`
+* **배치 위치:** `shared/src/commonMain/kotlin/.../model/type`
 
 #### 3\. 공통 검증 로직
 
@@ -59,7 +57,7 @@ API 통신에 사용하는 Request/Response 모델입니다. 이것을 공유하
 
 서버와 통신하는 로직입니다.
 
-* **배치 위치:** `shared/src/commonMain/kotlin/good/space/runnershi/network`
+* **배치 위치:** `shared/src/commonMain/kotlin/.../network`
 * **역할:** `HttpClient`를 생성하고, API를 호출하여 DTO를 받아옵니다.
 * **장점:** 안드로이드와 iOS에서 각각 통신 로직을 구성할 필요가 없어집니다.
 
@@ -67,14 +65,14 @@ API 통신에 사용하는 Request/Response 모델입니다. 이것을 공유하
 
 앱 내부에 데이터를 저장하는 로직입니다.
 
-* **배치 위치:** `shared/src/commonMain/kotlin/good/space/runnershi/database`
+* **배치 위치:** `shared/src/commonMain/kotlin/.../database`
 * **역할:** 서버에서 받아온 데이터를 로컬에 캐싱하거나, 오프라인 모드를 지원합니다.
 
 #### ViewModels (Presentation Logic)
 
 화면에 보여줄 데이터를 가공하는 로직입니다. (KMP용 ViewModel 사용)
 
-* **배치 위치:** `shared/src/commonMain/kotlin/good/space/runnershi/viewmodel`
+* **배치 위치:** `shared/src/commonMain/kotlin/.../viewmodel`
 * **역할:** `StateFlow`를 통해 UI 상태를 방출(Emit)합니다.
     * Android(Compose)는 이를 `collectAsState()`로 구독.
     * iOS(SwiftUI)는 이를 `SKIE`나 `ObservableObject`로 구독.
@@ -89,7 +87,7 @@ API 통신에 사용하는 Request/Response 모델입니다. 이것을 공유하
 ### 📂 디렉터리 구조 예시
 
 ```text
-shared/src/commonMain/kotlin/good/space/runnershi/
+shared/src/commonMain/kotlin/.../
 ├── model/                  <-- [공통] 서버/모바일 모두 사용
 │   ├── dto/                (LoginRequest, UserDto)
 │   ├── type/               (UserRole Enum, Constants)
