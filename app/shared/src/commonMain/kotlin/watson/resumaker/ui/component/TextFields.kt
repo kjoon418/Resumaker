@@ -101,7 +101,7 @@ fun RmTextField(
                 .fillMaxWidth()
                 .heightIn(min = minHeight)
                 .background(boxBg, RoundedCornerShape(RmRadius.card))
-                .border(1.dp, borderColor, RoundedCornerShape(RmRadius.card)),
+                .border(RmSize.hairline, borderColor, RoundedCornerShape(RmRadius.card)),
             decorationBox = { inner ->
                 Row(
                     verticalAlignment = if (singleLine) Alignment.CenterVertically else Alignment.Top,

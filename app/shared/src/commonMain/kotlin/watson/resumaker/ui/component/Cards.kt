@@ -48,7 +48,7 @@ fun RmCard(
         .fillMaxWidth()
         .shadow(RmElevation.card, RoundedCornerShape(RmRadius.card))
         .background(colors.surface, RoundedCornerShape(RmRadius.card))
-        .border(1.dp, colors.borderSubtle, RoundedCornerShape(RmRadius.card))
+        .border(RmSize.hairline, colors.borderSubtle, RoundedCornerShape(RmRadius.card))
     val clickable = if (onClick != null) base.pressScale(onClick = onClick) else base
     Box(modifier = clickable.padding(RmSpacing.space4)) {
         content()
@@ -151,7 +151,7 @@ fun InfoCard(
         modifier = modifier
             .fillMaxWidth()
             .background(colors.primaryContainer, RoundedCornerShape(RmRadius.card))
-            .border(BorderStroke(1.dp, colors.primaryBorder), RoundedCornerShape(RmRadius.card))
+            .border(BorderStroke(RmSize.hairline, colors.primaryBorder), RoundedCornerShape(RmRadius.card))
             .padding(RmSpacing.space4),
     ) {
         Row(verticalAlignment = Alignment.Top) {

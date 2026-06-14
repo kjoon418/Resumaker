@@ -109,7 +109,7 @@ fun ErrorBanner(
         modifier = modifier
             .fillMaxWidth()
             .background(colors.dangerBg, RoundedCornerShape(RmRadius.card))
-            .border(1.dp, colors.danger.copy(alpha = 0.3f), RoundedCornerShape(RmRadius.card))
+            .border(RmSize.hairline, colors.danger.copy(alpha = 0.3f), RoundedCornerShape(RmRadius.card))
             .padding(RmSpacing.space4),
         verticalArrangement = Arrangement.spacedBy(RmSpacing.space3),
     ) {
