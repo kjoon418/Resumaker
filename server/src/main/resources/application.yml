@@ -16,3 +16,9 @@ spring:
     properties:
       hibernate:
         format_sql: true
+
+# 브라우저 클라이언트(Compose Wasm 웹앱) 허용 오리진. 쉼표로 구분, 와일드카드(*) 포트 허용.
+# 운영 배포 시 실제 프런트 도메인으로 좁힌다.
+resumaker:
+  cors:
+    allowed-origin-patterns: ${CORS_ALLOWED_ORIGINS:http://localhost:*,http://127.0.0.1:*}
