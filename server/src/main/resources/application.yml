@@ -1,0 +1,18 @@
+spring:
+  application:
+    name: resumaker
+  datasource:
+    # 환경변수 우선, 기본값은 로컬 개발 예시.
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/resumaker}
+    username: ${DB_USERNAME:resumaker}
+    password: ${DB_PASSWORD:resumaker}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      # MVP 편의를 위해 ddl-auto: update 사용.
+      # TODO: 운영 전환 시 Flyway 등 마이그레이션 도구로 스키마를 관리한다.
+      ddl-auto: update
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: true
