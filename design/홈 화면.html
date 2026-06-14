@@ -1,0 +1,158 @@
+<html>
+        <head>
+            <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" crossorigin="anonymous">
+            <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css" crossorigin="anonymous">
+            <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4" crossorigin="anonymous"></script>
+            <style> * { font-family: 'Pretendard', sans-serif; } </style>
+        </head>
+
+        <div id="app" class="relative w-[390px] min-h-[840px] bg-slate-50 flex flex-col font-['Pretendard'] overflow-hidden">
+    <header id="header" class="sticky top-0 z-30 bg-white/90 backdrop-blur-md border-b border-slate-100 px-5 py-4 flex justify-between items-center">
+        <h1 class="text-xl font-bold text-slate-900 tracking-tight">커리어 매니저</h1>
+        <div class="flex items-center gap-4">
+            <button id="btn-search" class="text-slate-500 hover:text-slate-900 transition-colors">
+                <i class="fa-solid fa-magnifying-glass text-lg"></i>
+            </button>
+            <div id="profile-trigger" class="w-8 h-8 rounded-full overflow-hidden ring-2 ring-slate-100">
+                <img src="https://vinsign.app/resources/avatars/avatar-1.png" alt="Profile" class="w-full h-full object-cover">
+            </div>
+        </div>
+    </header>
+
+    <main id="content" class="flex-1 px-5 pt-6 pb-40 overflow-y-auto">
+        <section id="section-resumes" class="mb-10">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-slate-900 font-bold text-lg flex items-center gap-2">
+                    <i class="fa-solid fa-file-lines text-indigo-500"></i>
+                    내 이력서
+                </h3>
+                <button class="text-slate-400 text-xs font-medium hover:text-indigo-600 transition-colors">전체보기</button>
+            </div>
+
+            <div id="resume-list" class="space-y-3">
+                <div id="resume-item-1" class="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4 active:scale-[0.98] transition-transform">
+                    <div class="w-12 h-12 bg-indigo-50 rounded-xl flex items-center justify-center text-indigo-600">
+                        <i class="fa-solid fa-code text-xl"></i>
+                    </div>
+                    <div class="flex-1">
+                        <h4 class="text-slate-900 font-semibold text-[15px] mb-0.5">프론트엔드 개발자_신입</h4>
+                        <p class="text-slate-400 text-xs">최종 수정: 2025.02</p>
+                    </div>
+                    <button class="text-slate-300 p-2">
+                        <i class="fa-solid fa-chevron-right text-sm"></i>
+                    </button>
+                </div>
+
+                <div id="resume-item-2" class="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4 active:scale-[0.98] transition-transform">
+                    <div class="w-12 h-12 bg-emerald-50 rounded-xl flex items-center justify-center text-emerald-600">
+                        <i class="fa-solid fa-language text-xl"></i>
+                    </div>
+                    <div class="flex-1">
+                        <h4 class="text-slate-900 font-semibold text-[15px] mb-0.5">구글 코리아 지원 (영문)</h4>
+                        <p class="text-slate-400 text-xs">최종 수정: 2025.01</p>
+                    </div>
+                    <button class="text-slate-300 p-2">
+                        <i class="fa-solid fa-chevron-right text-sm"></i>
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <section id="section-personas">
+            <div class="flex justify-between items-center mb-4">
+                <div class="flex flex-col">
+                    <h3 class="text-slate-900 font-bold text-lg flex items-center gap-2">
+                        <i class="fa-solid fa-id-card-clip text-rose-500"></i>
+                        면접관 페르소나
+                    </h3>
+                    <p class="text-slate-400 text-[13px] mt-1">첨삭 및 모의 면접에 활용되는 성향입니다.</p>
+                </div>
+                <button id="btn-manage-personas" class="text-indigo-600 text-sm font-semibold bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-xl transition-colors flex items-center gap-1.5">
+                    <i class="fa-solid fa-sliders text-xs"></i>
+                    관리
+                </button>
+            </div>
+
+            <div id="persona-list" class="space-y-3">
+                <div id="persona-1" class="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex items-start gap-4">
+                    <div class="w-10 h-10 bg-blue-50 rounded-full flex-shrink-0 flex items-center justify-center text-blue-600">
+                        <i class="fa-solid fa-magnifying-glass-chart"></i>
+                    </div>
+                    <div class="flex-1">
+                        <div class="flex justify-between items-center mb-1">
+                            <h4 class="text-slate-900 font-bold text-sm">데이터 분석가</h4>
+                            <span class="text-[10px] px-2 py-0.5 bg-blue-50 text-blue-600 rounded-full font-medium">논리중시</span>
+                        </div>
+                        <p class="text-slate-500 text-xs leading-relaxed">정확한 수치와 데이터 근거를 중시하며 논리적인 비약이 없는지 체크합니다.</p>
+                    </div>
+                </div>
+
+                <div id="persona-2" class="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex items-start gap-4">
+                    <div class="w-10 h-10 bg-slate-100 rounded-full flex-shrink-0 flex items-center justify-center text-slate-600">
+                        <i class="fa-solid fa-user-tie"></i>
+                    </div>
+                    <div class="flex-1">
+                        <div class="flex justify-between items-center mb-1">
+                            <h4 class="text-slate-900 font-bold text-sm">정통 대기업 임원</h4>
+                            <span class="text-[10px] px-2 py-0.5 bg-slate-100 text-slate-600 rounded-full font-medium">기본충실</span>
+                        </div>
+                        <p class="text-slate-500 text-xs leading-relaxed">지원자의 태도, 말투, 기술 스택, 학력 등 기본기를 가장 중요하게 평가합니다.</p>
+                    </div>
+                </div>
+
+                <div id="persona-3" class="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex items-start gap-4">
+                    <div class="w-10 h-10 bg-orange-50 rounded-full flex-shrink-0 flex items-center justify-center text-orange-600">
+                        <i class="fa-solid fa-rocket"></i>
+                    </div>
+                    <div class="flex-1">
+                        <div class="flex justify-between items-center mb-1">
+                            <h4 class="text-slate-900 font-bold text-sm">스타트업 CEO</h4>
+                            <span class="text-[10px] px-2 py-0.5 bg-orange-50 text-orange-600 rounded-full font-medium">혁신지향</span>
+                        </div>
+                        <p class="text-slate-500 text-xs leading-relaxed">기존의 틀을 깨는 혁신적인 사고와 빠른 실행력을 가진 인재를 선호합니다.</p>
+                    </div>
+                </div>
+
+                <div id="persona-4" class="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex items-start gap-4">
+                    <div class="w-10 h-10 bg-amber-50 rounded-full flex-shrink-0 flex items-center justify-center text-amber-600">
+                        <i class="fa-solid fa-bolt-lightning"></i>
+                    </div>
+                    <div class="flex-1">
+                        <div class="flex justify-between items-center mb-1">
+                            <h4 class="text-slate-900 font-bold text-sm">효율 중시형</h4>
+                            <span class="text-[10px] px-2 py-0.5 bg-amber-50 text-amber-600 rounded-full font-medium">핵심전달</span>
+                        </div>
+                        <p class="text-slate-500 text-xs leading-relaxed">불필요한 수식어 없이 핵심만 담은 짧고 명확한 답변을 선호합니다.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <div id="bottom-action" class="absolute bottom-0 left-0 w-full p-6 bg-gradient-to-t from-white via-white to-transparent pt-12 z-20">
+        <button id="btn-create-new" class="w-full bg-slate-900 text-white py-4 rounded-2xl font-bold text-base shadow-2xl shadow-slate-300 flex items-center justify-center gap-2 active:scale-[0.96] transition-all">
+            <i class="fa-solid fa-plus-circle text-lg"></i>
+            새 이력서 작성하기
+        </button>
+    </div>
+
+    <nav id="bottom-tabs" class="absolute bottom-0 left-0 w-full h-[84px] bg-white border-t border-slate-100 px-8 flex justify-between items-center hidden">
+        <div class="flex flex-col items-center text-indigo-600">
+            <i class="fa-solid fa-house text-xl"></i>
+            <span class="text-[10px] mt-1 font-bold">홈</span>
+        </div>
+        <div class="flex flex-col items-center text-slate-300">
+            <i class="fa-solid fa-file-pen text-xl"></i>
+            <span class="text-[10px] mt-1 font-medium">이력서</span>
+        </div>
+        <div class="flex flex-col items-center text-slate-300">
+            <i class="fa-solid fa-comments text-xl"></i>
+            <span class="text-[10px] mt-1 font-medium">면접연습</span>
+        </div>
+        <div class="flex flex-col items-center text-slate-300">
+            <i class="fa-solid fa-user text-xl"></i>
+            <span class="text-[10px] mt-1 font-medium">마이</span>
+        </div>
+    </nav>
+</div>
+</html>

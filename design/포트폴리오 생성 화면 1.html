@@ -1,0 +1,124 @@
+<html>
+        <head>
+            <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" crossorigin="anonymous">
+            <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css" crossorigin="anonymous">
+            <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4" crossorigin="anonymous"></script>
+            <style> * { font-family: 'Pretendard', sans-serif; } </style>
+        </head>
+
+        
+<div class="ui-screen">
+    <div id="app" class="relative w-[390px] min-h-[840px] bg-white">
+  <header id="header" class="sticky top-0 z-10 bg-white border-b border-gray-100 px-6 py-4">
+    <div class="flex items-center justify-between">
+      <button class="text-gray-500">
+        <i class="fa-solid fa-chevron-left text-lg"></i>
+      </button>
+      <h1 class="text-lg font-semibold text-gray-900">새 포트폴리오 생성</h1>
+      <div class="w-6"></div>
+    </div>
+    <div class="mt-3">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center space-x-2">
+          <div class="w-8 h-2 bg-blue-600 rounded-full"></div>
+          <div class="w-8 h-2 bg-gray-200 rounded-full"></div>
+          <div class="w-8 h-2 bg-gray-200 rounded-full"></div>
+          <div class="w-8 h-2 bg-gray-200 rounded-full"></div>
+        </div>
+        <span class="text-sm font-medium text-blue-600">1/4 단계</span>
+      </div>
+      <p class="text-sm text-gray-500 mt-2">기존 이력서 제출</p>
+    </div>
+  </header>
+
+  <main id="content" class="px-6 py-8">
+    <div class="mb-10">
+      <h2 class="text-xl font-bold text-gray-900 mb-2">기존 이력서가 있나요?</h2>
+      <p class="text-gray-600">PDF 파일을 업로드하면 AI가 내용을 분석해<br>다음 단계를 자동으로 채워드려요.</p>
+    </div>
+
+    <div id="upload-area" class="border-2 border-dashed border-gray-300 rounded-2xl bg-gray-50 p-8 mb-6 text-center">
+      <div class="flex flex-col items-center justify-center">
+        <div class="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mb-4">
+          <i class="fa-solid fa-file-pdf text-2xl text-blue-600"></i>
+        </div>
+        <h3 class="text-lg font-semibold text-gray-900 mb-2">PDF 파일 업로드</h3>
+        <p class="text-gray-500 text-sm mb-4">파일을 여기로 끌어오거나 클릭해서 선택하세요</p>
+        <button class="px-6 py-3 bg-blue-600 text-white font-medium rounded-xl hover:bg-blue-700 transition">
+          파일 선택
+        </button>
+        <p class="text-gray-400 text-xs mt-4">PDF, 최대 10MB</p>
+      </div>
+    </div>
+
+    <div class="bg-blue-50 border border-blue-100 rounded-xl p-4 mb-8">
+      <div class="flex items-start">
+        <i class="fa-solid fa-lightbulb text-blue-500 mt-0.5 mr-3"></i>
+        <div>
+          <p class="text-sm text-blue-800 font-medium">AI 분석이 도와드려요</p>
+          <p class="text-xs text-blue-700 mt-1">업로드한 이력서를 분석해 경력, 기술 스택, 프로젝트 등을 자동으로 추출합니다. 다음 단계에서 확인하고 수정할 수 있어요.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="space-y-4 mb-10">
+      <div class="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
+        <div class="flex items-center">
+          <div class="w-10 h-10 bg-gray-200 rounded-lg flex items-center justify-center mr-3">
+            <i class="fa-solid fa-file text-gray-500"></i>
+          </div>
+          <div>
+            <p class="text-sm font-medium text-gray-900">resume_backend.pdf</p>
+            <p class="text-xs text-gray-500">2.4MB • 2025.03 업로드</p>
+          </div>
+        </div>
+        <button class="text-gray-400 hover:text-gray-600">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+    </div>
+
+    <div class="pt-4 border-t border-gray-100">
+      <div class="flex items-center justify-between">
+        <button class="px-6 py-3 border border-gray-300 text-gray-700 font-medium rounded-xl hover:bg-gray-50 transition">
+          건너뛰기
+        </button>
+        <button class="px-6 py-3 bg-blue-600 text-white font-medium rounded-xl hover:bg-blue-700 transition flex items-center">
+          다음 단계
+          <i class="fa-solid fa-chevron-right ml-2 text-sm"></i>
+        </button>
+      </div>
+      <p class="text-center text-gray-400 text-xs mt-4">건너뛰면 직접 모든 정보를 입력하게 됩니다.</p>
+    </div>
+  </main>
+
+  <div id="bottomTabBar" class="border-t border-gray-100 bg-white">
+    <div class="flex items-center justify-around py-3">
+      <button class="flex flex-col items-center text-gray-400">
+        <i class="fa-solid fa-house text-lg"></i>
+        <span class="text-xs mt-1">홈</span>
+      </button>
+      <button class="flex flex-col items-center text-gray-400">
+        <i class="fa-solid fa-file text-lg"></i>
+        <span class="text-xs mt-1">포트폴리오</span>
+      </button>
+      <button class="flex flex-col items-center text-blue-600">
+        <div class="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center -mt-4">
+          <i class="fa-solid fa-plus text-blue-600 text-xl"></i>
+        </div>
+        <span class="text-xs mt-1 text-blue-600">생성</span>
+      </button>
+      <button class="flex flex-col items-center text-gray-400">
+        <i class="fa-solid fa-pen-to-square text-lg"></i>
+        <span class="text-xs mt-1">첨삭</span>
+      </button>
+      <button class="flex flex-col items-center text-gray-400">
+        <i class="fa-solid fa-user text-lg"></i>
+        <span class="text-xs mt-1">내 정보</span>
+      </button>
+    </div>
+  </div>
+</div>
+</div>
+
+</html>

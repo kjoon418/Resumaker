@@ -1,0 +1,148 @@
+<html>
+        <head>
+            <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" crossorigin="anonymous">
+            <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css" crossorigin="anonymous">
+            <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4" crossorigin="anonymous"></script>
+            <style> * { font-family: 'Pretendard', sans-serif; } </style>
+        </head>
+
+        
+<div class="ui-screen">
+    <div id="app" class="relative w-[390px] min-h-[840px] bg-white font-['Pretendard'] text-[#1E293B]">
+    <!-- Header -->
+    <header id="header" class="sticky top-0 z-10 flex items-center justify-between px-5 h-[60px] bg-white/80 backdrop-blur-md">
+        <button class="w-10 h-10 flex items-center justify-start">
+            <i class="fa-solid fa-chevron-left text-lg"></i>
+        </button>
+        <h1 class="text-[17px] font-bold">새 포트폴리오 생성</h1>
+        <div class="w-10 h-10 flex items-center justify-end">
+            <span class="text-sm font-semibold text-blue-600">2/4</span>
+        </div>
+    </header>
+
+    <!-- Progress Bar -->
+    <div id="progress-bar" class="w-full h-1 bg-slate-100">
+        <div class="w-1/2 h-full bg-blue-600"></div>
+    </div>
+
+    <!-- Content Section -->
+    <div id="content" class="px-5 pt-6 pb-32">
+        <div id="ai-notice" class="mb-8 p-4 bg-blue-50 rounded-2xl border border-blue-100">
+            <div class="flex items-center gap-2 mb-1">
+                <i class="fa-solid fa-wand-magic-sparkles text-blue-600 text-sm"></i>
+                <span class="text-sm font-bold text-blue-700">AI 분석 완료</span>
+            </div>
+            <p class="text-xs text-blue-600 leading-relaxed">
+                기존 이력서 분석을 통해 항목을 자동으로 채웠습니다.<br>내용을 확인하고 필요시 수정해 주세요.
+            </p>
+        </div>
+
+        <div id="form-container" class="space-y-8">
+            <!-- Resume Format -->
+            <div id="field-format" class="space-y-2">
+                <label class="text-[15px] font-bold flex items-center gap-1.5">
+                    이력서 형식
+                    <span class="text-blue-600 text-xs font-normal">AI 추출</span>
+                </label>
+                <div class="relative">
+                    <select class="w-full h-[52px] px-4 bg-slate-50 border border-slate-200 rounded-xl appearance-none focus:outline-none focus:border-blue-500 text-sm">
+                        <option>경력기술서 중심 (추천)</option>
+                        <option>프로젝트 포트폴리오형</option>
+                        <option>학업 및 대외활동 중심</option>
+                    </select>
+                    <i class="fa-solid fa-chevron-down absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 text-xs pointer-events-none"></i>
+                </div>
+            </div>
+
+            <!-- Specialization -->
+            <div id="field-specialization" class="space-y-2">
+                <label class="text-[15px] font-bold">전문 분야 및 타겟</label>
+                <input type="text" value="시니어 프로덕트 디자이너 / B2B SaaS 전문" class="w-full h-[52px] px-4 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-blue-500 text-sm" placeholder="예: 3년차 프론트엔드 개발자">
+            </div>
+
+            <!-- Slogan -->
+            <div id="field-slogan" class="space-y-2">
+                <label class="text-[15px] font-bold">핵심 슬로건 및 가치관</label>
+                <textarea class="w-full h-[100px] p-4 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-blue-500 text-sm leading-relaxed resize-none" placeholder="본인만의 가치관을 입력하세요.">사용자 데이터에 기반하여 비즈니스 임팩트를 만들어내는 디자이너입니다.</textarea>
+            </div>
+
+            <!-- Strengths -->
+            <div id="field-strengths" class="space-y-2">
+                <label class="text-[15px] font-bold">본인의 강점 (키워드)</label>
+                <div class="flex flex-wrap gap-2">
+                    <span class="px-3 py-1.5 bg-blue-100 text-blue-700 rounded-full text-xs font-medium border border-blue-200">#데이터분석</span>
+                    <span class="px-3 py-1.5 bg-blue-100 text-blue-700 rounded-full text-xs font-medium border border-blue-200">#디자인시스템</span>
+                    <span class="px-3 py-1.5 bg-blue-100 text-blue-700 rounded-full text-xs font-medium border border-blue-200">#B2B전문가</span>
+                    <button class="px-3 py-1.5 bg-white border border-dashed border-slate-300 text-slate-400 rounded-full text-xs font-medium">
+                        <i class="fa-solid fa-plus mr-1"></i>추가
+                    </button>
+                </div>
+            </div>
+
+            <!-- Project History -->
+            <div id="field-projects" class="space-y-3">
+                <div class="flex justify-between items-end">
+                    <label class="text-[15px] font-bold">프로젝트 이력 (핵심 과업)</label>
+                    <button class="text-xs text-blue-600 font-semibold">편집</button>
+                </div>
+                <div class="space-y-3">
+                    <div class="p-4 bg-slate-50 border border-slate-200 rounded-xl">
+                        <div class="text-xs font-bold text-slate-400 mb-1">2024.01 - 2024.12</div>
+                        <div class="text-sm font-bold mb-2">어드민 대시보드 리뉴얼 프로젝트</div>
+                        <ul class="text-xs text-slate-600 space-y-1.5 list-disc list-inside">
+                            <li>사용자 인터뷰를 통한 UX 페인포인트 12건 개선</li>
+                            <li>디자인 시스템 구축으로 개발 효율성 30% 향상</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Collaboration Style -->
+            <div id="field-collaboration" class="space-y-2">
+                <label class="text-[15px] font-bold">선호하는 협업 방식</label>
+                <input type="text" value="문서 기반의 비동기 소통과 빠른 피드백 루프" class="w-full h-[52px] px-4 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-blue-500 text-sm">
+            </div>
+
+            <!-- Tech Stack -->
+            <div id="field-tech" class="space-y-3">
+                <label class="text-[15px] font-bold">주력 기술 스택</label>
+                <div class="flex flex-wrap gap-3">
+                    <div class="flex items-center gap-2 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg">
+                        <i class="fa-brands fa-figma text-purple-500"></i>
+                        <span class="text-xs font-medium">Figma</span>
+                    </div>
+                    <div class="flex items-center gap-2 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg">
+                        <i class="fa-solid fa-code text-slate-600"></i>
+                        <span class="text-xs font-medium">Framer</span>
+                    </div>
+                    <div class="flex items-center gap-2 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg">
+                        <i class="fa-solid fa-chart-line text-blue-500"></i>
+                        <span class="text-xs font-medium">Mixpanel</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Future Goals -->
+            <div id="field-future" class="space-y-2">
+                <label class="text-[15px] font-bold">미래 지향점</label>
+                <textarea class="w-full h-[80px] p-4 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-blue-500 text-sm leading-relaxed resize-none" placeholder="앞으로 어떤 인재로 성장하고 싶으신가요?">기술과 디자인의 경계를 허물고 비즈니스 가치를 극대화하는 총체적 경험 설계자</textarea>
+            </div>
+
+            <!-- Add More Info Button -->
+            <button id="add-info-btn" class="w-full h-[56px] flex items-center justify-center gap-2 border-2 border-dashed border-slate-200 rounded-2xl text-slate-400 hover:bg-slate-50 transition-colors">
+                <i class="fa-solid fa-circle-plus"></i>
+                <span class="text-sm font-bold">기타 정보 추가</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Fixed Footer CTA -->
+    <div id="footer-cta" class="absolute bottom-0 left-0 right-0 p-5 bg-white/90 backdrop-blur-lg border-t border-slate-100">
+        <button class="w-full h-[56px] bg-blue-600 text-white rounded-2xl font-bold text-[16px] shadow-lg shadow-blue-200 active:scale-[0.98] transition-transform">
+            다음 단계로
+        </button>
+    </div>
+</div>
+</div>
+
+</html>

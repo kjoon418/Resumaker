@@ -1,0 +1,230 @@
+<html>
+        <head>
+            <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" crossorigin="anonymous">
+            <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css" crossorigin="anonymous">
+            <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4" crossorigin="anonymous"></script>
+            <style> * { font-family: 'Pretendard', sans-serif; } </style>
+        </head>
+
+        
+<div class="ui-screen">
+    <div id="app" class="relative w-[390px] min-h-[840px] bg-[#F8FAFC] pb-24">
+    <!-- Header -->
+    <header id="header" class="sticky top-0 z-50 flex items-center justify-between px-5 h-16 bg-white border-b border-slate-100">
+        <button class="w-10 h-10 flex items-center justify-start text-slate-800">
+            <i class="fa-solid fa-chevron-left text-lg"></i>
+        </button>
+        <h1 class="text-lg font-bold text-slate-900">마이페이지</h1>
+        <button class="text-blue-600 font-semibold text-sm">저장</button>
+    </header>
+
+    <!-- Content -->
+    <div id="content" class="px-5 py-6 space-y-8">
+        <!-- Profile Section -->
+        <section id="profile-summary" class="flex flex-col items-center">
+            <div class="relative">
+                <img src="https://vinsign.app/resources/avatars/avatar-1.png" alt="Profile" class="w-24 h-24 rounded-full border-4 border-white shadow-md object-cover">
+                <button class="absolute bottom-0 right-0 w-8 h-8 bg-blue-600 rounded-full border-2 border-white flex items-center justify-center text-white text-xs shadow-sm">
+                    <i class="fa-solid fa-camera"></i>
+                </button>
+            </div>
+            <div class="mt-4 text-center">
+                <h2 class="text-xl font-bold text-slate-900">김지훈</h2>
+                <p class="text-sm text-slate-500">지능형 시스템 개발자</p>
+            </div>
+        </section>
+
+        <!-- Basic Info Section -->
+        <section id="basic-info" class="space-y-4">
+            <div class="flex items-center justify-between">
+                <h3 class="text-base font-bold text-slate-900">기본 정보</h3>
+                <button class="text-xs text-slate-400 hover:text-blue-600 transition-colors">
+                    <i class="fa-solid fa-pen-to-square mr-1"></i>수정
+                </button>
+            </div>
+            <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 space-y-4">
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="space-y-1">
+                        <label class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">성명</label>
+                        <p class="text-sm font-medium text-slate-800">김지훈</p>
+                    </div>
+                    <div class="space-y-1">
+                        <label class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">나이</label>
+                        <p class="text-sm font-medium text-slate-800">29세</p>
+                    </div>
+                </div>
+                <div class="space-y-1">
+                    <label class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">이메일</label>
+                    <p class="text-sm font-medium text-slate-800">jihoon.kim@example.com</p>
+                </div>
+                <div class="space-y-1">
+                    <label class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">비밀번호</label>
+                    <p class="text-sm font-medium text-slate-800">••••••••</p>
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="space-y-1">
+                        <label class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">성별</label>
+                        <p class="text-sm font-medium text-slate-800">남성 (MALE)</p>
+                    </div>
+                    <div class="space-y-1">
+                        <label class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">직업</label>
+                        <p class="text-sm font-medium text-slate-800">SW 엔지니어</p>
+                    </div>
+                </div>
+                <div class="space-y-1">
+                    <label class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">연락처</label>
+                    <p class="text-sm font-medium text-slate-800">010-1234-5678</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Education Section -->
+        <section id="education" class="space-y-4">
+            <div class="flex items-center justify-between">
+                <h3 class="text-base font-bold text-slate-900">학력 사항</h3>
+                <button class="w-7 h-7 bg-slate-100 rounded-full flex items-center justify-center text-slate-600">
+                    <i class="fa-solid fa-plus text-xs"></i>
+                </button>
+            </div>
+            <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 space-y-4">
+                <div class="relative pl-4 border-l-2 border-blue-100">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <h4 class="text-sm font-bold text-slate-900">한국대학교</h4>
+                            <p class="text-xs text-slate-500 mt-0.5">컴퓨터공학 전공</p>
+                        </div>
+                        <button class="text-slate-300"><i class="fa-solid fa-ellipsis-vertical"></i></button>
+                    </div>
+                    <div class="mt-2 flex items-center gap-3">
+                        <span class="text-[11px] px-2 py-0.5 bg-slate-50 text-slate-500 rounded">2016.03 - 2022.02</span>
+                        <span class="text-[11px] font-semibold text-blue-600">평점 4.2 / 4.5</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Experience Section -->
+        <section id="experience" class="space-y-4">
+            <div class="flex items-center justify-between">
+                <h3 class="text-base font-bold text-slate-900">경력 사항</h3>
+                <button class="w-7 h-7 bg-slate-100 rounded-full flex items-center justify-center text-slate-600">
+                    <i class="fa-solid fa-plus text-xs"></i>
+                </button>
+            </div>
+            <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 space-y-5">
+                <div class="relative pl-4 border-l-2 border-blue-500">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <div class="flex items-center gap-2">
+                                <h4 class="text-sm font-bold text-slate-900">테크이노베이션</h4>
+                                <span class="text-[10px] px-1.5 py-0.5 bg-blue-50 text-blue-600 rounded-full font-bold">재직 중</span>
+                            </div>
+                            <p class="text-xs text-slate-500 mt-0.5">시니어 백엔드 개발자</p>
+                        </div>
+                        <button class="text-slate-300"><i class="fa-solid fa-ellipsis-vertical"></i></button>
+                    </div>
+                    <p class="text-[11px] text-slate-400 mt-1">2022.03 - 현재</p>
+                    <p class="text-xs text-slate-600 mt-3 leading-relaxed">AI 기반의 이력서 분석 엔진 설계 및 MSA 환경에서의 API 서버 최적화 업무를 담당하고 있습니다.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Certification Section -->
+        <section id="certification" class="space-y-4">
+            <div class="flex items-center justify-between">
+                <h3 class="text-base font-bold text-slate-900">자격증</h3>
+                <button class="w-7 h-7 bg-slate-100 rounded-full flex items-center justify-center text-slate-600">
+                    <i class="fa-solid fa-plus text-xs"></i>
+                </button>
+            </div>
+            <div class="grid grid-cols-1 gap-3">
+                <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 flex items-center justify-between">
+                    <div>
+                        <h4 class="text-sm font-bold text-slate-900">정보처리기사</h4>
+                        <div class="flex items-center gap-2 mt-1">
+                            <span class="text-[11px] text-slate-500">한국산업인력공단</span>
+                            <span class="w-1 h-1 bg-slate-200 rounded-full"></span>
+                            <span class="text-[11px] text-slate-500">2021.05</span>
+                        </div>
+                    </div>
+                    <div class="text-right">
+                        <span class="text-[11px] font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded">최종합격</span>
+                    </div>
+                </div>
+                <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 flex items-center justify-between">
+                    <div>
+                        <h4 class="text-sm font-bold text-slate-900">TOEIC</h4>
+                        <div class="flex items-center gap-2 mt-1">
+                            <span class="text-[11px] text-slate-500">YBM</span>
+                            <span class="w-1 h-1 bg-slate-200 rounded-full"></span>
+                            <span class="text-[11px] text-slate-500">2023.11</span>
+                        </div>
+                    </div>
+                    <div class="text-right">
+                        <span class="text-xs font-bold text-slate-900">920점</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Awards Section -->
+        <section id="awards" class="space-y-4">
+            <div class="flex items-center justify-between">
+                <h3 class="text-base font-bold text-slate-900">수상 경력</h3>
+                <button class="w-7 h-7 bg-slate-100 rounded-full flex items-center justify-center text-slate-600">
+                    <i class="fa-solid fa-plus text-xs"></i>
+                </button>
+            </div>
+            <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
+                <div class="flex items-start gap-4">
+                    <div class="w-10 h-10 bg-amber-50 rounded-xl flex items-center justify-center text-amber-500 shrink-0">
+                        <i class="fa-solid fa-trophy text-lg"></i>
+                    </div>
+                    <div class="flex-1">
+                        <div class="flex justify-between">
+                            <h4 class="text-sm font-bold text-slate-900">공공데이터 활용 창업경진대회</h4>
+                            <span class="text-[11px] text-slate-400">2021</span>
+                        </div>
+                        <p class="text-xs text-blue-600 font-semibold mt-0.5">최우수상 (중소벤처기업부 장관상)</p>
+                        <p class="text-[11px] text-slate-500 mt-1">행정안전부 주관</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Account Settings -->
+        <section id="account-actions" class="pt-4 pb-8 border-t border-slate-200">
+            <button class="w-full flex items-center justify-between py-3 text-slate-600">
+                <span class="text-sm font-medium">로그아웃</span>
+                <i class="fa-solid fa-angle-right text-slate-300"></i>
+            </button>
+            <button class="w-full flex items-center justify-between py-3 text-red-400">
+                <span class="text-sm font-medium">회원 탈퇴</span>
+                <i class="fa-solid fa-angle-right text-slate-200"></i>
+            </button>
+        </section>
+    </div>
+
+    <!-- Bottom Tab Bar -->
+    <nav id="bottomTabBar" class="absolute bottom-0 left-0 right-0 h-20 bg-white border-t border-slate-100 flex items-center justify-around px-4 pb-4">
+        <button class="flex flex-col items-center gap-1 text-slate-400">
+            <i class="fa-solid fa-house text-lg"></i>
+            <span class="text-[10px] font-medium">홈</span>
+        </button>
+        <button class="flex flex-col items-center gap-1 text-slate-400">
+            <i class="fa-solid fa-wand-magic-sparkles text-lg"></i>
+            <span class="text-[10px] font-medium">AI 생성</span>
+        </button>
+        <button class="flex flex-col items-center gap-1 text-slate-400">
+            <i class="fa-solid fa-file-lines text-lg"></i>
+            <span class="text-[10px] font-medium">내 이력서</span>
+        </button>
+        <button class="flex flex-col items-center gap-1 text-blue-600">
+            <i class="fa-solid fa-user text-lg"></i>
+            <span class="text-[10px] font-bold">마이페이지</span>
+        </button>
+    </nav>
+</div>
+</div>
+
+</html>

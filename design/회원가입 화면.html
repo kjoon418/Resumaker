@@ -1,0 +1,112 @@
+<html>
+        <head>
+            <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" crossorigin="anonymous">
+            <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css" crossorigin="anonymous">
+            <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4" crossorigin="anonymous"></script>
+            <style> * { font-family: 'Pretendard', sans-serif; } </style>
+        </head>
+
+        
+<div class="ui-screen">
+    <div id="app" class="relative w-[390px] min-h-[840px] bg-white font-['Pretendard']">
+    <header id="header" class="sticky top-0 z-10 flex items-center justify-between px-5 h-14 bg-white/80 backdrop-blur-md">
+        <button class="w-10 h-10 flex items-center justify-start text-slate-900">
+            <i class="fa-solid fa-chevron-left text-xl"></i>
+        </button>
+        <div class="absolute left-1/2 -translate-x-1/2">
+            <span class="text-lg font-bold tracking-tight text-blue-600">Resumaker</span>
+        </div>
+        <div class="w-10"></div>
+    </header>
+
+    <main id="content" class="px-6 pt-8 pb-12">
+        <section id="title-section" class="mb-10">
+            <h1 class="text-2xl font-bold text-slate-900 leading-tight mb-3">
+                나만의 커리어를<br>
+                AI와 함께 완성해보세요
+            </h1>
+            <p class="text-slate-500 text-sm">
+                단 몇 분 만에 전문가 수준의 이력서를 만들어 드립니다.
+            </p>
+        </section>
+
+        <section id="form-section" class="space-y-6">
+            <div id="input-group-name" class="flex flex-col gap-2">
+                <label for="name" class="text-sm font-semibold text-slate-700 ml-1">이름</label>
+                <div class="relative">
+                    <input type="text" id="name" placeholder="홍길동" class="w-full h-14 px-4 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all">
+                </div>
+            </div>
+
+            <div id="input-group-email" class="flex flex-col gap-2">
+                <label for="email" class="text-sm font-semibold text-slate-700 ml-1">이메일</label>
+                <div class="relative">
+                    <input type="email" id="email" placeholder="example@resumaker.com" class="w-full h-14 px-4 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all">
+                </div>
+            </div>
+
+            <div id="input-group-password" class="flex flex-col gap-2">
+                <label for="password" class="text-sm font-semibold text-slate-700 ml-1">비밀번호</label>
+                <div class="relative">
+                    <input type="password" id="password" placeholder="8자 이상 입력해주세요" class="w-full h-14 px-4 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all">
+                    <button class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400">
+                        <i class="fa-regular fa-eye text-lg"></i>
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <section id="terms-section" class="mt-8">
+            <div class="flex items-start gap-3 px-1">
+                <div class="mt-0.5">
+                    <div class="w-5 h-5 flex items-center justify-center rounded bg-blue-600 text-white">
+                        <i class="fa-solid fa-check text-[10px]"></i>
+                    </div>
+                </div>
+                <p class="text-xs text-slate-500 leading-relaxed">
+                    <span class="text-slate-700 font-medium">서비스 이용약관</span> 및 <span class="text-slate-700 font-medium">개인정보 처리방침</span>에 동의합니다. AI 생성 결과물에 대한 책임은 사용자에게 있습니다.
+                </p>
+            </div>
+        </section>
+
+        <section id="action-section" class="mt-10">
+            <button class="w-full h-14 bg-blue-600 text-white font-bold rounded-2xl shadow-lg shadow-blue-600/20 active:scale-[0.98] transition-transform">
+                회원가입 완료
+            </button>
+        </section>
+
+        <section id="divider-section" class="mt-10 mb-8 flex items-center gap-4">
+            <div class="flex-1 h-[1px] bg-slate-100"></div>
+            <span class="text-xs text-slate-400 font-medium uppercase tracking-wider">또는 간편 시작하기</span>
+            <div class="flex-1 h-[1px] bg-slate-100"></div>
+        </section>
+
+        <section id="social-section" class="flex gap-4">
+            <button class="flex-1 h-14 border border-slate-200 rounded-2xl flex items-center justify-center gap-2 active:bg-slate-50 transition-colors">
+                <i class="fa-brands fa-google text-lg"></i>
+                <span class="text-sm font-semibold text-slate-700">Google</span>
+            </button>
+            <button class="flex-1 h-14 border border-slate-200 rounded-2xl flex items-center justify-center gap-2 active:bg-slate-50 transition-colors">
+                <i class="fa-brands fa-apple text-xl mb-0.5"></i>
+                <span class="text-sm font-semibold text-slate-700">Apple</span>
+            </button>
+        </section>
+    </main>
+
+    <footer id="footer" class="absolute bottom-10 w-full text-center px-6">
+        <p class="text-sm text-slate-500">
+            이미 계정이 있으신가요? 
+            <a href="#" class="text-blue-600 font-bold ml-1 border-b border-blue-600/30">로그인하기</a>
+        </p>
+    </footer>
+
+    <div id="ai-badge" class="absolute top-24 right-6 animate-bounce">
+        <div class="bg-blue-50 text-blue-600 text-[10px] font-bold px-3 py-1 rounded-full border border-blue-100 shadow-sm flex items-center gap-1">
+            <i class="fa-solid fa-sparkles"></i>
+            AI Powered
+        </div>
+    </div>
+</div>
+</div>
+
+</html>

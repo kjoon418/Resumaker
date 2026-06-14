@@ -1,0 +1,158 @@
+<html>
+        <head>
+            <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" crossorigin="anonymous">
+            <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css" crossorigin="anonymous">
+            <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4" crossorigin="anonymous"></script>
+            <style> * { font-family: 'Pretendard', sans-serif; } </style>
+        </head>
+
+        
+<div class="ui-screen">
+    <div id="app" class="relative w-[390px] min-h-[840px] bg-slate-50 overflow-clip">
+    <!-- Header -->
+    <header id="header" class="sticky top-0 z-50 flex items-center justify-between px-5 h-[60px] bg-white border-b border-slate-100">
+        <div class="flex items-center gap-3">
+            <i class="fa-solid fa-chevron-left text-slate-400 text-lg"></i>
+            <h1 class="text-[17px] font-bold text-slate-900">포트폴리오 생성</h1>
+        </div>
+        <button class="text-slate-400">
+            <i class="fa-solid fa-xmark text-xl"></i>
+        </button>
+    </header>
+
+    <!-- Progress Steps -->
+    <div id="progress-bar" class="flex px-5 py-4 bg-white items-center justify-between">
+        <div class="flex items-center gap-2">
+            <div class="flex items-center justify-center w-6 h-6 rounded-full bg-blue-600 text-white text-[12px] font-bold">
+                <i class="fa-solid fa-check"></i>
+            </div>
+            <div class="h-[2px] w-8 bg-blue-600"></div>
+            <div class="flex items-center justify-center w-6 h-6 rounded-full bg-blue-600 text-white text-[12px] font-bold">
+                <i class="fa-solid fa-check"></i>
+            </div>
+            <div class="h-[2px] w-8 bg-blue-600"></div>
+            <div class="flex items-center justify-center w-6 h-6 rounded-full bg-blue-600 text-white text-[12px] font-bold">
+                <i class="fa-solid fa-check"></i>
+            </div>
+            <div class="h-[2px] w-8 bg-blue-600"></div>
+            <div class="flex items-center justify-center w-6 h-6 rounded-full bg-blue-600 text-white text-[12px] font-bold">4</div>
+        </div>
+        <span class="text-[13px] font-medium text-blue-600">이력서 완성</span>
+    </div>
+
+    <!-- Success Message -->
+    <div id="success-banner" class="px-5 py-8 text-center bg-white border-b border-slate-100">
+        <div class="inline-flex items-center justify-center w-16 h-16 mb-4 bg-blue-50 rounded-full">
+            <i class="fa-solid fa-sparkles text-3xl text-blue-600"></i>
+        </div>
+        <h2 class="text-xl font-bold text-slate-900 mb-2">이력서가 완성되었습니다!</h2>
+        <p class="text-[14px] text-slate-500 leading-relaxed">AI가 입력하신 정보를 바탕으로<br>최적의 이력서를 생성했습니다.</p>
+    </div>
+
+    <!-- Resume Preview Card -->
+    <div id="resume-preview" class="px-5 py-6 pb-32">
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+            <!-- Resume Header -->
+            <div class="p-6 bg-slate-900 text-white">
+                <div class="flex items-start justify-between mb-4">
+                    <div>
+                        <h3 class="text-2xl font-bold mb-1">김지훈</h3>
+                        <p class="text-slate-300 text-[14px]">Senior Backend Engineer</p>
+                    </div>
+                    <div class="w-14 h-14 rounded-full overflow-hidden border-2 border-white/20">
+                        <img src="https://vinsign.app/resources/avatars/avatar-2.png" alt="Profile Image" class="w-full h-full object-cover">
+                    </div>
+                </div>
+                <div class="flex flex-wrap gap-3 text-[12px] text-slate-400">
+                    <span class="flex items-center gap-1"><i class="fa-solid fa-envelope"></i> jihun.kim@email.com</span>
+                    <span class="flex items-center gap-1"><i class="fa-solid fa-phone"></i> 010-1234-5678</span>
+                </div>
+            </div>
+
+            <!-- Resume Body -->
+            <div class="p-6 space-y-8">
+                <!-- Slogan -->
+                <section id="resume-slogan">
+                    <h4 class="text-[13px] font-bold text-blue-600 uppercase tracking-wider mb-2">Summary</h4>
+                    <p class="text-[16px] font-bold text-slate-900 leading-snug italic">
+                        "복잡한 비즈니스 로직을 단순화하고, 확장 가능한 시스템을 설계하는 아키텍트입니다."
+                    </p>
+                </section>
+
+                <!-- Core Strengths -->
+                <section id="resume-strengths">
+                    <h4 class="text-[13px] font-bold text-blue-600 uppercase tracking-wider mb-3">Core Strengths</h4>
+                    <div class="flex flex-wrap gap-2">
+                        <span class="px-3 py-1 bg-slate-100 text-slate-700 text-[12px] font-medium rounded-full">#대규모_트래픽_처리</span>
+                        <span class="px-3 py-1 bg-slate-100 text-slate-700 text-[12px] font-medium rounded-full">#MSA_전문가</span>
+                        <span class="px-3 py-1 bg-slate-100 text-slate-700 text-[12px] font-medium rounded-full">#성능_최적화</span>
+                    </div>
+                </section>
+
+                <!-- Experience -->
+                <section id="resume-experience">
+                    <h4 class="text-[13px] font-bold text-blue-600 uppercase tracking-wider mb-4">Key Projects</h4>
+                    <div class="space-y-6">
+                        <div class="relative pl-4 border-l-2 border-slate-100">
+                            <span class="text-[12px] text-slate-400 font-medium">2025.01 - 현재</span>
+                            <h5 class="text-[15px] font-bold text-slate-900 mt-1">글로벌 커머스 결제 시스템 고도화</h5>
+                            <ul class="mt-2 space-y-1.5">
+                                <li class="text-[13px] text-slate-600 flex items-start gap-2">
+                                    <span class="mt-1.5 w-1 h-1 bg-slate-400 rounded-full shrink-0"></span>
+                                    트래픽 급증 대비 서킷 브레이커 도입으로 시스템 안정성 40% 향상
+                                </li>
+                                <li class="text-[13px] text-slate-600 flex items-start gap-2">
+                                    <span class="mt-1.5 w-1 h-1 bg-slate-400 rounded-full shrink-0"></span>
+                                    결제 승인 로직 비동기 처리로 응답 속도 200ms 단축
+                                </li>
+                            </ul>
+                        </div>
+                        <div class="relative pl-4 border-l-2 border-slate-100">
+                            <span class="text-[12px] text-slate-400 font-medium">2024.03 - 2024.12</span>
+                            <h5 class="text-[15px] font-bold text-slate-900 mt-1">실시간 데이터 분석 파이프라인 구축</h5>
+                            <ul class="mt-2 space-y-1.5">
+                                <li class="text-[13px] text-slate-600 flex items-start gap-2">
+                                    <span class="mt-1.5 w-1 h-1 bg-slate-400 rounded-full shrink-0"></span>
+                                    Kafka를 활용한 실시간 로그 수집 시스템 설계
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Collaboration & Tech -->
+                <div class="grid grid-cols-2 gap-6">
+                    <section id="resume-tech">
+                        <h4 class="text-[13px] font-bold text-blue-600 uppercase tracking-wider mb-2">Tech Stack</h4>
+                        <p class="text-[13px] text-slate-600 leading-relaxed">Java, Spring Boot, Go, AWS, Kubernetes, Redis</p>
+                    </section>
+                    <section id="resume-collab">
+                        <h4 class="text-[13px] font-bold text-blue-600 uppercase tracking-wider mb-2">Collaboration</h4>
+                        <p class="text-[13px] text-slate-600 leading-relaxed">Agile, Kanban, Pair Programming 선호</p>
+                    </section>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Download Info -->
+        <div class="mt-6 p-4 bg-blue-50 rounded-xl flex items-center gap-3">
+            <i class="fa-solid fa-circle-info text-blue-500"></i>
+            <p class="text-[12px] text-blue-700 leading-tight">생성된 내용은 자유롭게 수정할 수 있으며, PDF로 내보내기가 가능합니다.</p>
+        </div>
+    </div>
+
+    <!-- Fixed Bottom Action Bar -->
+    <div id="bottom-action" class="absolute bottom-0 left-0 right-0 p-5 bg-white border-t border-slate-100 flex gap-3">
+        <button class="flex-1 h-[56px] rounded-xl bg-slate-100 text-slate-700 font-bold text-[16px] flex items-center justify-center gap-2">
+            <i class="fa-solid fa-download"></i>
+            저장하기
+        </button>
+        <button class="flex-[2] h-[56px] rounded-xl bg-blue-600 text-white font-bold text-[16px] flex items-center justify-center gap-2 shadow-lg shadow-blue-200">
+            <i class="fa-solid fa-pen-to-square"></i>
+            수정하러 가기
+        </button>
+    </div>
+</div>
+</div>
+
+</html>

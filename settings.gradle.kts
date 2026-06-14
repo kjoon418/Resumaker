@@ -30,5 +30,4 @@ dependencyResolutionManagement {
 
 include(":app:shared")
 include(":app:webApp")
-include(":core")
 include(":server")
