@@ -62,12 +62,28 @@ object RmSize {
     val iconChip: Dp = 48.dp          // 경험유형 아이콘칩
     val iconChipSmall: Dp = 40.dp
     val topBarHeight: Dp = 56.dp
+    val headerHeight: Dp = 64.dp      // §7 전체폭 웹 헤더(WX-7/9)
     val bottomNavHeight: Dp = 80.dp
     val multilineMinHeight: Dp = 120.dp
     val targetBodyMinHeight: Dp = 140.dp
-    val appColumnWidth: Dp = 440.dp   // §7 앱 컬럼 기본 폭
-    val appColumnMax: Dp = 480.dp
-    val appColumnMin: Dp = 360.dp
+
+    // §7 웹 반응형 컨테이너 폭(WX-1). 리스트/홈은 넓게, 폼·세션은 읽기 최적폭으로 좁게.
+    val contentMaxWide: Dp = 1120.dp  // 리스트/홈 콘텐츠 최대폭
+    val contentMaxNarrow: Dp = 640.dp // 폼·세션 콘텐츠 최대폭
+
+    // §7 브레이크포인트(WX-1). <600 Compact / 600~1024 Medium / >1024 Expanded.
+    val breakpointCompact: Dp = 600.dp
+    val breakpointExpanded: Dp = 1024.dp
+
+    // §7 콘텐츠 좌우 패딩(브레이크포인트별): 데스크톱 32 / 태블릿 24 / 모바일 20.
+    val pagePaddingExpanded: Dp = 32.dp
+    val pagePaddingMedium: Dp = 24.dp
+    val pagePaddingCompact: Dp = 20.dp
+
+    // §4.2 반응형 카드 그리드 최소 셀폭(WX-5).
+    val gridCellMin: Dp = 320.dp
+
+    // Compact(<600px) 폴백 전용 — 모바일 단일 컬럼은 fillMaxWidth라 폭 토큰 불필요(WX-10).
 
     // 아이콘 크기 토큰(MINOR-8: 화면 곳곳의 raw 12/16/18/20/22dp 흡수).
     val iconXs: Dp = 12.dp     // 태그 x·AddChip + 아이콘

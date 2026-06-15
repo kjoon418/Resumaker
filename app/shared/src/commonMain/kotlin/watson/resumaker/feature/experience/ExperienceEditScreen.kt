@@ -28,20 +28,21 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import watson.resumaker.ui.component.AddChip
 import watson.resumaker.ui.component.AppScaffold
-import watson.resumaker.ui.component.BottomActionBar
+import watson.resumaker.ui.component.ContentWidth
 import watson.resumaker.ui.component.ErrorBanner
 import watson.resumaker.ui.component.ExperienceTypeSelector
 import watson.resumaker.ui.component.InfoCard
 import watson.resumaker.ui.component.LoadingState
+import watson.resumaker.ui.component.PageHeader
 import watson.resumaker.ui.component.PrimaryButton
 import watson.resumaker.ui.component.RmTextField
-import watson.resumaker.ui.component.RmTopBar
 import watson.resumaker.ui.component.SkillTag
 import watson.resumaker.ui.theme.RmIcons
 import watson.resumaker.ui.theme.RmSize
 import watson.resumaker.ui.theme.RmSpacing
 import watson.resumaker.ui.theme.RmTextStyles
 import watson.resumaker.ui.theme.RmTheme
+import watson.resumaker.ui.theme.pagePadding
 
 /**
  * 디자인 시스템 §8.4 경험 생성·수정. 필수(제목·유형·본문) + 정적 회상 보조(플레이스홀더 + 유도질문) +
@@ -68,29 +69,27 @@ fun ExperienceEditScreen(
 
     AppScaffold(
         snackbarHostState = snackbarHostState,
-        columnBackground = true,
-        topBar = {
-            RmTopBar(
+        contentWidth = ContentWidth.NARROW,
+        header = { windowSize ->
+            PageHeader(
                 title = if (state.isEditMode) "경험 수정" else "경험 기록",
+                contentMaxWidth = ContentWidth.NARROW.maxWidth,
+                horizontalPadding = windowSize.pagePadding(),
                 onBack = onBack,
             )
         },
-        floatingBottom = {
-            BottomActionBar {
-                PrimaryButton(text = "저장", onClick = viewModel::save, loading = state.submitting)
-            }
-        },
-    ) { contentModifier ->
+    ) { contentModifier, windowSize ->
+        val pad = windowSize.pagePadding()
         when {
             state.loading -> LoadingState(contentModifier, caption = "불러오는 중이에요")
-            state.loadError != null -> Box(contentModifier.padding(RmSpacing.contentPadding)) {
+            state.loadError != null -> Box(contentModifier.padding(pad)) {
                 ErrorBanner(message = state.loadError!!, onRetry = viewModel::retryLoad, title = "불러오지 못했어요")
             }
             else -> Column(
                 modifier = contentModifier
                     .verticalScroll(rememberScrollState())
-                    .padding(horizontal = RmSpacing.contentPadding)
-                    .padding(top = RmSpacing.space4, bottom = RmSpacing.space10 + RmSpacing.space10),
+                    .padding(horizontal = pad)
+                    .padding(top = RmSpacing.space6, bottom = RmSpacing.space10),
                 verticalArrangement = Arrangement.spacedBy(RmSpacing.space5),
             ) {
                 RmTextField(
@@ -132,6 +131,9 @@ fun ExperienceEditScreen(
                 }
 
                 OptionalSection(state = state, viewModel = viewModel)
+
+                // WX-6: 폼 하단 인라인 저장(데스크톱 floating CTA 폐기).
+                PrimaryButton(text = "저장", onClick = viewModel::save, loading = state.submitting)
             }
         }
     }

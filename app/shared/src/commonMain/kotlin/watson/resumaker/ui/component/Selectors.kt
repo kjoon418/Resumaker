@@ -128,7 +128,7 @@ private fun SelectorsPreview() {
             modifier = Modifier.fillMaxWidth().padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            SegmentedToggle(options = listOf("가입하기", "재진입"), selectedIndex = 0, onSelect = {})
+            SegmentedToggle(options = listOf("가입하기", "코드로 들어가기"), selectedIndex = 0, onSelect = {})
             ExperienceTypeSelector(selected = ExperienceType.PROJECT, onSelect = {})
         }
     }

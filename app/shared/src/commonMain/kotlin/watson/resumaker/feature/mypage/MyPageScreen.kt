@@ -22,19 +22,20 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import watson.resumaker.ui.component.AppHeader
 import watson.resumaker.ui.component.AppScaffold
 import watson.resumaker.ui.component.ConfirmDialog
+import watson.resumaker.ui.component.ContentWidth
 import watson.resumaker.ui.component.GhostButton
+import watson.resumaker.ui.component.HeaderTab
 import watson.resumaker.ui.component.InfoCard
-import watson.resumaker.ui.component.RmBottomNav
 import watson.resumaker.ui.component.RmCard
-import watson.resumaker.ui.component.RmTab
-import watson.resumaker.ui.component.RmTopBar
 import watson.resumaker.ui.theme.RmIcons
 import watson.resumaker.ui.theme.RmSize
 import watson.resumaker.ui.theme.RmSpacing
 import watson.resumaker.ui.theme.RmTextStyles
 import watson.resumaker.ui.theme.RmTheme
+import watson.resumaker.ui.theme.pagePadding
 
 /**
  * 디자인 시스템 §8.8 마이(계정) 간소화: 이메일·userId 표시, 로그아웃, 회원 탈퇴.
@@ -45,7 +46,7 @@ fun MyPageScreen(
     viewModel: MyPageViewModel,
     onBack: () -> Unit,
     onSignedOut: () -> Unit,
-    onTabSelect: (RmTab) -> Unit,
+    onSelectTab: (HeaderTab) -> Unit,
     onCopyUserId: (String) -> Unit,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -62,16 +63,26 @@ fun MyPageScreen(
 
     AppScaffold(
         snackbarHostState = snackbarHostState,
-        columnBackground = false,
-        topBar = { RmTopBar(title = "마이페이지", onBack = onBack) },
-        bottomBar = { RmBottomNav(selected = RmTab.MY, onSelect = onTabSelect) },
-    ) { contentModifier ->
+        contentWidth = ContentWidth.NARROW,
+        header = { windowSize ->
+            // WX-7/14: 마이는 헤더 계정 메뉴에서 진입 — 헤더 탭 강조 없음(selected=null), 계정 아이콘은 현 화면.
+            AppHeader(
+                selected = null,
+                onSelectTab = onSelectTab,
+                onOpenAccount = onBack,
+                windowSize = windowSize,
+                contentMaxWidth = ContentWidth.NARROW.maxWidth,
+                horizontalPadding = windowSize.pagePadding(),
+            )
+        },
+    ) { contentModifier, windowSize ->
         Column(
             modifier = contentModifier
-                .padding(horizontal = RmSpacing.contentPadding)
-                .padding(top = RmSpacing.space4),
+                .padding(horizontal = windowSize.pagePadding())
+                .padding(top = RmSpacing.space6),
             verticalArrangement = Arrangement.spacedBy(RmSpacing.space4),
         ) {
+            Text(text = "마이페이지", style = RmTextStyles.titleL, color = colors.textPrimary)
             Text(text = "계정 정보", style = RmTextStyles.headingM, color = colors.textPrimary)
 
             RmCard {
@@ -80,7 +91,8 @@ fun MyPageScreen(
                     Box(modifier = Modifier.fillMaxWidth().height(RmSize.hairline).background(colors.borderSubtle))
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text(text = "userId", style = RmTextStyles.caption, color = colors.textTertiary)
+                            // WX-2: 사용자 노출 라벨은 "복구 코드"로.
+                            Text(text = "복구 코드", style = RmTextStyles.caption, color = colors.textTertiary)
                             Text(
                                 text = state.userId ?: "—",
                                 style = RmTextStyles.bodyS,
@@ -93,7 +105,7 @@ fun MyPageScreen(
                             IconButton(onClick = { onCopyUserId(state.userId!!) }) {
                                 Icon(
                                     imageVector = RmIcons.Copy,
-                                    contentDescription = "userId 복사",
+                                    contentDescription = "복구 코드 복사",
                                     tint = colors.textSecondary,
                                     modifier = Modifier.size(RmSize.iconSm),
                                 )
@@ -103,10 +115,10 @@ fun MyPageScreen(
                 }
             }
 
-            // 재로그인 열쇠 안내(P0-2 보강): userId 보관 필요성을 마이페이지에서도 상시 고지.
-            InfoCard(icon = RmIcons.Info, title = "userId는 재로그인 열쇠예요") {
+            // 복구 코드 보관 안내(P0-2 보강): 상시 고지.
+            InfoCard(icon = RmIcons.Info, title = "복구 코드는 다시 들어올 때 필요한 열쇠예요") {
                 Text(
-                    text = "로그아웃하면 이 기기에서 userId가 지워져요. 위 복사 버튼으로 안전한 곳에 보관해 두세요.",
+                    text = "로그아웃하면 이 기기에서 복구 코드가 지워져요. 위 복사 버튼으로 안전한 곳에 보관해 두세요.",
                     style = RmTextStyles.bodyS,
                     color = colors.onPrimaryContainer,
                 )
@@ -121,9 +133,9 @@ fun MyPageScreen(
 
     if (state.confirmingLogout) {
         ConfirmDialog(
-            // UX-12: 카피 축약 + userId 복사 보조 버튼(아직 복사 안 한 사용자를 위한 즉시 행동).
+            // UX-12: 카피 축약 + 복구 코드 복사 보조 버튼(아직 복사 안 한 사용자를 위한 즉시 행동).
             title = "로그아웃하시겠어요?",
-            description = "로그아웃하면 이 기기에서 userId가 지워져요. 다시 들어오려면 userId가 필요해요.",
+            description = "로그아웃하면 이 기기에서 복구 코드가 지워져요. 다시 들어오려면 복구 코드가 필요해요.",
             confirmText = "로그아웃",
             onConfirm = viewModel::confirmLogout,
             onDismiss = viewModel::cancelLogout,
@@ -131,7 +143,7 @@ fun MyPageScreen(
             destructive = false,
             extraContent = state.userId?.let { id ->
                 {
-                    GhostButton(text = "userId 복사", onClick = { onCopyUserId(id) })
+                    GhostButton(text = "복구 코드 복사", onClick = { onCopyUserId(id) })
                 }
             },
         )

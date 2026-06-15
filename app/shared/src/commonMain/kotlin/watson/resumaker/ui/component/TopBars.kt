@@ -1,10 +1,14 @@
 package watson.resumaker.ui.component
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
@@ -13,7 +17,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Dp
 import watson.resumaker.ui.theme.RmIcons
 import watson.resumaker.ui.theme.RmSize
 import watson.resumaker.ui.theme.RmSpacing
@@ -100,6 +106,72 @@ fun BrandTopBar(
         if (actionContent != null) {
             Box(modifier = Modifier.align(Alignment.CenterEnd)) { actionContent() }
         }
+    }
+}
+
+/**
+ * 디자인 시스템 §5.6/§7 PageHeader(WX-9). 전체폭 64dp 웹 헤더 — 폼·세션·상세 화면용.
+ * 좌측 back chevron + 좌측 정렬 타이틀, 우측 옵션 [actionText]. 콘텐츠는 [contentMaxWidth]로 중앙 제한.
+ * 헤더 막대는 전체폭 surface + 하단 헤어라인.
+ */
+@Composable
+fun PageHeader(
+    title: String,
+    contentMaxWidth: Dp,
+    horizontalPadding: Dp,
+    modifier: Modifier = Modifier,
+    onBack: (() -> Unit)? = null,
+    actionText: String? = null,
+    onAction: (() -> Unit)? = null,
+    actionEnabled: Boolean = true,
+) {
+    val colors = RmTheme.colors
+    Column(modifier = modifier.fillMaxWidth().background(colors.surface)) {
+        Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
+            Row(
+                modifier = Modifier
+                    .widthIn(max = contentMaxWidth)
+                    .fillMaxWidth()
+                    .height(RmSize.headerHeight)
+                    .padding(horizontal = horizontalPadding),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                if (onBack != null) {
+                    IconButton(
+                        onClick = onBack,
+                        modifier = Modifier.padding(end = RmSpacing.space1),
+                    ) {
+                        Icon(
+                            imageVector = RmIcons.ChevronLeft,
+                            contentDescription = "뒤로",
+                            tint = colors.textPrimary,
+                            modifier = Modifier.size(RmSize.iconMd),
+                        )
+                    }
+                }
+                Text(
+                    text = title,
+                    style = RmTextStyles.headingS,
+                    color = colors.textPrimary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
+                )
+                if (actionText != null && onAction != null) {
+                    androidx.compose.material3.TextButton(
+                        onClick = onAction,
+                        enabled = actionEnabled,
+                        colors = androidx.compose.material3.ButtonDefaults.textButtonColors(
+                            contentColor = colors.primary,
+                            disabledContentColor = colors.primary.copy(alpha = 0.4f),
+                        ),
+                    ) {
+                        Text(text = actionText, style = RmTextStyles.bodyS.copy(fontWeight = FontWeight.Bold))
+                    }
+                }
+            }
+        }
+        Box(modifier = Modifier.fillMaxWidth().height(RmSize.hairline).background(colors.borderSubtle))
     }
 }
 

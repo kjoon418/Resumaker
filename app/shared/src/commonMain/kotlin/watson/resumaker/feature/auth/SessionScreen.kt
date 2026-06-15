@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import watson.resumaker.ui.component.AppScaffold
 import watson.resumaker.ui.component.BrandTopBar
+import watson.resumaker.ui.component.ContentWidth
 import watson.resumaker.ui.component.InfoCard
 import watson.resumaker.ui.component.PrimaryButton
 import watson.resumaker.ui.component.RmCard
@@ -39,6 +40,7 @@ import watson.resumaker.ui.theme.RmSize
 import watson.resumaker.ui.theme.RmSpacing
 import watson.resumaker.ui.theme.RmTextStyles
 import watson.resumaker.ui.theme.RmTheme
+import watson.resumaker.ui.theme.pagePadding
 import watson.resumaker.validation.Validators
 
 /**
@@ -84,13 +86,13 @@ fun SessionScreen(
 
     AppScaffold(
         snackbarHostState = snackbarHostState,
-        columnBackground = true,
-        topBar = { BrandTopBar() },
-    ) { contentModifier ->
+        contentWidth = ContentWidth.NARROW,
+        header = { BrandTopBar() },
+    ) { contentModifier, windowSize ->
         Column(
             modifier = contentModifier
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = RmSpacing.contentPadding),
+                .padding(horizontal = windowSize.pagePadding()),
             verticalArrangement = Arrangement.spacedBy(RmSpacing.space5),
         ) {
             Spacer(Modifier.height(RmSpacing.space4))
@@ -102,7 +104,8 @@ fun SessionScreen(
             )
 
             SegmentedToggle(
-                options = listOf("가입하기", "재진입"),
+                // WX-3: "재진입" → 결과 예측 가능한 "코드로 들어가기".
+                options = listOf("가입하기", "코드로 들어가기"),
                 selectedIndex = if (state.mode == SessionMode.SIGN_UP) 0 else 1,
                 onSelect = { viewModel.selectMode(if (it == 0) SessionMode.SIGN_UP else SessionMode.REENTER) },
             )
@@ -137,12 +140,14 @@ fun SessionScreen(
                         color = colors.textTertiary,
                     )
                     PrimaryButton(
-                        text = "회원가입 완료",
+                        // WX-2: 동사형 강화.
+                        text = "가입하고 시작하기",
                         onClick = viewModel::submit,
                         loading = state.submitting,
                     )
                     TextLink(
-                        text = "이미 userId가 있으신가요? 재진입",
+                        // WX-2/3: "userId"→"복구 코드", "재진입"→"코드로 들어가기".
+                        text = "이미 복구 코드가 있으신가요? 코드로 들어가기",
                         onClick = { viewModel.selectMode(SessionMode.REENTER) },
                     )
                 }
@@ -151,15 +156,16 @@ fun SessionScreen(
                     RmTextField(
                         value = state.userIdInput,
                         onValueChange = viewModel::onUserIdChange,
-                        label = "userId",
-                        placeholder = "가입 시 발급받은 userId(UUID)",
+                        // WX-2/12: 사용자 노출 문자열은 "복구 코드"로(UUID 표기 제거). 변수명 userIdInput은 유지.
+                        label = "복구 코드",
+                        placeholder = "가입할 때 받은 복구 코드",
                         keyboardType = KeyboardType.Ascii,
                         error = state.userIdError,
-                        helper = if (state.userIdError == null) "마이페이지에서 복사한 userId를 붙여넣어 주세요." else null,
+                        helper = if (state.userIdError == null) "마이페이지에서 복사한 복구 코드를 붙여넣어 주세요." else null,
                         imeAction = ImeAction.Done,
                         onImeAction = viewModel::submit,
                     )
-                    PrimaryButton(text = "재진입", onClick = viewModel::submit)
+                    PrimaryButton(text = "코드로 들어가기", onClick = viewModel::submit)
                     TextLink(
                         text = "처음이신가요? 가입하기",
                         onClick = { viewModel.selectMode(SessionMode.SIGN_UP) },
@@ -185,24 +191,25 @@ private fun IssuedUserIdView(
     val colors = RmTheme.colors
     AppScaffold(
         snackbarHostState = snackbarHostState,
-        columnBackground = true,
-        topBar = { BrandTopBar() },
-    ) { contentModifier ->
+        contentWidth = ContentWidth.NARROW,
+        header = { BrandTopBar() },
+    ) { contentModifier, windowSize ->
         Column(
             modifier = contentModifier
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = RmSpacing.contentPadding),
+                .padding(horizontal = windowSize.pagePadding()),
             verticalArrangement = Arrangement.spacedBy(RmSpacing.space5),
         ) {
             Spacer(Modifier.height(RmSpacing.space4))
             Text(text = "가입이 완료됐어요!", style = RmTextStyles.displayL, color = colors.textPrimary)
             Text(
-                text = "아래 userId가 당신의 재로그인 열쇠예요. 이 서비스는 별도 로그인이 없어, 다른 기기나 브라우저에서 다시 들어오려면 이 값이 꼭 필요해요.",
+                // WX-2: "userId" → "복구 코드".
+                text = "아래 복구 코드가 다시 들어올 때 필요한 열쇠예요. 이 서비스는 별도 로그인이 없어, 다른 기기나 브라우저에서 다시 들어오려면 이 코드가 꼭 필요해요.",
                 style = RmTextStyles.bodyL,
                 color = colors.textSecondary,
             )
 
-            Text(text = "내 userId", style = RmTextStyles.label, color = colors.textLabel)
+            Text(text = "내 복구 코드", style = RmTextStyles.label, color = colors.textLabel)
             RmCard {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
@@ -216,7 +223,7 @@ private fun IssuedUserIdView(
                     IconButton(onClick = onCopy) {
                         Icon(
                             imageVector = RmIcons.Copy,
-                            contentDescription = "userId 복사",
+                            contentDescription = "복구 코드 복사",
                             tint = colors.primary,
                             modifier = Modifier.size(RmSize.iconSm),
                         )
@@ -226,7 +233,7 @@ private fun IssuedUserIdView(
 
             InfoCard(icon = RmIcons.Info, title = "꼭 복사해 안전한 곳에 보관하세요") {
                 Text(
-                    text = "userId를 잃어버리면 기록한 경험·목표에 다시 접근할 수 없어요. 비밀번호 관리자나 메모에 저장해 두는 것을 권장해요.",
+                    text = "복구 코드를 잃어버리면 기록한 경험·목표에 다시 접근할 수 없어요. 비밀번호 관리자나 메모에 저장해 두는 것을 권장해요.",
                     style = RmTextStyles.bodyS,
                     color = colors.onPrimaryContainer,
                 )

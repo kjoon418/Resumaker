@@ -26,11 +26,11 @@ object Validators {
         return null
     }
 
-    /** userId(UUID) 형식 검증 — 재진입용. */
+    /** 복구 코드(UUID) 형식 검증 — 재진입용. 변수·함수명 userId는 내부 식별자로 유지(WX-2). */
     fun validateUserId(value: String): String? {
         val trimmed = value.trim()
-        if (trimmed.isEmpty()) return "발급받은 userId를 입력해 주세요."
-        if (!uuidRegex.matches(trimmed)) return "userId 형식이 올바르지 않아요. 가입 시 받은 값을 그대로 붙여넣어 주세요."
+        if (trimmed.isEmpty()) return "발급받은 복구 코드를 입력해 주세요."
+        if (!uuidRegex.matches(trimmed)) return "복구 코드 형식이 올바르지 않아요. 가입할 때 받은 값을 그대로 붙여넣어 주세요."
         return null
     }
 

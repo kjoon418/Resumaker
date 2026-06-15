@@ -8,70 +8,84 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.Dp
 import watson.resumaker.ui.theme.RmSize
 import watson.resumaker.ui.theme.RmTheme
+import watson.resumaker.ui.theme.WindowSize
+import watson.resumaker.ui.theme.windowSizeFor
 
 /**
- * 디자인 시스템 §7 반응형 컨테이너. 루트 = background 위에 앱 컬럼(기본 440dp)을 수평 중앙 배치.
- * < 480dp 뷰포트에서는 컬럼이 fillMaxWidth(중앙정렬 무의미).
+ * 콘텐츠 컨테이너 폭 종류(WX-1). [WIDE]=리스트/홈(1120dp), [NARROW]=폼·세션(640dp).
+ */
+enum class ContentWidth(val maxWidth: Dp) {
+    WIDE(RmSize.contentMaxWide),
+    NARROW(RmSize.contentMaxNarrow),
+}
+
+/**
+ * 디자인 시스템 §7 웹 반응형 스캐폴드(WX-1/7/9). 전체폭 sticky 헤더 + 중앙 콘텐츠 컨테이너 구조.
  *
- * 구조: [topBar](고정) / 본문(스크롤은 호출자 책임) / [bottomBar](고정).
- * [floatingBottom]은 본문 위에 떠 있는 하단 고정 CTA(컬럼 폭 기준).
- * 스낵바는 [snackbarHostState]로 표시한다.
+ * - [header]: 전체폭(100vw) 상단 영역(예: [AppHeader] 또는 폼용 back 헤더). surface 배경은 호출자/헤더가 책임.
+ * - 본문: [contentWidth] max-width로 중앙 정렬. content 람다에 (Modifier, WindowSize)를 넘겨
+ *   화면이 패딩·그리드 열수를 직접 결정하게 한다.
+ * - [floatingBottom]: Compact(<600px) 폴백용 하단 고정 CTA(데스크톱에선 미사용 권장). 컨테이너 폭 기준 정렬.
+ * - 스낵바는 [snackbarHostState]로 콘텐츠 컨테이너 하단에 표시.
  */
 @Composable
 fun AppScaffold(
     modifier: Modifier = Modifier,
     snackbarHostState: SnackbarHostState = remember { SnackbarHostState() },
-    columnBackground: Boolean = false,
-    topBar: (@Composable () -> Unit)? = null,
-    bottomBar: (@Composable () -> Unit)? = null,
+    contentWidth: ContentWidth = ContentWidth.WIDE,
+    header: (@Composable (WindowSize) -> Unit)? = null,
     floatingBottom: (@Composable () -> Unit)? = null,
-    content: @Composable (Modifier) -> Unit,
+    content: @Composable (Modifier, WindowSize) -> Unit,
 ) {
     val colors = RmTheme.colors
     BoxWithConstraints(
         modifier = modifier
             .fillMaxSize()
             .background(colors.background),
-        contentAlignment = Alignment.TopCenter,
     ) {
-        val isCompact = maxWidth < RmSize.appColumnMax
-        val columnModifier = if (isCompact) {
-            Modifier.fillMaxWidth()
-        } else {
-            Modifier.width(RmSize.appColumnWidth)
-        }
-
-        Column(
-            modifier = columnModifier
-                .fillMaxHeight()
-                .then(if (columnBackground) Modifier.background(colors.surface) else Modifier),
-        ) {
-            if (topBar != null) {
-                Box(modifier = Modifier.background(colors.surface)) { topBar() }
+        val windowSize = windowSizeFor(maxWidth)
+        Column(modifier = Modifier.fillMaxSize()) {
+            if (header != null) {
+                header(windowSize)
             }
-            Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
-                content(Modifier.fillMaxSize())
+            Box(
+                modifier = Modifier.weight(1f).fillMaxWidth(),
+                contentAlignment = Alignment.TopCenter,
+            ) {
+                // 콘텐츠 컨테이너: max-width 중앙 정렬(Expanded는 제한, 그 이하는 가용폭).
+                val containerModifier = Modifier
+                    .widthIn(max = contentWidth.maxWidth)
+                    .fillMaxWidth()
+                    .fillMaxHeight()
+                content(containerModifier, windowSize)
+
                 if (floatingBottom != null) {
-                    Box(modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth()) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .widthIn(max = contentWidth.maxWidth)
+                            .fillMaxWidth(),
+                    ) {
                         floatingBottom()
                     }
                 }
                 SnackbarHost(
                     hostState = snackbarHostState,
-                    modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = RmSize.snackbarBottomGap),
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .widthIn(max = contentWidth.maxWidth)
+                        .padding(bottom = RmSize.snackbarBottomGap),
                 )
-            }
-            if (bottomBar != null) {
-                bottomBar()
             }
         }
     }

@@ -96,7 +96,7 @@ private fun ConfirmDialogNonDestructivePreview() {
     RmTheme {
         ConfirmDialog(
             title = "로그아웃하시겠어요?",
-            description = "로그아웃하면 이 기기에서 userId가 지워져요.",
+            description = "로그아웃하면 이 기기에서 복구 코드가 지워져요.",
             confirmText = "로그아웃",
             onConfirm = {},
             onDismiss = {},

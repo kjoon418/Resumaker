@@ -1,18 +1,27 @@
 package watson.resumaker.ui.component
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsHoveredAsState
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -20,6 +29,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.tooling.preview.Preview
+import watson.resumaker.ui.theme.RmIcons
 import watson.resumaker.ui.theme.RmRadius
 import watson.resumaker.ui.theme.RmSize
 import watson.resumaker.ui.theme.RmSpacing
@@ -44,13 +54,15 @@ fun PrimaryButton(
     val colors = RmTheme.colors
     val interaction = remember { MutableInteractionSource() }
     val scale = rememberPressScale(interaction, pressedScale)
+    // WX-17: 웹 hover 시 배경 톤을 한 단계 진하게(pressed 색) 바꿔 마우스 피드백을 준다.
+    val hovered by interaction.collectIsHoveredAsState()
     Button(
         onClick = onClick,
         enabled = enabled && !loading,
         interactionSource = interaction,
         shape = RoundedCornerShape(RmRadius.card),
         colors = ButtonDefaults.buttonColors(
-            containerColor = colors.primary,
+            containerColor = if (hovered) colors.primaryPressed else colors.primary,
             contentColor = colors.onPrimary,
             disabledContainerColor = colors.primary.copy(alpha = 0.4f),
             disabledContentColor = colors.onPrimary.copy(alpha = 0.7f),
@@ -159,6 +171,48 @@ fun TextLink(
     }
 }
 
+/**
+ * 디자인 시스템 §5.1 InlineAddButton(WX-6). 리스트/섹션 헤더 인라인 "추가" 버튼(아이콘 + 라벨).
+ * 데스크톱 하단 floating CTA를 대체한다. 웹 hover 시 배경 톤·테두리 강조(WX-15/17).
+ */
+@Composable
+fun InlineAddButton(
+    text: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colors = RmTheme.colors
+    val interaction = remember { MutableInteractionSource() }
+    val scale = rememberPressScale(interaction)
+    val hovered by interaction.collectIsHoveredAsState()
+    Row(
+        modifier = modifier
+            .height(RmSize.iconChipSmall)
+            .graphicsLayer { scaleX = scale; scaleY = scale }
+            .background(
+                if (hovered) colors.primaryContainer else colors.surfaceSubtle,
+                RoundedCornerShape(RmRadius.card),
+            )
+            .border(RmSize.hairline, colors.primaryBorder, RoundedCornerShape(RmRadius.card))
+            .clickable(interactionSource = interaction, indication = null, onClick = onClick)
+            .padding(horizontal = RmSpacing.space3),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(RmSpacing.space1),
+    ) {
+        Icon(
+            imageVector = RmIcons.Add,
+            contentDescription = null,
+            tint = colors.primary,
+            modifier = Modifier.size(RmSize.iconSm),
+        )
+        Text(
+            text = text,
+            style = RmTextStyles.bodyS.copy(fontWeight = FontWeight.Bold),
+            color = colors.primary,
+        )
+    }
+}
+
 @Preview
 @Composable
 private fun ButtonsPreview() {
@@ -167,10 +221,11 @@ private fun ButtonsPreview() {
             modifier = Modifier.fillMaxWidth(),
             verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp),
         ) {
-            PrimaryButton(text = "회원가입 완료", onClick = {})
+            PrimaryButton(text = "가입하고 시작하기", onClick = {})
             SecondaryButton(text = "목표 추가하기", onClick = {})
             GhostButton(text = "건너뛰기", onClick = {})
-            TextLink(text = "이미 userId가 있으신가요? 재진입", onClick = {})
+            InlineAddButton(text = "기록하기", onClick = {})
+            TextLink(text = "이미 복구 코드가 있으신가요? 코드로 들어가기", onClick = {})
         }
     }
 }

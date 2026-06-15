@@ -3,7 +3,9 @@ package watson.resumaker.ui.component
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,6 +17,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
@@ -44,12 +48,20 @@ fun RmCard(
     content: @Composable () -> Unit,
 ) {
     val colors = RmTheme.colors
+    // WX-15: 웹 hover 시 그림자를 한 단계 키워(card→button elevation) 카드가 떠오르는 피드백을 준다.
+    val interaction = remember { MutableInteractionSource() }
+    val hovered by interaction.collectIsHoveredAsState()
+    val elevation = if (onClick != null && hovered) RmElevation.button else RmElevation.card
     val base = modifier
         .fillMaxWidth()
-        .shadow(RmElevation.card, RoundedCornerShape(RmRadius.card))
+        .shadow(elevation, RoundedCornerShape(RmRadius.card))
         .background(colors.surface, RoundedCornerShape(RmRadius.card))
         .border(RmSize.hairline, colors.borderSubtle, RoundedCornerShape(RmRadius.card))
-    val clickable = if (onClick != null) base.pressScale(onClick = onClick) else base
+    val clickable = if (onClick != null) {
+        base.hoverable(interaction).pressScale(onClick = onClick)
+    } else {
+        base
+    }
     Box(modifier = clickable.padding(RmSpacing.space4)) {
         content()
     }
