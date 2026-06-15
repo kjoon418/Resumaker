@@ -16,3 +16,17 @@ data class SignUpRequest(
 data class SignUpResponse(
     val userId: String,
 )
+
+/**
+ * 로그인 요청/응답 DTO. 서버 `account.presentation.AccountDtos`와 1:1.
+ */
+@Serializable
+data class LoginRequest(
+    val email: String,
+    val password: String,
+)
+
+@Serializable
+data class LoginResponse(
+    val userId: String,
+)

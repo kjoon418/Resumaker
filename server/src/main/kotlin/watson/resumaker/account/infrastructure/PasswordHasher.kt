@@ -1,6 +1,7 @@
 package watson.resumaker.account.infrastructure
 
 import org.springframework.stereotype.Component
+import java.security.MessageDigest
 import java.security.SecureRandom
 import java.util.Base64
 import javax.crypto.SecretKeyFactory
@@ -31,7 +32,7 @@ class PasswordHasher {
         val salt = decode(parts[1])
         val expected = decode(parts[2])
         val actual = pbkdf2(rawPassword, salt, iterations)
-        return expected.contentEquals(actual)
+        return MessageDigest.isEqual(expected, actual)
     }
 
     private fun pbkdf2(rawPassword: String, salt: ByteArray, iterations: Int): ByteArray {

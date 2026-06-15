@@ -35,17 +35,6 @@ class ValidatorsTest {
     }
 
     @Test
-    fun validUuidPasses() {
-        assertNull(Validators.validateUserId("123e4567-e89b-12d3-a456-426614174000"))
-    }
-
-    @Test
-    fun nonUuidFails() {
-        assertNotNull(Validators.validateUserId("not-a-uuid"))
-        assertNotNull(Validators.validateUserId(""))
-    }
-
-    @Test
     fun requiredBlankFails() {
         assertNotNull(Validators.validateRequired("   ", "필요"))
     }

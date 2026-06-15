@@ -11,8 +11,8 @@ import watson.resumaker.account.application.AccountService
 import watson.resumaker.account.application.CurrentUserProvider
 
 /**
- * 계정 API: 회원가입(POST /auth/signup), 계정 삭제(DELETE /me).
- * 로그인 엔드포인트는 이번 태스크에서 생략한다(구현 설계 §12 — 후속).
+ * 계정 API: 회원가입(POST /auth/signup), 로그인(POST /auth/login), 계정 삭제(DELETE /me).
+ * 로그인은 이메일+비밀번호를 검증해 userId를 돌려준다(기존 X-User-Id 모델 유지, JWT 없음 — 구현 설계 §278).
  */
 @RestController
 class AccountController(
@@ -26,6 +26,12 @@ class AccountController(
         val command = accountMapper.toSignUpCommand(request)
         val response = accountService.signUp(command)
         return ResponseEntity.status(HttpStatus.CREATED).body(response)
+    }
+
+    @PostMapping("/auth/login")
+    fun login(@Valid @RequestBody request: LoginRequest): ResponseEntity<LoginResponse> {
+        val response = accountService.login(request.email!!, request.password!!)
+        return ResponseEntity.ok(response)
     }
 
     @DeleteMapping("/me")

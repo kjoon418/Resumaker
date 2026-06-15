@@ -8,15 +8,15 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import watson.resumaker.fake.FakeAccountApi
 import watson.resumaker.fake.FakeSessionStore
-import watson.resumaker.network.ApiResult
+import watson.resumaker.model.dto.LoginResponse
 import watson.resumaker.model.dto.SignUpResponse
+import watson.resumaker.network.ApiResult
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
-import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class SessionViewModelTest {
@@ -54,7 +54,7 @@ class SessionViewModelTest {
     }
 
     @Test
-    fun successfulSignUpIssuesUserIdAndDefersEntryUntilAcknowledged() = runTest(dispatcher) {
+    fun successfulSignUpStoresSessionAndEntersHome() = runTest(dispatcher) {
         val api = FakeAccountApi(signUpResult = ApiResult.Success(SignUpResponse("user-42")))
         val session = FakeSessionStore()
         val vm = SessionViewModel(api, session)
@@ -64,15 +64,10 @@ class SessionViewModelTest {
         vm.submit()
         testScheduler.advanceUntilIdle()
 
-        // P0-1: 가입 성공 시 세션은 저장되지만, 보관 고지 화면을 거치기 전에는 홈으로 보내지 않는다.
-        assertEquals("user-42", vm.state.value.issuedUserId)
-        assertNull(vm.state.value.authenticatedUserId)
+        // 로그인이 있으므로 가입 성공 시 곧장 홈으로 진입한다(복구 코드 고지 없음).
+        assertEquals("user-42", vm.state.value.authenticatedUserId)
         assertEquals("user-42", session.currentUserId())
         assertEquals("name@example.com", session.currentEmail())
-
-        // 사용자가 userId 보관을 확인하면 진입.
-        vm.acknowledgeUserId()
-        assertEquals("user-42", vm.state.value.authenticatedUserId)
     }
 
     @Test
@@ -90,25 +85,53 @@ class SessionViewModelTest {
     }
 
     @Test
-    fun reenterWithValidUserIdStoresSession() = runTest(dispatcher) {
+    fun successfulLoginStoresSessionAndAuthenticates() = runTest(dispatcher) {
+        val api = FakeAccountApi(loginResult = ApiResult.Success(LoginResponse("user-7")))
         val session = FakeSessionStore()
-        val vm = SessionViewModel(FakeAccountApi(), session)
-        vm.selectMode(SessionMode.REENTER)
-        vm.onUserIdChange("123e4567-e89b-12d3-a456-426614174000")
-        vm.submit()
+        val vm = SessionViewModel(api, session)
 
-        assertEquals("123e4567-e89b-12d3-a456-426614174000", session.currentUserId())
-        assertNotNull(vm.state.value.authenticatedUserId)
+        vm.selectMode(SessionMode.LOGIN)
+        vm.onEmailChange("name@example.com")
+        vm.onPasswordChange("password1")
+        vm.submit()
+        testScheduler.advanceUntilIdle()
+
+        assertEquals("user-7", vm.state.value.authenticatedUserId)
+        assertEquals("user-7", session.currentUserId())
+        assertEquals("name@example.com", session.currentEmail())
+        assertEquals("name@example.com", api.lastLogin?.email)
     }
 
     @Test
-    fun reenterWithInvalidUserIdShowsError() = runTest(dispatcher) {
-        val vm = SessionViewModel(FakeAccountApi(), FakeSessionStore())
-        vm.selectMode(SessionMode.REENTER)
-        vm.onUserIdChange("nope")
+    fun failedLoginShowsGenericSnackbarAndDoesNotAuthenticate() = runTest(dispatcher) {
+        val api = FakeAccountApi(loginResult = ApiResult.Failure("이메일 또는 비밀번호가 일치하지 않아요."))
+        val session = FakeSessionStore()
+        val vm = SessionViewModel(api, session)
+
+        vm.selectMode(SessionMode.LOGIN)
+        vm.onEmailChange("name@example.com")
+        vm.onPasswordChange("wrongpass")
+        vm.submit()
+        testScheduler.advanceUntilIdle()
+
+        assertEquals("이메일 또는 비밀번호가 일치하지 않아요.", vm.state.value.snackbarMessage)
+        assertNull(vm.state.value.authenticatedUserId)
+        assertNull(session.currentUserId())
+    }
+
+    @Test
+    fun loginWithInvalidInputShowsInlineErrorAndDoesNotCallApi() = runTest(dispatcher) {
+        val api = FakeAccountApi()
+        val vm = SessionViewModel(api, FakeSessionStore())
+
+        vm.selectMode(SessionMode.LOGIN)
+        vm.onEmailChange("invalid")
+        vm.onPasswordChange("123")
         vm.submit()
 
-        assertNotNull(vm.state.value.userIdError)
+        assertNotNull(vm.state.value.emailError)
+        assertNotNull(vm.state.value.passwordError)
+        assertNull(api.lastLogin)
         assertNull(vm.state.value.authenticatedUserId)
     }
 }

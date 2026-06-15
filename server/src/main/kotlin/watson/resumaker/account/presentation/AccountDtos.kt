@@ -21,3 +21,21 @@ data class SignUpRequest(
 data class SignUpResponse(
     val userId: String,
 )
+
+/**
+ * 로그인 요청 DTO. Bean Validation은 필수값 null/blank 여부만 검증한다(검증 가이드).
+ * 이메일/비밀번호 일치 여부는 서비스가 영속 해시로 검증한다.
+ */
+data class LoginRequest(
+    @field:NotBlank(message = "이메일을 입력해 주세요.")
+    val email: String?,
+    @field:NotBlank(message = "비밀번호를 입력해 주세요.")
+    val password: String?,
+)
+
+/**
+ * 로그인 응답 DTO. 가입 응답과 동일하게 userId를 돌려준다(클라가 X-User-Id로 사용).
+ */
+data class LoginResponse(
+    val userId: String,
+)

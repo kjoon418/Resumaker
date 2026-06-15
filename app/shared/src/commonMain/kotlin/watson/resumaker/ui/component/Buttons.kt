@@ -225,7 +225,7 @@ private fun ButtonsPreview() {
             SecondaryButton(text = "목표 추가하기", onClick = {})
             GhostButton(text = "건너뛰기", onClick = {})
             InlineAddButton(text = "기록하기", onClick = {})
-            TextLink(text = "이미 복구 코드가 있으신가요? 코드로 들어가기", onClick = {})
+            TextLink(text = "이미 계정이 있으신가요? 로그인", onClick = {})
         }
     }
 }

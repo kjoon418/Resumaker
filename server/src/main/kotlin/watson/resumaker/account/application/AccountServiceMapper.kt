@@ -2,6 +2,7 @@ package watson.resumaker.account.application
 
 import org.springframework.stereotype.Component
 import watson.resumaker.account.domain.User
+import watson.resumaker.account.presentation.LoginResponse
 import watson.resumaker.account.presentation.SignUpResponse
 
 /**
@@ -12,4 +13,7 @@ class AccountServiceMapper {
 
     fun toSignUpResponse(user: User): SignUpResponse =
         SignUpResponse(userId = user.id.value.toString())
+
+    fun toLoginResponse(user: User): LoginResponse =
+        LoginResponse(userId = user.id.value.toString())
 }

@@ -36,7 +36,7 @@ class Credential private constructor(
          * 이미 해시된 비밀번호로 인증 수단을 만든다.
          */
         fun of(email: String, passwordHash: String): Credential =
-            Credential(email.trim(), passwordHash)
+            Credential(email.trim().lowercase(), passwordHash)
     }
 
     override fun equals(other: Any?): Boolean {

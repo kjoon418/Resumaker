@@ -3,6 +3,8 @@ package watson.resumaker.fake
 import watson.resumaker.model.dto.CreateExperienceRequest
 import watson.resumaker.model.dto.CreateTargetRequest
 import watson.resumaker.model.dto.ExperienceResponse
+import watson.resumaker.model.dto.LoginRequest
+import watson.resumaker.model.dto.LoginResponse
 import watson.resumaker.model.dto.SignUpRequest
 import watson.resumaker.model.dto.SignUpResponse
 import watson.resumaker.model.dto.TargetResponse
@@ -38,14 +40,20 @@ class FakeSessionStore(
 /** 결과를 미리 지정하는 fake AccountApi. */
 class FakeAccountApi(
     var signUpResult: ApiResult<SignUpResponse> = ApiResult.Success(SignUpResponse("u-1")),
+    var loginResult: ApiResult<LoginResponse> = ApiResult.Success(LoginResponse("u-1")),
     var deleteResult: ApiResult<Unit> = ApiResult.Success(Unit),
 ) : AccountApi {
     var lastSignUp: SignUpRequest? = null
+    var lastLogin: LoginRequest? = null
     var deleteCalled = false
 
     override suspend fun signUp(request: SignUpRequest): ApiResult<SignUpResponse> {
         lastSignUp = request
         return signUpResult
+    }
+    override suspend fun login(request: LoginRequest): ApiResult<LoginResponse> {
+        lastLogin = request
+        return loginResult
     }
     override suspend fun deleteAccount(): ApiResult<Unit> {
         deleteCalled = true

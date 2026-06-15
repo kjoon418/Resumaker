@@ -77,7 +77,7 @@ fun ExperienceTypeSelector(
 }
 
 /**
- * 2분기 세그먼트 컨트롤(§8.1 가입 / 재진입). slate-100 트랙 위 흰 선택 알약.
+ * 2분기 세그먼트 컨트롤(§8.1 가입 / 로그인). slate-100 트랙 위 흰 선택 알약.
  */
 @Composable
 fun SegmentedToggle(
@@ -128,7 +128,7 @@ private fun SelectorsPreview() {
             modifier = Modifier.fillMaxWidth().padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            SegmentedToggle(options = listOf("가입하기", "코드로 들어가기"), selectedIndex = 0, onSelect = {})
+            SegmentedToggle(options = listOf("가입하기", "로그인"), selectedIndex = 0, onSelect = {})
             ExperienceTypeSelector(selected = ExperienceType.PROJECT, onSelect = {})
         }
     }

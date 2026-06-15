@@ -21,7 +21,6 @@ import watson.resumaker.navigation.AppNavigator
 import watson.resumaker.navigation.BrowserHistory
 import watson.resumaker.navigation.Routes
 import watson.resumaker.navigation.Screen
-import watson.resumaker.platform.copyToClipboard
 import watson.resumaker.ui.component.HeaderTab
 import watson.resumaker.ui.theme.RmTheme
 
@@ -50,7 +49,6 @@ fun App(container: AppContainer = remember { AppContainer() }) {
                 SessionScreen(
                     viewModel = vm,
                     onAuthenticated = { navigator.switchRoot(Screen.Home) },
-                    onCopyUserId = { copyToClipboard(it) },
                 )
             }
 
@@ -133,7 +131,6 @@ fun App(container: AppContainer = remember { AppContainer() }) {
                     onBack = { navigator.switchRoot(Screen.Home) },
                     onSignedOut = { navigator.resetToSession() },
                     onSelectTab = { navigator.onHeaderTab(it) },
-                    onCopyUserId = { copyToClipboard(it) },
                 )
             }
         }

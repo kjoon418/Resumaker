@@ -1,7 +1,5 @@
 package watson.resumaker.ui.component
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -35,8 +33,6 @@ fun ConfirmDialog(
     cancelText: String = "취소",
     /** true(기본)면 확인 버튼을 danger로, false면 primary 톤으로 렌더. */
     destructive: Boolean = true,
-    /** 설명 아래에 추가로 노출할 보조 콘텐츠(예: UX-12 "userId 복사" 버튼). */
-    extraContent: (@Composable () -> Unit)? = null,
 ) {
     val colors = RmTheme.colors
     val confirmContainerColor = if (destructive) colors.danger else colors.primary
@@ -47,10 +43,7 @@ fun ConfirmDialog(
         modifier = modifier,
         title = { Text(text = title, style = RmTextStyles.headingM, color = colors.textPrimary) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(RmSpacing.space3)) {
-                Text(text = description, style = RmTextStyles.bodyS, color = colors.textSecondary)
-                extraContent?.invoke()
-            }
+            Text(text = description, style = RmTextStyles.bodyS, color = colors.textSecondary)
         },
         confirmButton = {
             Button(
@@ -96,7 +89,7 @@ private fun ConfirmDialogNonDestructivePreview() {
     RmTheme {
         ConfirmDialog(
             title = "로그아웃하시겠어요?",
-            description = "로그아웃하면 이 기기에서 복구 코드가 지워져요.",
+            description = "로그아웃하면 이 기기에서 세션이 종료돼요. 다시 들어오려면 이메일과 비밀번호로 로그인하면 돼요.",
             confirmText = "로그아웃",
             onConfirm = {},
             onDismiss = {},

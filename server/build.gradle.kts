@@ -18,6 +18,7 @@ dependencies {
     runtimeOnly(libs.postgresql)
     testRuntimeOnly(libs.h2)
     testImplementation(libs.spring.boot.starter.test)
+    testImplementation(libs.mockito.kotlin)
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
