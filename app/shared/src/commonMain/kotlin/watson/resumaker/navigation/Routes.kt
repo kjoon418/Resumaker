@@ -13,12 +13,20 @@ package watson.resumaker.navigation
  * - `/targets`           → TargetList
  * - `/targets/new`       → TargetEdit(null)
  * - `/targets/{id}`      → TargetEdit(id)
- * - `/artifact`          → Artifact
+ * - `/artifact`          → Artifact (transient: hasExperiences 는 URL 비참여, 진입 시 소스에서 공급)
  * - `/me`                → MyPage
+ *
+ * **Transient 화면 (CQ-4):** [Screen.Artifact.hasExperiences]는 URL에 저장하지 않는다.
+ * 홈·목록에서 진입 시 ViewModel이 계산한 값을 [Screen.Artifact] 생성자에 전달해 push한다(App.kt 참조).
+ * `/artifact` 를 직접 방문·새로고침하면 기본값 `true` 로 렌더링되며, "준비 중" 화면이라
+ * 의미 있는 딥링크 목적지가 아니므로 boolean URL 직렬화는 과도한 복잡성이다.
  */
 object Routes {
 
-    /** 화면 → 경로 문자열. */
+    /**
+     * 화면 → 경로 문자열.
+     * Artifact 는 transient(CQ-4): [Screen.Artifact.hasExperiences] 를 URL 에 포함하지 않는다.
+     */
     fun pathOf(screen: Screen): String = when (screen) {
         Screen.Session -> "/session"
         Screen.Home -> "/"

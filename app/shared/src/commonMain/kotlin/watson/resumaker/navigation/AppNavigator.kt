@@ -56,12 +56,22 @@ class AppNavigator(
         history?.replace(Routes.pathOf(screen))
     }
 
-    /** 뒤로가기(스택 pop). 루트면 무시. URL도 한 칸 뒤로. */
+    /**
+     * 뒤로가기(스택 pop). 루트면 무시.
+     *
+     * CQ-1: history가 있을 때는 window.history.back()에 위임한다. 브라우저가 비동기로 popstate를
+     * 발화하면 [syncFromPath]가 스택을 갱신하므로 여기서 직접 pop 하지 않는다(이중 갱신 방지).
+     * history가 없을 때(테스트·인메모리)는 직접 스택 pop.
+     */
     fun pop() {
-        if (backStack.size > 1) {
-            backStack.removeLast()
-            current = backStack.last()
-            history?.push(Routes.pathOf(current))
+        if (history != null) {
+            if (backStack.size > 1) history.back()
+            // 스택 갱신은 popstate → syncFromPath 경로에서 처리.
+        } else {
+            if (backStack.size > 1) {
+                backStack.removeLast()
+                current = backStack.last()
+            }
         }
     }
 

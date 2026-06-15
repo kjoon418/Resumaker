@@ -22,6 +22,10 @@ actual class BrowserHistory actual constructor() {
         window.history.replaceState(null, "", path)
     }
 
+    actual fun back() {
+        window.history.back()
+    }
+
     actual fun onPopState(listener: (String) -> Unit) {
         window.addEventListener("popstate", { _: Event ->
             val path = window.location.pathname

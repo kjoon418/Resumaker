@@ -83,8 +83,6 @@ object RmSize {
     // §4.2 반응형 카드 그리드 최소 셀폭(WX-5).
     val gridCellMin: Dp = 320.dp
 
-    // Compact(<600px) 폴백 전용 — 모바일 단일 컬럼은 fillMaxWidth라 폭 토큰 불필요(WX-10).
-
     // 아이콘 크기 토큰(MINOR-8: 화면 곳곳의 raw 12/16/18/20/22dp 흡수).
     val iconXs: Dp = 12.dp     // 태그 x·AddChip + 아이콘
     val spinnerSm: Dp = 16.dp  // 버튼 인라인 로딩 인디케이터

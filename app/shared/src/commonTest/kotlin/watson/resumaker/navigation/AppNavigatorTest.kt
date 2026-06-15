@@ -2,9 +2,11 @@ package watson.resumaker.navigation
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
-/** WX-4/8: 저장 후 목록 복귀 규칙·성공 메시지·popstate 동기화 검증(history=null 인메모리). */
+/** WX-4/8/CQ-1/CQ-5: 저장 후 목록 복귀 규칙·성공 메시지·popstate 동기화·history 상호작용 검증. */
 class AppNavigatorTest {
 
     @Test
@@ -68,5 +70,63 @@ class AppNavigatorTest {
         val nav = AppNavigator(Screen.Home)
         nav.syncFromPath("/garbage")
         assertEquals(Screen.Home, nav.current)
+    }
+
+    // ── CQ-5 추가 케이스 ────────────────────────────────────────────────────
+
+    @Test
+    fun popOnRootIsNoOp() {
+        // CQ-5: 루트(빈 backStack == 1)에서 pop()은 current 를 바꾸지 않는다.
+        val nav = AppNavigator(Screen.Home)
+        assertFalse(nav.canGoBack)
+
+        nav.pop()
+
+        assertEquals(Screen.Home, nav.current)
+        assertFalse(nav.canGoBack)
+    }
+
+    @Test
+    fun returnToListMakesListRootWhenNotInStack() {
+        // CQ-5: backStack 에 목록이 없으면 목록을 단일 루트로 세운다(else 분기).
+        val nav = AppNavigator(Screen.Home)
+        // Home → ExperienceEdit(new) — ExperienceList 는 스택에 없음.
+        nav.push(Screen.ExperienceEdit(null))
+
+        nav.returnToList(Screen.ExperienceList, "경험을 저장했어요")
+
+        assertEquals(Screen.ExperienceList, nav.current)
+        // 목록이 루트여야 하므로 더 이상 back 불가.
+        assertFalse(nav.canGoBack)
+    }
+
+    @Test
+    fun popWithHistoryDelegatesToBackAndLetsSyncFromPathUpdateStack() {
+        // CQ-1: history 가 있을 때 pop() 은 직접 스택을 줄이지 않고
+        // BrowserHistory.back() 에 위임한다. 브라우저 popstate 가 오면
+        // syncFromPath 가 스택을 갱신한다(이중 갱신 방지).
+        //
+        // BrowserHistory 는 expect class 라 commonTest 에서 직접 서브클래스화할 수 없다.
+        // 대신 history=null(인메모리) 경로와 syncFromPath API 를 분리 검증한다:
+        //
+        // 1) history=null: pop() 이 즉시 스택을 pop.
+        val navInMemory = AppNavigator(Screen.Home)
+        navInMemory.push(Screen.ExperienceList)
+        navInMemory.push(Screen.ExperienceEdit("a"))
+        assertTrue(navInMemory.canGoBack)
+
+        navInMemory.pop()
+        assertEquals(Screen.ExperienceList, navInMemory.current)
+
+        // 2) history 있을 때의 popstate 처리: syncFromPath 가 실제 스택 갱신을 담당함.
+        //    이는 AppNavigator.syncFromPath 가 스택을 올바르게 줄이는지로 간접 검증한다.
+        val navWeb = AppNavigator(Screen.ExperienceEdit("a"))
+        navWeb.push(Screen.ExperienceEdit("b")) // 더 깊이 진입
+        // 브라우저 popstate 가 /experiences/a 로 돌아왔다고 가정.
+        navWeb.syncFromPath("/experiences/a")
+        assertEquals(Screen.ExperienceEdit("a"), navWeb.current)
+        // syncFromPath 가 /experiences/a 지점까지 스택을 되감았으므로 그 위 항목은 없어야 한다.
+        // 시작 항목 하나만 남으면 canGoBack 은 false.
+        assertFalse(navWeb.canGoBack)
     }
 }
