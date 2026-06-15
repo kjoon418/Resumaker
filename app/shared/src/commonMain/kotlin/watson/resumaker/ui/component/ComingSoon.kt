@@ -14,9 +14,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.tooling.preview.Preview
 import watson.resumaker.ui.theme.RmIcons
+import watson.resumaker.ui.theme.RmSize
 import watson.resumaker.ui.theme.RmSpacing
 import watson.resumaker.ui.theme.RmTextStyles
 import watson.resumaker.ui.theme.RmTheme
@@ -54,7 +54,7 @@ fun ComingSoon(
     ) {
         Box(
             modifier = Modifier
-                .size(64.dp)
+                .size(RmSize.emblem)
                 .background(colors.primaryContainer, CircleShape),
             contentAlignment = Alignment.Center,
         ) {
@@ -62,7 +62,7 @@ fun ComingSoon(
                 imageVector = RmIcons.Sparkles,
                 contentDescription = null,
                 tint = colors.primary,
-                modifier = Modifier.size(32.dp),
+                modifier = Modifier.size(RmSize.iconLg),
             )
         }
         Text(text = title, style = RmTextStyles.headingM, color = colors.textPrimary, textAlign = TextAlign.Center)

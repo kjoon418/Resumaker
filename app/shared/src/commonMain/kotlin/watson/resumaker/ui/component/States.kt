@@ -61,7 +61,7 @@ fun EmptyState(
     ) {
         Box(
             modifier = Modifier
-                .size(64.dp)
+                .size(RmSize.emblem)
                 .background(colors.surfaceSubtle, CircleShape),
             contentAlignment = Alignment.Center,
         ) {
@@ -69,7 +69,7 @@ fun EmptyState(
                 imageVector = icon,
                 contentDescription = null,
                 tint = colors.textTertiary,
-                modifier = Modifier.size(32.dp),
+                modifier = Modifier.size(RmSize.iconLg),
             )
         }
         Text(text = title, style = RmTextStyles.headingM, color = colors.textPrimary, textAlign = TextAlign.Center)
@@ -97,7 +97,7 @@ fun LoadingState(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(RmSpacing.space3),
     ) {
-        CircularProgressIndicator(color = colors.primary, modifier = Modifier.size(32.dp))
+        CircularProgressIndicator(color = colors.primary, modifier = Modifier.size(RmSize.iconLg))
         if (caption != null) {
             Text(text = caption, style = RmTextStyles.bodyS, color = colors.textSecondary)
         }

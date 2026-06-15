@@ -89,6 +89,8 @@ object RmSize {
     val iconSm: Dp = 18.dp     // 리스트 trailing/삭제·복사·작은 토글 아이콘
     val iconMd: Dp = 20.dp     // 탑바 back·인포/에러 아이콘·텍스트필드 eye·카드 chevron
     val iconNav: Dp = 22.dp    // 바텀내비·유형선택 칩 아이콘
+    val iconLg: Dp = 32.dp     // 빈상태/준비중 아이콘·전체 로딩 스피너(§5.8/5.9)
+    val emblem: Dp = 64.dp     // 빈상태/준비중 원형 엠블럼 배경(§5.8)
 
     /** 1dp 헤어라인 보더/디바이더. */
     val hairline: Dp = 1.dp
