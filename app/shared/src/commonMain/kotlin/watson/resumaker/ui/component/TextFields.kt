@@ -23,12 +23,16 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.IconButton
 import androidx.compose.runtime.mutableStateOf
@@ -63,6 +67,12 @@ fun RmTextField(
     keyboardType: KeyboardType = KeyboardType.Text,
     singleLine: Boolean = true,
     minHeight: androidx.compose.ui.unit.Dp = RmSize.controlHeight,
+    /** IME 액션 버튼(다음 필드 이동 Next / 마지막 필드 제출 Done). */
+    imeAction: ImeAction = ImeAction.Default,
+    /** imeAction 트리거 시 콜백(예: Next→다음 포커스, Done→제출). */
+    onImeAction: (() -> Unit)? = null,
+    /** 외부에서 이 필드에 포커스를 옮기기 위한 핸들(키보드 흐름의 "다음 필드"). */
+    focusRequester: FocusRequester? = null,
 ) {
     val colors = RmTheme.colors
     val interaction = remember { MutableInteractionSource() }
@@ -96,10 +106,21 @@ fun RmTextField(
             textStyle = RmTextStyles.bodyMr.copy(color = colors.textPrimary),
             cursorBrush = SolidColor(colors.primary),
             visualTransformation = visualTransformation,
-            keyboardOptions = KeyboardOptions(keyboardType = if (isPassword) KeyboardType.Password else keyboardType),
+            keyboardOptions = KeyboardOptions(
+                keyboardType = if (isPassword) KeyboardType.Password else keyboardType,
+                imeAction = imeAction,
+            ),
+            keyboardActions = KeyboardActions(
+                onNext = { onImeAction?.invoke() },
+                onDone = { onImeAction?.invoke() },
+                onGo = { onImeAction?.invoke() },
+                onSend = { onImeAction?.invoke() },
+                onSearch = { onImeAction?.invoke() },
+            ),
             modifier = Modifier
                 .fillMaxWidth()
                 .heightIn(min = minHeight)
+                .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)
                 .background(boxBg, RoundedCornerShape(RmRadius.card))
                 .border(RmSize.hairline, borderColor, RoundedCornerShape(RmRadius.card)),
             decorationBox = { inner ->

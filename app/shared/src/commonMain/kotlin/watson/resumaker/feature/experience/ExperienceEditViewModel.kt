@@ -61,6 +61,13 @@ class ExperienceEditViewModel(
         if (experienceId != null) loadExisting(experienceId)
     }
 
+    /** UX-4: 로드 에러 후 "다시 시도" — 같은 id를 다시 불러온다(편집 모드일 때만 의미 있음). */
+    fun retryLoad() {
+        val id = _state.value.editingId ?: return
+        _state.update { it.copy(loadError = null) }
+        loadExisting(id)
+    }
+
     private fun loadExisting(id: String) {
         _state.update { it.copy(loading = true) }
         viewModelScope.launch {

@@ -107,6 +107,7 @@ fun SecondaryButton(
 
 /**
  * 디자인 시스템 §5.1 GhostButton (Outline, slate-200 테두리).
+ * [fillWidth] = true(기본): fillMaxWidth 적용. false: 내용 폭에 맞춤(dialog dismissButton 등 인라인 배치 시 사용).
  */
 @Composable
 fun GhostButton(
@@ -114,6 +115,7 @@ fun GhostButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
+    fillWidth: Boolean = true,
 ) {
     val colors = RmTheme.colors
     val interaction = remember { MutableInteractionSource() }
@@ -129,7 +131,7 @@ fun GhostButton(
             disabledContentColor = colors.textLabel.copy(alpha = 0.4f),
         ),
         modifier = modifier
-            .fillMaxWidth()
+            .then(if (fillWidth) Modifier.fillMaxWidth() else Modifier)
             .height(RmSize.controlHeight)
             .graphicsLayer { scaleX = scale; scaleY = scale },
     ) {

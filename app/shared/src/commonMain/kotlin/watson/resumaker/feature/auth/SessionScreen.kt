@@ -20,6 +20,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -37,6 +39,7 @@ import watson.resumaker.ui.theme.RmSize
 import watson.resumaker.ui.theme.RmSpacing
 import watson.resumaker.ui.theme.RmTextStyles
 import watson.resumaker.ui.theme.RmTheme
+import watson.resumaker.validation.Validators
 
 /**
  * 디자인 시스템 §8.1 세션 진입(가입 / userId 재진입).
@@ -53,6 +56,7 @@ fun SessionScreen(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     val colors = RmTheme.colors
+    val passwordFocusRequester = remember { FocusRequester() }
 
     LaunchedEffect(state.authenticatedUserId) {
         if (state.authenticatedUserId != null) onAuthenticated()
@@ -112,6 +116,8 @@ fun SessionScreen(
                         placeholder = "name@example.com",
                         keyboardType = KeyboardType.Email,
                         error = state.emailError,
+                        imeAction = ImeAction.Next,
+                        onImeAction = { passwordFocusRequester.requestFocus() },
                     )
                     RmTextField(
                         value = state.password,
@@ -120,7 +126,10 @@ fun SessionScreen(
                         placeholder = "8자 이상 입력",
                         isPassword = true,
                         error = state.passwordError,
-                        helper = if (state.passwordError == null) "8자 이상으로 입력해 주세요." else null,
+                        helper = Validators.passwordHelper(state.password, state.passwordError != null),
+                        imeAction = ImeAction.Done,
+                        onImeAction = viewModel::submit,
+                        focusRequester = passwordFocusRequester,
                     )
                     Text(
                         text = "※ AI 생성 결과물의 최종 책임은 사용자에게 있어요. 사실 확인 후 사용해 주세요.",
@@ -144,8 +153,11 @@ fun SessionScreen(
                         onValueChange = viewModel::onUserIdChange,
                         label = "userId",
                         placeholder = "가입 시 발급받은 userId(UUID)",
+                        keyboardType = KeyboardType.Ascii,
                         error = state.userIdError,
                         helper = if (state.userIdError == null) "마이페이지에서 복사한 userId를 붙여넣어 주세요." else null,
+                        imeAction = ImeAction.Done,
+                        onImeAction = viewModel::submit,
                     )
                     PrimaryButton(text = "재진입", onClick = viewModel::submit)
                     TextLink(

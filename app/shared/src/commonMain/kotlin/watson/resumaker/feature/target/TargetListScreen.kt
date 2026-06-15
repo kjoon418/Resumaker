@@ -9,7 +9,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -23,9 +25,9 @@ import watson.resumaker.ui.component.ConfirmDialog
 import watson.resumaker.ui.component.EmptyState
 import watson.resumaker.ui.component.ErrorBanner
 import watson.resumaker.ui.component.ListItemCard
-import watson.resumaker.ui.component.LoadingState
 import watson.resumaker.ui.component.PrimaryButton
 import watson.resumaker.ui.component.RmTopBar
+import watson.resumaker.ui.component.SkeletonList
 import watson.resumaker.ui.theme.RmIcons
 import watson.resumaker.ui.theme.RmMotion
 import watson.resumaker.ui.theme.RmSize
@@ -46,9 +48,21 @@ fun TargetListScreen(
     val snackbarHostState = remember { SnackbarHostState() }
 
     LaunchedEffect(state.snackbarMessage) {
-        state.snackbarMessage?.let {
-            snackbarHostState.showSnackbar(it)
+        state.snackbarMessage?.let { message ->
+            // UX-5: 재시도 가능한 실패면 "다시 시도" 액션을 노출(막다른 길 방지).
+            val canRetry = state.retryableDelete != null
+            val result = snackbarHostState.showSnackbar(
+                message = message,
+                actionLabel = if (canRetry) "다시 시도" else null,
+                duration = SnackbarDuration.Short,
+            )
             viewModel.consumeSnackbar()
+            if (canRetry && result == SnackbarResult.ActionPerformed) {
+                viewModel.retryDelete()
+            } else if (canRetry) {
+                // CQ-2: 액션 없이 dismiss된 경우 스테일 retryableDelete 클리어.
+                viewModel.clearRetryableDelete()
+            }
         }
     }
 
@@ -63,7 +77,15 @@ fun TargetListScreen(
         },
     ) { contentModifier ->
         when {
-            state.loading -> LoadingState(contentModifier, caption = "목표를 불러오는 중이에요")
+            state.loading -> Box(
+                contentModifier.padding(
+                    start = RmSpacing.contentPadding,
+                    end = RmSpacing.contentPadding,
+                    top = RmSpacing.space4,
+                ),
+            ) {
+                SkeletonList(showLeadingChip = false)
+            }
             state.errorMessage != null -> Box(contentModifier.padding(RmSpacing.contentPadding)) {
                 ErrorBanner(message = state.errorMessage!!, onRetry = viewModel::load)
             }
@@ -114,7 +136,8 @@ private fun TargetRow(
         meta = item.recruitDirection,
         onClick = onOpen,
         trailing = {
-            IconButton(onClick = onDelete) {
+            // UX-9: 본문 탭(열기)과 삭제 X 오탭 완화 — 본문과 간격 확보 + 48dp 터치 영역 유지.
+            IconButton(onClick = onDelete, modifier = Modifier.padding(start = RmSpacing.space2)) {
                 Icon(
                     imageVector = RmIcons.Close,
                     contentDescription = "삭제",

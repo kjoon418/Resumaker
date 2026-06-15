@@ -192,6 +192,26 @@ object RmIcons {
         }
     }
 
+    /** 위험/에러 경고(warning triangle). ErrorBanner 등 위험 상태 전달용(UX-13). */
+    val Warning: ImageVector = icon("RmWarning") {
+        fill {
+            moveTo(1f, 21f)
+            horizontalLineTo(23f)
+            lineTo(12f, 2f)
+            close()
+            moveTo(13f, 18f)
+            horizontalLineTo(11f)
+            verticalLineTo(16f)
+            horizontalLineTo(13f)
+            close()
+            moveTo(13f, 14f)
+            horizontalLineTo(11f)
+            verticalLineTo(10f)
+            horizontalLineTo(13f)
+            close()
+        }
+    }
+
     /** 팁/회상 보조(lightbulb). */
     val Lightbulb: ImageVector = icon("RmLightbulb") {
         fill {

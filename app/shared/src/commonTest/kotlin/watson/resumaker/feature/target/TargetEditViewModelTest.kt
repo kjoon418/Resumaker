@@ -7,6 +7,8 @@ import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import watson.resumaker.fake.FakeTargetApi
+import watson.resumaker.model.dto.TargetResponse
+import watson.resumaker.network.ApiResult
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
@@ -64,5 +66,23 @@ class TargetEditViewModelTest {
 
         assertEquals("토스", api.lastCreate?.companyName)
         assertEquals("백엔드", api.lastCreate?.jobTitle)
+    }
+
+    // UX-4: 로드 실패 후 retryLoad가 같은 id를 다시 불러와 복구한다.
+    @Test
+    fun retryLoadReloadsAndClearsLoadErrorOnSuccess() = runTest(dispatcher) {
+        val api = FakeTargetApi(getOneResult = ApiResult.Failure("불러오기 실패"))
+        val vm = TargetEditViewModel(api, targetId = "t-99")
+        testScheduler.advanceUntilIdle()
+        assertEquals("불러오기 실패", vm.state.value.loadError)
+
+        api.getOneResult = ApiResult.Success(
+            TargetResponse(id = "t-99", recruitDirection = "방향", companyName = "토스", jobTitle = "백엔드"),
+        )
+        vm.retryLoad()
+        testScheduler.advanceUntilIdle()
+
+        assertNull(vm.state.value.loadError)
+        assertEquals("방향", vm.state.value.recruitDirection)
     }
 }

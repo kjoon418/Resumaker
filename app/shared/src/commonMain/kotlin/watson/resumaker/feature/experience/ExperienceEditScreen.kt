@@ -22,6 +22,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import watson.resumaker.ui.component.AddChip
 import watson.resumaker.ui.component.AppScaffold
@@ -53,6 +56,7 @@ fun ExperienceEditScreen(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     val colors = RmTheme.colors
+    val bodyFocusRequester = remember { FocusRequester() }
 
     LaunchedEffect(state.saved) { if (state.saved) onSaved() }
     LaunchedEffect(state.snackbarMessage) {
@@ -80,7 +84,7 @@ fun ExperienceEditScreen(
         when {
             state.loading -> LoadingState(contentModifier, caption = "불러오는 중이에요")
             state.loadError != null -> Box(contentModifier.padding(RmSpacing.contentPadding)) {
-                ErrorBanner(message = state.loadError!!, onRetry = onBack, title = "불러오지 못했어요")
+                ErrorBanner(message = state.loadError!!, onRetry = viewModel::retryLoad, title = "불러오지 못했어요")
             }
             else -> Column(
                 modifier = contentModifier
@@ -95,6 +99,8 @@ fun ExperienceEditScreen(
                     label = "제목 *",
                     placeholder = "예: 결제 시스템 응답 지연 개선",
                     error = state.titleError,
+                    imeAction = ImeAction.Next,
+                    onImeAction = { bodyFocusRequester.requestFocus() },
                 )
 
                 Column(verticalArrangement = Arrangement.spacedBy(RmSpacing.space2)) {
@@ -113,6 +119,7 @@ fun ExperienceEditScreen(
                     error = state.bodyError,
                     singleLine = false,
                     minHeight = RmSize.multilineMinHeight,
+                    focusRequester = bodyFocusRequester,
                 )
 
                 // 정적 회상 보조: 유도 질문 세트(§8.4, 항상 표시).
@@ -188,6 +195,8 @@ private fun OptionalSection(
                         onValueChange = viewModel::onPeriodStartChange,
                         label = "시작 (YYYY-MM-DD)",
                         placeholder = "2024-01-01",
+                        keyboardType = KeyboardType.Ascii,
+                        imeAction = ImeAction.Next,
                     )
                 }
                 Box(modifier = Modifier.weight(1f)) {
@@ -196,24 +205,38 @@ private fun OptionalSection(
                         onValueChange = viewModel::onPeriodEndChange,
                         label = "종료 (YYYY-MM-DD)",
                         placeholder = "2024-03-01",
+                        keyboardType = KeyboardType.Ascii,
+                        imeAction = ImeAction.Done,
                     )
                 }
             }
+            // UX-1/UX-11: DatePicker 미도입 대신 형식 안내(트레이드오프는 핸드오프 참조).
+            Text(
+                text = "날짜는 연-월-일 순서로 적어 주세요. 예: 2024-01-01",
+                style = RmTextStyles.caption,
+                color = colors.textTertiary,
+            )
 
             Column(verticalArrangement = Arrangement.spacedBy(RmSpacing.space2)) {
                 Text(text = "사용 역량·기술", style = RmTextStyles.label, color = colors.textLabel)
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(RmSpacing.space2), verticalArrangement = Arrangement.spacedBy(RmSpacing.space2)) {
-                    state.skillTags.forEach { tag ->
-                        SkillTag(text = tag, onRemove = { viewModel.removeSkill(tag) })
+                if (state.skillTags.isNotEmpty()) {
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(RmSpacing.space2), verticalArrangement = Arrangement.spacedBy(RmSpacing.space2)) {
+                        state.skillTags.forEach { tag ->
+                            SkillTag(text = tag, onRemove = { viewModel.removeSkill(tag) })
+                        }
                     }
                 }
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(RmSpacing.space2)) {
                     Box(modifier = Modifier.weight(1f)) {
+                        // UX-10: 비어 있던 라벨 대신 접근성 라벨을 부여(시각적으로도 입력 의도 명확).
                         RmTextField(
                             value = state.skillInput,
                             onValueChange = viewModel::onSkillInputChange,
-                            label = "",
+                            label = "역량·기술 추가",
                             placeholder = "예: 데이터분석",
+                            // UX-8: Enter(Done)로 태그 추가.
+                            imeAction = ImeAction.Done,
+                            onImeAction = viewModel::addSkill,
                         )
                     }
                     AddChip(text = "추가", onClick = viewModel::addSkill)

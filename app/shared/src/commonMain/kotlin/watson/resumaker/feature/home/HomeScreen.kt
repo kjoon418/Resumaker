@@ -30,10 +30,10 @@ import watson.resumaker.ui.component.ErrorBanner
 import watson.resumaker.ui.component.ExperienceIconChip
 import watson.resumaker.ui.component.InfoCard
 import watson.resumaker.ui.component.ListItemCard
-import watson.resumaker.ui.component.LoadingState
 import watson.resumaker.ui.component.PrimaryButton
 import watson.resumaker.ui.component.RmBottomNav
 import watson.resumaker.ui.component.RmTab
+import watson.resumaker.ui.component.SkeletonList
 import watson.resumaker.ui.component.StatusBadge
 import watson.resumaker.ui.component.TextLink
 import watson.resumaker.ui.component.TypeBadge
@@ -85,7 +85,16 @@ fun HomeScreen(
         },
     ) { contentModifier ->
         when {
-            state.loading -> LoadingState(contentModifier, caption = "불러오는 중이에요")
+            state.loading -> Column(
+                modifier = contentModifier
+                    .padding(horizontal = RmSpacing.contentPadding)
+                    .padding(top = RmSpacing.space4),
+                verticalArrangement = Arrangement.spacedBy(RmSpacing.space8),
+            ) {
+                // UX-3: 홈 진입 로딩도 스켈레톤으로 레이아웃 점프 방지(경험·목표 섹션 모사).
+                SkeletonList(count = 2, showLeadingChip = true)
+                SkeletonList(count = 2, showLeadingChip = false)
+            }
             else -> Column(
                 modifier = contentModifier
                     .verticalScroll(rememberScrollState())
@@ -164,7 +173,7 @@ fun HomeScreen(
                                 style = RmTextStyles.bodyS,
                                 color = colors.onPrimaryContainer,
                             )
-                            TextLink(text = "자세히 보기", onClick = { onOpenArtifact(hasExperiences) })
+                            TextLink(text = "준비 현황 보기", onClick = { onOpenArtifact(hasExperiences) })
                         }
                     }
                 }

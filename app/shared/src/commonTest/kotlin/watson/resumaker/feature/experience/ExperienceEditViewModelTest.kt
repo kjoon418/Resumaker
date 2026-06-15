@@ -161,4 +161,21 @@ class ExperienceEditViewModelTest {
 
         assertEquals("불러오기 실패", vm.state.value.loadError)
     }
+
+    // UX-4: 로드 실패 후 retryLoad가 같은 id를 다시 불러와 복구한다.
+    @Test
+    fun retryLoadReloadsAndClearsLoadErrorOnSuccess() = runTest(dispatcher) {
+        val api = FakeExperienceApi(getOneResult = ApiResult.Failure("불러오기 실패"))
+        val vm = ExperienceEditViewModel(api, experienceId = "e-99")
+        testScheduler.advanceUntilIdle()
+        assertEquals("불러오기 실패", vm.state.value.loadError)
+
+        // 다음 시도는 성공하도록 fake 응답을 교체.
+        api.getOneResult = ApiResult.Success(existingWithDetail())
+        vm.retryLoad()
+        testScheduler.advanceUntilIdle()
+
+        assertNull(vm.state.value.loadError)
+        assertEquals("기존 경험", vm.state.value.title)
+    }
 }

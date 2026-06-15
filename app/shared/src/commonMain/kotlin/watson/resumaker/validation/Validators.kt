@@ -42,4 +42,17 @@ object Validators {
         if (value.trim().isEmpty()) return missingMessage
         return null
     }
+
+    /**
+     * UX-7: 비밀번호 helper 실시간 피드백. 에러가 표시 중이면 null(에러 메시지가 우선),
+     * 8자 도달 시 긍정 전환, 미만이면 안내 문구.
+     */
+    fun passwordHelper(password: String, hasError: Boolean): String? {
+        if (hasError) return null
+        return if (password.length >= MIN_PASSWORD_LENGTH) {
+            "사용할 수 있는 비밀번호예요."
+        } else {
+            "8자 이상으로 입력해 주세요."
+        }
+    }
 }

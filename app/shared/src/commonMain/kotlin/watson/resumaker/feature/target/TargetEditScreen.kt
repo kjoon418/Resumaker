@@ -12,6 +12,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.text.input.ImeAction
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import watson.resumaker.ui.component.AppScaffold
 import watson.resumaker.ui.component.BottomActionBar
@@ -37,6 +39,8 @@ fun TargetEditScreen(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     val colors = RmTheme.colors
+    val jobFocusRequester = remember { FocusRequester() }
+    val directionFocusRequester = remember { FocusRequester() }
 
     LaunchedEffect(state.saved) { if (state.saved) onSaved() }
     LaunchedEffect(state.snackbarMessage) {
@@ -64,7 +68,7 @@ fun TargetEditScreen(
         when {
             state.loading -> LoadingState(contentModifier, caption = "불러오는 중이에요")
             state.loadError != null -> Box(contentModifier.padding(RmSpacing.contentPadding)) {
-                ErrorBanner(message = state.loadError!!, onRetry = onBack, title = "불러오지 못했어요")
+                ErrorBanner(message = state.loadError!!, onRetry = viewModel::retryLoad, title = "불러오지 못했어요")
             }
             else -> Column(
                 modifier = contentModifier
@@ -78,12 +82,17 @@ fun TargetEditScreen(
                     onValueChange = viewModel::onCompanyChange,
                     label = "회사명 (선택)",
                     placeholder = "예: 토스",
+                    imeAction = ImeAction.Next,
+                    onImeAction = { jobFocusRequester.requestFocus() },
                 )
                 RmTextField(
                     value = state.jobTitle,
                     onValueChange = viewModel::onJobTitleChange,
                     label = "직무명 (선택)",
                     placeholder = "예: 백엔드 엔지니어",
+                    imeAction = ImeAction.Next,
+                    onImeAction = { directionFocusRequester.requestFocus() },
+                    focusRequester = jobFocusRequester,
                 )
                 RmTextField(
                     value = state.recruitDirection,
@@ -93,6 +102,7 @@ fun TargetEditScreen(
                     error = state.recruitDirectionError,
                     singleLine = false,
                     minHeight = RmSize.targetBodyMinHeight,
+                    focusRequester = directionFocusRequester,
                 )
                 Text(
                     text = "※ 채용공고를 그대로 붙여넣어도 됩니다.",

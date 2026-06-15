@@ -84,4 +84,11 @@ object RmSize {
 
     /** 세그먼트 토글 높이. */
     val segmentHeight: Dp = 44.dp
+
+    /** 스켈레톤 리스트 아이템(§5.9): 카드 높이·텍스트 라인 높이. */
+    val skeletonItemHeight: Dp = 76.dp
+    val skeletonLineLg: Dp = 16.dp     // 제목 라인
+    val skeletonLineSm: Dp = 12.dp     // 메타 라인
+    val skeletonTitleWidth: Dp = 160.dp
+    val skeletonMetaWidth: Dp = 100.dp
 }

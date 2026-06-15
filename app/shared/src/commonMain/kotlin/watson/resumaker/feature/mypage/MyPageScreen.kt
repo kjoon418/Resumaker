@@ -24,6 +24,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import watson.resumaker.ui.component.AppScaffold
 import watson.resumaker.ui.component.ConfirmDialog
+import watson.resumaker.ui.component.GhostButton
 import watson.resumaker.ui.component.InfoCard
 import watson.resumaker.ui.component.RmBottomNav
 import watson.resumaker.ui.component.RmCard
@@ -120,11 +121,19 @@ fun MyPageScreen(
 
     if (state.confirmingLogout) {
         ConfirmDialog(
+            // UX-12: 카피 축약 + userId 복사 보조 버튼(아직 복사 안 한 사용자를 위한 즉시 행동).
             title = "로그아웃하시겠어요?",
-            description = "로그아웃하면 이 기기에서 userId가 지워져요. 다시 들어오려면 userId가 필요해요. 복사해 두셨나요? 아직이면 취소하고 위 userId를 복사해 주세요.",
+            description = "로그아웃하면 이 기기에서 userId가 지워져요. 다시 들어오려면 userId가 필요해요.",
             confirmText = "로그아웃",
             onConfirm = viewModel::confirmLogout,
             onDismiss = viewModel::cancelLogout,
+            // OBS-2: 로그아웃은 비파괴 행동 — danger 강조 불필요, primary 톤 사용.
+            destructive = false,
+            extraContent = state.userId?.let { id ->
+                {
+                    GhostButton(text = "userId 복사", onClick = { onCopyUserId(id) })
+                }
+            },
         )
     }
 
