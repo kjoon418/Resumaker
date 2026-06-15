@@ -58,7 +58,7 @@ fun MyPageScreen(
 
     AppScaffold(
         snackbarHostState = snackbarHostState,
-        contentWidth = ContentWidth.NARROW,
+        contentWidth = ContentWidth.WIDE,
         header = { windowSize ->
             // WX-7/14: 마이는 헤더 계정 메뉴에서 진입 — 헤더 탭 강조 없음(selected=null), 계정 아이콘은 현 화면.
             AppHeader(
@@ -66,7 +66,6 @@ fun MyPageScreen(
                 onSelectTab = onSelectTab,
                 onOpenAccount = onBack,
                 windowSize = windowSize,
-                contentMaxWidth = ContentWidth.NARROW.maxWidth,
                 horizontalPadding = windowSize.pagePadding(),
             )
         },

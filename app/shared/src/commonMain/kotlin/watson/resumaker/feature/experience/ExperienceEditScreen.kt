@@ -73,7 +73,6 @@ fun ExperienceEditScreen(
         header = { windowSize ->
             PageHeader(
                 title = if (state.isEditMode) "경험 수정" else "경험 기록",
-                contentMaxWidth = ContentWidth.NARROW.maxWidth,
                 horizontalPadding = windowSize.pagePadding(),
                 onBack = onBack,
             )

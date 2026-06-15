@@ -12,7 +12,9 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.Dp
@@ -28,6 +30,13 @@ enum class ContentWidth(val maxWidth: Dp) {
     WIDE(RmSize.contentMaxWide),
     NARROW(RmSize.contentMaxNarrow),
 }
+
+/**
+ * 현재 화면의 콘텐츠 컨테이너 max-width 단일 출처. [AppScaffold]가 자신의 [ContentWidth]로 제공하고,
+ * 헤더([AppHeader]/[PageHeader])와 그리드 열 계산이 이 값을 읽어 본문과 정렬을 맞춘다.
+ * 화면이 폭을 한 곳([AppScaffold.contentWidth])에서만 지정하도록 해 헤더/본문 폭이 어긋나는 것을 막는다.
+ */
+val LocalContentMaxWidth = staticCompositionLocalOf { RmSize.contentMaxWide }
 
 /**
  * 디자인 시스템 §7 웹 반응형 스캐폴드(WX-1/7/9). 전체폭 sticky 헤더 + 중앙 콘텐츠 컨테이너 구조.
@@ -54,38 +63,40 @@ fun AppScaffold(
             .background(colors.background),
     ) {
         val windowSize = windowSizeFor(maxWidth)
-        Column(modifier = Modifier.fillMaxSize()) {
-            if (header != null) {
-                header(windowSize)
-            }
-            Box(
-                modifier = Modifier.weight(1f).fillMaxWidth(),
-                contentAlignment = Alignment.TopCenter,
-            ) {
-                // 콘텐츠 컨테이너: max-width 중앙 정렬(Expanded는 제한, 그 이하는 가용폭).
-                val containerModifier = Modifier
-                    .widthIn(max = contentWidth.maxWidth)
-                    .fillMaxWidth()
-                    .fillMaxHeight()
-                content(containerModifier, windowSize)
+        CompositionLocalProvider(LocalContentMaxWidth provides contentWidth.maxWidth) {
+            Column(modifier = Modifier.fillMaxSize()) {
+                if (header != null) {
+                    header(windowSize)
+                }
+                Box(
+                    modifier = Modifier.weight(1f).fillMaxWidth(),
+                    contentAlignment = Alignment.TopCenter,
+                ) {
+                    // 콘텐츠 컨테이너: max-width 중앙 정렬(Expanded는 제한, 그 이하는 가용폭).
+                    val containerModifier = Modifier
+                        .widthIn(max = contentWidth.maxWidth)
+                        .fillMaxWidth()
+                        .fillMaxHeight()
+                    content(containerModifier, windowSize)
 
-                if (floatingBottom != null) {
-                    Box(
+                    if (floatingBottom != null) {
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.BottomCenter)
+                                .widthIn(max = contentWidth.maxWidth)
+                                .fillMaxWidth(),
+                        ) {
+                            floatingBottom()
+                        }
+                    }
+                    SnackbarHost(
+                        hostState = snackbarHostState,
                         modifier = Modifier
                             .align(Alignment.BottomCenter)
                             .widthIn(max = contentWidth.maxWidth)
-                            .fillMaxWidth(),
-                    ) {
-                        floatingBottom()
-                    }
+                            .padding(bottom = RmSize.snackbarBottomGap),
+                    )
                 }
-                SnackbarHost(
-                    hostState = snackbarHostState,
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .widthIn(max = contentWidth.maxWidth)
-                        .padding(bottom = RmSize.snackbarBottomGap),
-                )
             }
         }
     }

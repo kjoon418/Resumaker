@@ -42,7 +42,7 @@ enum class HeaderTab(val label: String) {
 /**
  * 디자인 시스템 §5.6/§7 AppHeader(WX-7/9). 전체폭 64dp 웹 헤더.
  * 좌측 로고 + 중앙(좌측 정렬) 홈/경험/목표 탭 + 우측 끝 계정(마이) 아이콘.
- * 콘텐츠는 [contentMaxWidth] 폭으로 중앙 제한해 본문 컨테이너와 정렬을 맞춘다.
+ * 콘텐츠는 [LocalContentMaxWidth](본문 폭)로 중앙 제한해 본문 컨테이너와 정렬을 맞춘다.
  * 헤더 막대 자체는 전체폭 surface + 하단 헤어라인 보더.
  *
  * [selected]가 null이면(세션 등) 탭 강조 없음. Compact 구간에서는 탭 라벨을 숨기지 않고
@@ -54,11 +54,11 @@ fun AppHeader(
     onSelectTab: (HeaderTab) -> Unit,
     onOpenAccount: () -> Unit,
     windowSize: WindowSize,
-    contentMaxWidth: androidx.compose.ui.unit.Dp,
     horizontalPadding: androidx.compose.ui.unit.Dp,
     modifier: Modifier = Modifier,
 ) {
     val colors = RmTheme.colors
+    val contentMaxWidth = LocalContentMaxWidth.current
     Column(modifier = modifier.fillMaxWidth().background(colors.surface)) {
         Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
             Row(
@@ -147,7 +147,6 @@ private fun AppHeaderPreview() {
             onSelectTab = {},
             onOpenAccount = {},
             windowSize = WindowSize.EXPANDED,
-            contentMaxWidth = RmSize.contentMaxWide,
             horizontalPadding = RmSpacing.space8,
         )
     }

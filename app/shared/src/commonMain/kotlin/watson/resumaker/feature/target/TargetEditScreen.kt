@@ -57,7 +57,6 @@ fun TargetEditScreen(
         header = { windowSize ->
             PageHeader(
                 title = if (state.isEditMode) "목표 수정" else "목표 추가",
-                contentMaxWidth = ContentWidth.NARROW.maxWidth,
                 horizontalPadding = windowSize.pagePadding(),
                 onBack = onBack,
             )

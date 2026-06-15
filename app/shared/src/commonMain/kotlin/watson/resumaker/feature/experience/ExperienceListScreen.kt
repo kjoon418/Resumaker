@@ -34,6 +34,7 @@ import watson.resumaker.ui.component.ExperienceIconChip
 import watson.resumaker.ui.component.HeaderTab
 import watson.resumaker.ui.component.InlineAddButton
 import watson.resumaker.ui.component.ListItemCard
+import watson.resumaker.ui.component.LocalContentMaxWidth
 import watson.resumaker.ui.component.SkeletonList
 import watson.resumaker.ui.component.TypeBadge
 import watson.resumaker.ui.theme.RmIcons
@@ -94,13 +95,12 @@ fun ExperienceListScreen(
                 onSelectTab = onSelectTab,
                 onOpenAccount = onOpenMyPage,
                 windowSize = windowSize,
-                contentMaxWidth = ContentWidth.WIDE.maxWidth,
                 horizontalPadding = windowSize.pagePadding(),
             )
         },
     ) { contentModifier, windowSize ->
         val pad = windowSize.pagePadding()
-        val columns = gridColumnsFor(windowSize, ContentWidth.WIDE.maxWidth)
+        val columns = gridColumnsFor(windowSize, LocalContentMaxWidth.current)
         when {
             state.loading -> Box(
                 contentModifier.padding(horizontal = pad).padding(top = RmSpacing.space6),

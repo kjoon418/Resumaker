@@ -111,13 +111,12 @@ fun BrandTopBar(
 
 /**
  * 디자인 시스템 §5.6/§7 PageHeader(WX-9). 전체폭 64dp 웹 헤더 — 폼·세션·상세 화면용.
- * 좌측 back chevron + 좌측 정렬 타이틀, 우측 옵션 [actionText]. 콘텐츠는 [contentMaxWidth]로 중앙 제한.
+ * 좌측 back chevron + 좌측 정렬 타이틀, 우측 옵션 [actionText]. 콘텐츠는 [LocalContentMaxWidth](본문 폭)로 중앙 제한.
  * 헤더 막대는 전체폭 surface + 하단 헤어라인.
  */
 @Composable
 fun PageHeader(
     title: String,
-    contentMaxWidth: Dp,
     horizontalPadding: Dp,
     modifier: Modifier = Modifier,
     onBack: (() -> Unit)? = null,
@@ -126,6 +125,7 @@ fun PageHeader(
     actionEnabled: Boolean = true,
 ) {
     val colors = RmTheme.colors
+    val contentMaxWidth = LocalContentMaxWidth.current
     Column(modifier = modifier.fillMaxWidth().background(colors.surface)) {
         Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
             Row(

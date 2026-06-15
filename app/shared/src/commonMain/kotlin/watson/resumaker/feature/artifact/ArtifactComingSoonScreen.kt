@@ -26,7 +26,6 @@ fun ArtifactComingSoonScreen(
         header = { windowSize ->
             PageHeader(
                 title = "이력서·포트폴리오",
-                contentMaxWidth = ContentWidth.NARROW.maxWidth,
                 horizontalPadding = windowSize.pagePadding(),
                 onBack = onBack,
             )

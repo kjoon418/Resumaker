@@ -33,6 +33,7 @@ import watson.resumaker.ui.component.HeaderTab
 import watson.resumaker.ui.component.InfoCard
 import watson.resumaker.ui.component.InlineAddButton
 import watson.resumaker.ui.component.ListItemCard
+import watson.resumaker.ui.component.LocalContentMaxWidth
 import watson.resumaker.ui.component.SkeletonList
 import watson.resumaker.ui.component.StatusBadge
 import watson.resumaker.ui.component.TextLink
@@ -74,7 +75,6 @@ fun HomeScreen(
                 onSelectTab = onSelectTab,
                 onOpenAccount = onOpenMyPage,
                 windowSize = windowSize,
-                contentMaxWidth = ContentWidth.WIDE.maxWidth,
                 horizontalPadding = windowSize.pagePadding(),
             )
         },
@@ -101,7 +101,7 @@ fun HomeScreen(
                     ErrorBanner(message = state.errorMessage!!, onRetry = viewModel::load)
                 }
 
-                val columns = gridColumnsFor(windowSize, ContentWidth.WIDE.maxWidth)
+                val columns = gridColumnsFor(windowSize, LocalContentMaxWidth.current)
 
                 // 내 경험
                 SectionHeader(
