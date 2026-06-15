@@ -12,6 +12,7 @@ import watson.resumaker.experience.infrastructure.ExperienceRecordRepository
 import watson.resumaker.account.presentation.LoginResponse
 import watson.resumaker.account.presentation.SignUpResponse
 import watson.resumaker.target.infrastructure.TargetBriefRepository
+import watson.resumaker.template.infrastructure.ResumeTemplateRepository
 
 /**
  * 계정 유스케이스: 회원가입, 계정 삭제(귀속 데이터 cascade 삭제).
@@ -19,12 +20,14 @@ import watson.resumaker.target.infrastructure.TargetBriefRepository
  * 이메일 중복 검증은 DB에 의존하므로 서비스에서 수행한다(검증 가이드).
  * 로그인 검증도 영속된 비밀번호 해시에 의존하므로 서비스에서 수행하며, PasswordHasher를 주입받는다(검증 가이드).
  * 계정 삭제는 정합성 최우선(부분 삭제 금지)이므로 단일 트랜잭션으로 귀속 데이터를 함께 지운다(구현 설계 §3.2).
+ * §2.5: 양식 삭제 정책은 목표 정보 정책을 따른다 — 계정 삭제 시 resumeTemplate도 함께 삭제한다.
  */
 @Service
 class AccountService(
     private val userRepository: UserRepository,
     private val experienceRecordRepository: ExperienceRecordRepository,
     private val targetBriefRepository: TargetBriefRepository,
+    private val resumeTemplateRepository: ResumeTemplateRepository,
     private val mapper: AccountServiceMapper,
     private val passwordHasher: PasswordHasher,
 ) {
@@ -72,6 +75,7 @@ class AccountService(
 
         experienceRecordRepository.deleteByOwnerId(userId)
         targetBriefRepository.deleteByOwnerId(userId)
+        resumeTemplateRepository.deleteByOwnerId(userId)
         userRepository.deleteById(userId.value)
     }
 

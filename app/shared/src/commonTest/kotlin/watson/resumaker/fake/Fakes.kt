@@ -5,15 +5,19 @@ import watson.resumaker.model.dto.CreateTargetRequest
 import watson.resumaker.model.dto.ExperienceResponse
 import watson.resumaker.model.dto.LoginRequest
 import watson.resumaker.model.dto.LoginResponse
+import watson.resumaker.model.dto.CreateTemplateRequest
 import watson.resumaker.model.dto.SignUpRequest
 import watson.resumaker.model.dto.SignUpResponse
 import watson.resumaker.model.dto.TargetResponse
+import watson.resumaker.model.dto.TemplateResponse
 import watson.resumaker.model.dto.UpdateExperienceRequest
 import watson.resumaker.model.dto.UpdateTargetRequest
+import watson.resumaker.model.dto.UpdateTemplateRequest
 import watson.resumaker.network.AccountApi
 import watson.resumaker.network.ApiResult
 import watson.resumaker.network.ExperienceApi
 import watson.resumaker.network.TargetApi
+import watson.resumaker.network.TemplateApi
 import watson.resumaker.session.SessionStore
 
 /** 테스트용 인메모리 세션. */
@@ -118,6 +122,41 @@ class FakeTargetApi(
         return deleteResult
     }
 }
+
+/** 결과를 미리 지정하는 fake TemplateApi. */
+class FakeTemplateApi(
+    var getAllResult: ApiResult<List<TemplateResponse>> = ApiResult.Success(emptyList()),
+    var getOneResult: ApiResult<TemplateResponse>? = null,
+    var createResult: ApiResult<TemplateResponse>? = null,
+    var updateResult: ApiResult<TemplateResponse>? = null,
+    var deleteResult: ApiResult<Unit> = ApiResult.Success(Unit),
+) : TemplateApi {
+    var lastCreate: CreateTemplateRequest? = null
+    var lastUpdate: Pair<String, UpdateTemplateRequest>? = null
+    var deletedId: String? = null
+
+    override suspend fun getAll() = getAllResult
+    override suspend fun getOne(id: String) = getOneResult ?: ApiResult.Failure("not found")
+    override suspend fun create(request: CreateTemplateRequest): ApiResult<TemplateResponse> {
+        lastCreate = request
+        return createResult ?: ApiResult.Success(
+            TemplateResponse(id = "tpl-1", name = request.name, sections = request.sections.map { it.toResponse() }),
+        )
+    }
+    override suspend fun update(id: String, request: UpdateTemplateRequest): ApiResult<TemplateResponse> {
+        lastUpdate = id to request
+        return updateResult ?: ApiResult.Success(
+            TemplateResponse(id = id, name = request.name, sections = request.sections.map { it.toResponse() }),
+        )
+    }
+    override suspend fun delete(id: String): ApiResult<Unit> {
+        deletedId = id
+        return deleteResult
+    }
+}
+
+private fun watson.resumaker.model.dto.SectionRequest.toResponse() =
+    watson.resumaker.model.dto.SectionResponse(name = name, character = character, required = required)
 
 fun sampleExperience(
     id: String = "e-1",

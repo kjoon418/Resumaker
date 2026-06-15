@@ -15,14 +15,18 @@ import watson.resumaker.account.domain.UserTimeZone
 import watson.resumaker.account.infrastructure.PasswordHasher
 import watson.resumaker.account.infrastructure.UserRepository
 import watson.resumaker.common.domain.UnauthorizedException
+import watson.resumaker.account.domain.UserId
 import watson.resumaker.experience.infrastructure.ExperienceRecordRepository
 import watson.resumaker.target.infrastructure.TargetBriefRepository
+import watson.resumaker.template.infrastructure.ResumeTemplateRepository
+import java.util.UUID
 
 class AccountServiceTest {
 
     private val userRepository: UserRepository = mock()
     private val experienceRecordRepository: ExperienceRecordRepository = mock()
     private val targetBriefRepository: TargetBriefRepository = mock()
+    private val resumeTemplateRepository: ResumeTemplateRepository = mock()
     private val passwordHasher: PasswordHasher = mock()
     private val mapper = AccountServiceMapper()
 
@@ -37,6 +41,7 @@ class AccountServiceTest {
             userRepository = userRepository,
             experienceRecordRepository = experienceRecordRepository,
             targetBriefRepository = targetBriefRepository,
+            resumeTemplateRepository = resumeTemplateRepository,
             mapper = mapper,
             passwordHasher = passwordHasher,
         )
@@ -115,6 +120,26 @@ class AccountServiceTest {
             // then
             assertThat(response.userId).isEqualTo(storedUser.id.value.toString())
             verify(userRepository).findByCredentialEmail(EMAIL)
+        }
+    }
+
+    @Nested
+    inner class 계정삭제 {
+
+        @Test
+        fun `계정 삭제 시 경험·목표·양식이 모두 같은 트랜잭션에서 삭제된다`() {
+            // given
+            val userId = UserId(UUID.randomUUID())
+            whenever(userRepository.existsById(userId.value)).thenReturn(true)
+
+            // when
+            accountService.deleteAccount(userId)
+
+            // then — 세 귀속 데이터 레포 모두 deleteByOwnerId가 호출돼야 한다(회귀 방지).
+            verify(experienceRecordRepository).deleteByOwnerId(userId)
+            verify(targetBriefRepository).deleteByOwnerId(userId)
+            verify(resumeTemplateRepository).deleteByOwnerId(userId)
+            verify(userRepository).deleteById(userId.value)
         }
     }
 

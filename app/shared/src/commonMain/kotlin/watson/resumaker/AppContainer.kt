@@ -7,6 +7,8 @@ import watson.resumaker.network.ExperienceApi
 import watson.resumaker.network.ExperienceApiImpl
 import watson.resumaker.network.TargetApi
 import watson.resumaker.network.TargetApiImpl
+import watson.resumaker.network.TemplateApi
+import watson.resumaker.network.TemplateApiImpl
 import watson.resumaker.network.createPlatformHttpClient
 import watson.resumaker.session.SessionStore
 import watson.resumaker.session.createSessionStore
@@ -31,4 +33,5 @@ class AppContainer(
     val accountApi: AccountApi = AccountApiImpl(apiClient)
     val experienceApi: ExperienceApi = ExperienceApiImpl(apiClient)
     val targetApi: TargetApi = TargetApiImpl(apiClient)
+    val templateApi: TemplateApi = TemplateApiImpl(apiClient)
 }

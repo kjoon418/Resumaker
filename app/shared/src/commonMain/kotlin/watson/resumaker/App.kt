@@ -17,6 +17,10 @@ import watson.resumaker.feature.target.TargetEditScreen
 import watson.resumaker.feature.target.TargetEditViewModel
 import watson.resumaker.feature.target.TargetListScreen
 import watson.resumaker.feature.target.TargetListViewModel
+import watson.resumaker.feature.template.TemplateEditScreen
+import watson.resumaker.feature.template.TemplateEditViewModel
+import watson.resumaker.feature.template.TemplateListScreen
+import watson.resumaker.feature.template.TemplateListViewModel
 import watson.resumaker.navigation.AppNavigator
 import watson.resumaker.navigation.BrowserHistory
 import watson.resumaker.navigation.Routes
@@ -53,13 +57,15 @@ fun App(container: AppContainer = remember { AppContainer() }) {
             }
 
             Screen.Home -> {
-                val vm = remember { HomeViewModel(container.experienceApi, container.targetApi) }
+                val vm = remember { HomeViewModel(container.experienceApi, container.targetApi, container.templateApi) }
                 HomeScreen(
                     viewModel = vm,
                     onOpenExperiences = { navigator.switchRoot(Screen.ExperienceList) },
                     onOpenTargets = { navigator.switchRoot(Screen.TargetList) },
+                    onOpenTemplates = { navigator.switchRoot(Screen.TemplateList) },
                     onOpenExperience = { navigator.push(Screen.ExperienceEdit(it)) },
                     onOpenTarget = { navigator.push(Screen.TargetEdit(it)) },
+                    onOpenTemplate = { navigator.push(Screen.TemplateEdit(it)) },
                     onCreateExperience = { navigator.push(Screen.ExperienceEdit(null)) },
                     onOpenArtifact = { hasExperiences -> navigator.push(Screen.Artifact(hasExperiences)) },
                     onOpenMyPage = { navigator.switchRoot(Screen.MyPage) },
@@ -117,6 +123,31 @@ fun App(container: AppContainer = remember { AppContainer() }) {
                 )
             }
 
+            Screen.TemplateList -> {
+                val vm = remember { TemplateListViewModel(container.templateApi) }
+                TemplateListScreen(
+                    viewModel = vm,
+                    selectedTab = HeaderTab.TEMPLATE,
+                    pendingMessage = navigator.consumePendingMessage(),
+                    onCreate = { navigator.push(Screen.TemplateEdit(null)) },
+                    onOpen = { navigator.push(Screen.TemplateEdit(it)) },
+                    onSelectTab = { navigator.onHeaderTab(it) },
+                    onOpenMyPage = { navigator.switchRoot(Screen.MyPage) },
+                )
+            }
+
+            is Screen.TemplateEdit -> {
+                val vm = remember(screen.templateId) {
+                    TemplateEditViewModel(container.templateApi, screen.templateId)
+                }
+                TemplateEditScreen(
+                    viewModel = vm,
+                    onBack = { navigator.pop() },
+                    // WX-4: 저장 후 항상 양식 목록으로 + 성공 스낵바 1회.
+                    onSaved = { navigator.returnToList(Screen.TemplateList, "양식을 저장했어요") },
+                )
+            }
+
             is Screen.Artifact -> ArtifactComingSoonScreen(
                 onBack = { navigator.pop() },
                 onRecordExperience = { navigator.switchRoot(Screen.ExperienceList) },
@@ -137,9 +168,10 @@ fun App(container: AppContainer = remember { AppContainer() }) {
     }
 }
 
-/** 헤더 내비 탭(홈/경험/목표) → 루트 화면 전환(WX-7). */
+/** 헤더 내비 탭(홈/경험/목표/양식) → 루트 화면 전환(WX-7). */
 private fun AppNavigator.onHeaderTab(tab: HeaderTab) = when (tab) {
     HeaderTab.HOME -> switchRoot(Screen.Home)
     HeaderTab.EXPERIENCE -> switchRoot(Screen.ExperienceList)
     HeaderTab.TARGET -> switchRoot(Screen.TargetList)
+    HeaderTab.TEMPLATE -> switchRoot(Screen.TemplateList)
 }

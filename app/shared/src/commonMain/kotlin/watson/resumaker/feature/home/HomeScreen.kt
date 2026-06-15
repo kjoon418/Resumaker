@@ -23,6 +23,7 @@ import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import watson.resumaker.feature.experience.formatPeriod
 import watson.resumaker.feature.target.targetTitle
+import watson.resumaker.feature.template.templateSummary
 import watson.resumaker.ui.component.AppHeader
 import watson.resumaker.ui.component.AppScaffold
 import watson.resumaker.ui.component.ContentWidth
@@ -55,8 +56,10 @@ fun HomeScreen(
     viewModel: HomeViewModel,
     onOpenExperiences: () -> Unit,
     onOpenTargets: () -> Unit,
+    onOpenTemplates: () -> Unit,
     onOpenExperience: (String) -> Unit,
     onOpenTarget: (String) -> Unit,
+    onOpenTemplate: (String) -> Unit,
     onCreateExperience: () -> Unit,
     onOpenArtifact: (hasExperiences: Boolean) -> Unit,
     onSelectTab: (HeaderTab) -> Unit,
@@ -153,6 +156,33 @@ fun HomeScreen(
                                 title = targetTitle(t),
                                 meta = t.recruitDirection,
                                 onClick = { onOpenTarget(t.id) },
+                            )
+                        }
+                    }
+                }
+
+                // 내 양식
+                SectionHeader(
+                    title = "내 양식",
+                    onViewAll = onOpenTemplates.takeIf { state.templates.isNotEmpty() },
+                    onAdd = onOpenTemplates,
+                    addText = "추가",
+                )
+                if (state.templatePreview.isEmpty()) {
+                    EmptyState(
+                        icon = RmIcons.Note,
+                        title = "아직 만든 양식이 없어요",
+                        description = "회사가 요구하는 섹션 구조를 한 번 만들어 두면 다시 쓸 수 있어요.",
+                        actionText = "양식 만들기",
+                        onAction = onOpenTemplates,
+                    )
+                } else {
+                    CardGrid(columns = columns, itemCount = state.templatePreview.size) {
+                        items(state.templatePreview, key = { it.id }) { t ->
+                            ListItemCard(
+                                title = t.name,
+                                meta = templateSummary(t),
+                                onClick = { onOpenTemplate(t.id) },
                             )
                         }
                     }

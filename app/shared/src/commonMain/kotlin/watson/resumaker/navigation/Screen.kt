@@ -27,6 +27,14 @@ sealed interface Screen {
      */
     data class TargetEdit(val targetId: String? = null) : Screen
 
+    /** 이력서 양식 목록. */
+    data object TemplateList : Screen
+
+    /**
+     * 이력서 양식 생성·수정. [templateId]가 null이면 신규.
+     */
+    data class TemplateEdit(val templateId: String? = null) : Screen
+
     /**
      * 산출물 "준비 중". [hasExperiences]가 false면 빈 경험묶음 예방형 카피로 분기한다(수용기준 8).
      */

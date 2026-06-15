@@ -8,6 +8,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import watson.resumaker.fake.FakeExperienceApi
 import watson.resumaker.fake.FakeTargetApi
+import watson.resumaker.fake.FakeTemplateApi
 import watson.resumaker.fake.sampleExperience
 import watson.resumaker.model.dto.TargetResponse
 import watson.resumaker.network.ApiResult
@@ -38,6 +39,7 @@ class HomeViewModelTest {
         val vm = HomeViewModel(
             FakeExperienceApi(getAllResult = ApiResult.Success(experiences)),
             FakeTargetApi(getAllResult = ApiResult.Success(targets)),
+            FakeTemplateApi(),
         )
         testScheduler.advanceUntilIdle()
 
@@ -56,6 +58,7 @@ class HomeViewModelTest {
         val vm = HomeViewModel(
             FakeExperienceApi(getAllResult = ApiResult.Failure("경험 로드 실패")),
             FakeTargetApi(getAllResult = ApiResult.Success(listOf(target("t1")))),
+            FakeTemplateApi(),
         )
         testScheduler.advanceUntilIdle()
 
@@ -71,6 +74,7 @@ class HomeViewModelTest {
         val vm = HomeViewModel(
             FakeExperienceApi(getAllResult = ApiResult.Success(listOf(sampleExperience()))),
             FakeTargetApi(getAllResult = ApiResult.Failure("목표 로드 실패")),
+            FakeTemplateApi(),
         )
         testScheduler.advanceUntilIdle()
 
