@@ -1,3 +1,7 @@
+server:
+  # 로컬 기본 포트 8082(브라우저 클라이언트 기본 baseUrl과 일치). 환경변수로 재정의 가능.
+  port: ${SERVER_PORT:8082}
+
 spring:
   application:
     name: resumaker

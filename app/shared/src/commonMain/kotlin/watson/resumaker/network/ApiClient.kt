@@ -19,7 +19,7 @@ import watson.resumaker.session.SessionStore
 /**
  * Ktor HttpClient 래퍼. ContentNegotiation(json) + 기본 URL + `X-User-Id` 헤더 주입을 담당한다(브리프 §API).
  *
- * @param baseUrl 백엔드 기본 URL(로컬 기본 `http://localhost:8080`, 환경설정 가능).
+ * @param baseUrl 백엔드 기본 URL(로컬 기본 `http://localhost:8082`, 환경설정 가능).
  * @param session 보호된 요청에 주입할 userId 출처.
  */
 class ApiClient(
@@ -83,7 +83,7 @@ class ApiClient(
     private fun HttpStatusCode.isSuccess(): Boolean = value in 200..299
 
     companion object {
-        const val DEFAULT_BASE_URL = "http://localhost:8080"
+        const val DEFAULT_BASE_URL = "http://localhost:8082"
         const val HEADER_USER_ID = "X-User-Id"
     }
 }

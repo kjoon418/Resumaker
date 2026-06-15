@@ -15,7 +15,7 @@ import watson.resumaker.session.createSessionStore
  * 앱 의존성 컨테이너(수동 DI). 세션·HttpClient·API들을 한 곳에서 조립한다.
  * ViewModel은 여기서 만든 API/Session만 의존한다(프레임워크 DI 없이 단순·예측 가능).
  *
- * @param baseUrl 백엔드 기본 URL(기본 localhost:8080).
+ * @param baseUrl 백엔드 기본 URL(기본 localhost:8082).
  */
 class AppContainer(
     baseUrl: String = ApiClient.DEFAULT_BASE_URL,
