@@ -28,3 +28,9 @@ spring:
 resumaker:
   cors:
     allowed-origin-patterns: ${CORS_ALLOWED_ORIGINS:http://localhost:*,http://127.0.0.1:*}
+  # 산출물 AI 생성/해석은 개발 단계 비용 0을 위해 Anthropic API가 아닌 Claude CLI 셸 호출로 한다(구현 설계 §12).
+  # 모델·타임아웃·실행 경로만 외부화한다(기본값은 ClaudeCliProperties에 정의). 프롬프트·결과는 로깅하지 않는다.
+  claude-cli:
+    executable-path: ${CLAUDE_CLI_PATH:claude}
+    model: ${CLAUDE_CLI_MODEL:claude-sonnet-4-5}
+    timeout: ${CLAUDE_CLI_TIMEOUT:120s}

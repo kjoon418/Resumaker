@@ -98,6 +98,29 @@ class ExperienceRecordRepositoryTest {
     }
 
     @Test
+    fun 배치_조회는_본인_데이터만_반환하고_타소유_식별자는_제외한다() {
+        // given (LOW-3) — 배치 적재는 소유 격리를 유지하고, 타소유/미존재 식별자는 결과에서 빠진다.
+        val mineA = repository.saveAndFlush(
+            ExperienceRecord.create(ownerId, ExperienceTitle("A"), ExperienceType.PROJECT, ExperienceBody("a"), ExperienceDetail.EMPTY),
+        )
+        val mineB = repository.saveAndFlush(
+            ExperienceRecord.create(ownerId, ExperienceTitle("B"), ExperienceType.JOB, ExperienceBody("b"), ExperienceDetail.EMPTY),
+        )
+        val others = repository.saveAndFlush(
+            ExperienceRecord.create(otherOwnerId, ExperienceTitle("C"), ExperienceType.AWARD, ExperienceBody("c"), ExperienceDetail.EMPTY),
+        )
+
+        // when — 본인 둘 + 타소유 하나를 함께 요청한다(식별자는 원시 UUID로 전달).
+        val found = repository.findAllByIdInAndOwnerId(
+            listOf(mineA.id.value, mineB.id.value, others.id.value),
+            ownerId,
+        )
+
+        // then — 본인 데이터만 반환(타소유 제외). 호출자는 결과 수 < 요청 수로 누락을 검출한다.
+        assertThat(found.map { it.title.value }).containsExactlyInAnyOrder("A", "B")
+    }
+
+    @Test
     fun 소유자_기준_삭제는_본인_데이터만_지운다() {
         // given
         repository.saveAndFlush(
