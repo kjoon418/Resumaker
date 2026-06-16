@@ -36,6 +36,8 @@ object Routes {
         is Screen.TargetEdit -> if (screen.targetId == null) "/targets/new" else "/targets/${screen.targetId}"
         Screen.TemplateList -> "/resume-templates"
         is Screen.TemplateEdit -> if (screen.templateId == null) "/resume-templates/new" else "/resume-templates/${screen.templateId}"
+        Screen.TemplatePreset -> "/resume-templates/presets"
+        Screen.TemplateInterpret -> "/resume-templates/interpret"
         is Screen.Artifact -> "/artifact"
         Screen.MyPage -> "/me"
     }
@@ -57,6 +59,8 @@ object Routes {
             segments.size == 2 && segments[0] == "targets" ->
                 if (segments[1] == "new") Screen.TargetEdit(null) else Screen.TargetEdit(segments[1])
             segments == listOf("resume-templates") -> Screen.TemplateList
+            segments == listOf("resume-templates", "presets") -> Screen.TemplatePreset
+            segments == listOf("resume-templates", "interpret") -> Screen.TemplateInterpret
             segments.size == 2 && segments[0] == "resume-templates" ->
                 if (segments[1] == "new") Screen.TemplateEdit(null) else Screen.TemplateEdit(segments[1])
             segments == listOf("artifact") -> Screen.Artifact()

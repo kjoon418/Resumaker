@@ -43,20 +43,34 @@ data class TemplateEditUiState(
 }
 
 /**
- * 이력서 양식 생성·수정 ViewModel(FU-A). 양식 이름(필수) + 섹션 행 목록(≥1, 각 행 이름 필수) 편집.
- * 섹션 행은 추가·삭제·순서 이동 가능하며, 각 행은 이름/성격(요약형·경력형)/필수 토글을 가진다.
+ * 이력서 양식 생성·수정 ViewModel(FU-A/B).
+ * - 신규 생성: [templateId] = null, [presetName]/[presetSections] = null → 빈 폼.
+ * - 프리셋에서 시작(FU-B): [templateId] = null, [presetName]+[presetSections] non-null → 프리셋 값으로 미리 채운다.
+ * - 수정: [templateId] non-null → 서버에서 기존 양식을 불러온다.
+ *
  * TargetEditViewModel 패턴(UiState, ApiResult 분기, 에러 필드 매핑, 스낵바)을 미러한다.
  */
 class TemplateEditViewModel(
     private val templateApi: TemplateApi,
     templateId: String?,
+    presetName: String? = null,
+    presetSections: List<SectionRow>? = null,
 ) : ViewModel() {
-
-    private val _state = MutableStateFlow(TemplateEditUiState(editingId = templateId))
-    val state: StateFlow<TemplateEditUiState> = _state.asStateFlow()
 
     /** 새 섹션 행에 부여할 단조 증가 키(목록 편집의 안정 식별자). */
     private var nextKey = 1
+
+    private val initialSections: List<SectionRow> = presetSections
+        ?: listOf(SectionRow(key = nextKey++))
+
+    private val _state = MutableStateFlow(
+        TemplateEditUiState(
+            editingId = templateId,
+            name = presetName ?: "",
+            sections = initialSections,
+        ),
+    )
+    val state: StateFlow<TemplateEditUiState> = _state.asStateFlow()
 
     init {
         if (templateId != null) loadExisting(templateId)

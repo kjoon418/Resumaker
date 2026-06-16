@@ -3,12 +3,15 @@ package watson.resumaker.fake
 import watson.resumaker.model.dto.CreateExperienceRequest
 import watson.resumaker.model.dto.CreateTargetRequest
 import watson.resumaker.model.dto.ExperienceResponse
+import watson.resumaker.model.dto.InterpretRequest
+import watson.resumaker.model.dto.InterpretResponse
 import watson.resumaker.model.dto.LoginRequest
 import watson.resumaker.model.dto.LoginResponse
 import watson.resumaker.model.dto.CreateTemplateRequest
 import watson.resumaker.model.dto.SignUpRequest
 import watson.resumaker.model.dto.SignUpResponse
 import watson.resumaker.model.dto.TargetResponse
+import watson.resumaker.model.dto.TemplatePresetResponse
 import watson.resumaker.model.dto.TemplateResponse
 import watson.resumaker.model.dto.UpdateExperienceRequest
 import watson.resumaker.model.dto.UpdateTargetRequest
@@ -18,6 +21,8 @@ import watson.resumaker.network.ApiResult
 import watson.resumaker.network.ExperienceApi
 import watson.resumaker.network.TargetApi
 import watson.resumaker.network.TemplateApi
+import watson.resumaker.network.TemplateInterpretApi
+import watson.resumaker.network.TemplatePresetApi
 import watson.resumaker.session.SessionStore
 
 /** 테스트용 인메모리 세션. */
@@ -152,6 +157,34 @@ class FakeTemplateApi(
     override suspend fun delete(id: String): ApiResult<Unit> {
         deletedId = id
         return deleteResult
+    }
+}
+
+/** 결과를 미리 지정하는 fake TemplatePresetApi(FU-B). */
+class FakeTemplatePresetApi(
+    var getAllResult: ApiResult<List<TemplatePresetResponse>> = ApiResult.Success(emptyList()),
+) : TemplatePresetApi {
+    var getAllCount = 0
+        private set
+
+    override suspend fun getAll(): ApiResult<List<TemplatePresetResponse>> {
+        getAllCount++
+        return getAllResult
+    }
+}
+
+/** 결과를 미리 지정하는 fake TemplateInterpretApi(FU-C). 호출 카운터로 미호출을 검증한다. */
+class FakeTemplateInterpretApi(
+    var interpretResult: ApiResult<InterpretResponse> = ApiResult.Success(InterpretResponse(status = InterpretResponse.STATUS_INTERPRETED)),
+) : TemplateInterpretApi {
+    var interpretCount = 0
+        private set
+    var lastInterpret: InterpretRequest? = null
+
+    override suspend fun interpret(request: InterpretRequest): ApiResult<InterpretResponse> {
+        interpretCount++
+        lastInterpret = request
+        return interpretResult
     }
 }
 

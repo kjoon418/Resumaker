@@ -33,6 +33,7 @@ import watson.resumaker.ui.component.ContentWidth
 import watson.resumaker.ui.component.EmptyState
 import watson.resumaker.ui.component.ErrorBanner
 import watson.resumaker.ui.component.HeaderTab
+import watson.resumaker.ui.component.GhostButton
 import watson.resumaker.ui.component.InlineAddButton
 import watson.resumaker.ui.component.ListItemCard
 import watson.resumaker.ui.component.LocalContentMaxWidth
@@ -59,6 +60,8 @@ fun TemplateListScreen(
     onOpen: (String) -> Unit,
     onSelectTab: (HeaderTab) -> Unit,
     onOpenMyPage: () -> Unit,
+    onStartFromPreset: () -> Unit = {},
+    onStartFromPaste: () -> Unit = {},
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -111,7 +114,11 @@ fun TemplateListScreen(
             state.items.isEmpty() -> Column(
                 contentModifier.padding(horizontal = pad).padding(top = RmSpacing.space6),
             ) {
-                PageHeaderRow(onCreate = onCreate)
+                PageHeaderRow(
+                    onCreate = onCreate,
+                    onStartFromPreset = onStartFromPreset,
+                    onStartFromPaste = onStartFromPaste,
+                )
                 EmptyState(
                     icon = RmIcons.Note,
                     title = "아직 만든 양식이 없어요",
@@ -133,7 +140,11 @@ fun TemplateListScreen(
                 verticalArrangement = Arrangement.spacedBy(RmSpacing.space3),
             ) {
                 item(span = { GridItemSpan(maxLineSpan) }) {
-                    PageHeaderRow(onCreate = onCreate)
+                    PageHeaderRow(
+                        onCreate = onCreate,
+                        onStartFromPreset = onStartFromPreset,
+                        onStartFromPaste = onStartFromPaste,
+                    )
                 }
                 items(state.items, key = { it.id }) { item ->
                     TemplateRow(item = item, onOpen = { onOpen(item.id) }, onDelete = { viewModel.requestDelete(item) })
@@ -153,20 +164,37 @@ fun TemplateListScreen(
     }
 }
 
-/** 페이지 제목 + 우측 인라인 "추가" 버튼(WX-6). */
+/** 페이지 제목 + 우측 인라인 추가·프리셋·붙여넣기 진입점(WX-6, FU-B/C). */
 @Composable
-private fun PageHeaderRow(onCreate: () -> Unit) {
-    Row(
+private fun PageHeaderRow(
+    onCreate: () -> Unit,
+    onStartFromPreset: () -> Unit,
+    onStartFromPaste: () -> Unit,
+) {
+    androidx.compose.foundation.layout.Column(
         modifier = Modifier.fillMaxWidth().padding(bottom = RmSpacing.space4),
-        verticalAlignment = Alignment.CenterVertically,
+        verticalArrangement = Arrangement.spacedBy(RmSpacing.space2),
     ) {
-        Text(
-            text = "내 양식",
-            style = RmTextStyles.titleL,
-            color = RmTheme.colors.textPrimary,
-            modifier = Modifier.weight(1f),
-        )
-        InlineAddButton(text = "양식 만들기", onClick = onCreate)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = "내 양식",
+                style = RmTextStyles.titleL,
+                color = RmTheme.colors.textPrimary,
+                modifier = Modifier.weight(1f),
+            )
+            InlineAddButton(text = "양식 만들기", onClick = onCreate)
+        }
+        // FU-B/C 진입점: 프리셋에서 시작 · 회사 양식 붙여넣기.
+        // IA 검토 필요: 진입점 배치·버튼 레이블은 최종 디자이너 리뷰 대상이다.
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(RmSpacing.space2),
+        ) {
+            GhostButton(text = "프리셋에서 시작", onClick = onStartFromPreset, fillWidth = false)
+            GhostButton(text = "회사 양식 붙여넣기", onClick = onStartFromPaste, fillWidth = false)
+        }
     }
 }
 

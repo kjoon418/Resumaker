@@ -57,3 +57,35 @@ data class SectionResponse(
     val character: SectionCharacter,
     val required: Boolean,
 )
+
+/**
+ * 프리셋 양식 응답 DTO(FU-B). [key]는 프리셋 식별자, [name]은 표시 이름, [sections]는 섹션 정의 목록.
+ */
+data class TemplatePresetResponse(
+    val key: String,
+    val name: String,
+    val sections: List<SectionResponse>,
+)
+
+/**
+ * 회사 양식 붙여넣기 해석 요청 DTO(FU-C). [text]는 사용자가 붙여넣은 원문.
+ */
+data class InterpretRequest(
+    @field:NotBlank(message = "해석할 양식 텍스트를 붙여넣어 주세요.")
+    val text: String?,
+)
+
+/**
+ * 해석 결과 응답 DTO(FU-C).
+ * - status = "interpreted": [sections]에 후보 섹션 목록이 담긴다(후보, 영속 전).
+ * - status = "unavailable": 해석 불가. [sections]는 빈 목록. 프론트는 폴백 UI를 보여준다.
+ */
+data class InterpretResponse(
+    val status: String,
+    val sections: List<SectionResponse> = emptyList(),
+) {
+    companion object {
+        const val STATUS_INTERPRETED = "interpreted"
+        const val STATUS_UNAVAILABLE = "unavailable"
+    }
+}

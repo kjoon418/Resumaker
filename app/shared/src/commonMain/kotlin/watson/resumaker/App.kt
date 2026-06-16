@@ -19,8 +19,12 @@ import watson.resumaker.feature.target.TargetListScreen
 import watson.resumaker.feature.target.TargetListViewModel
 import watson.resumaker.feature.template.TemplateEditScreen
 import watson.resumaker.feature.template.TemplateEditViewModel
+import watson.resumaker.feature.template.TemplateInterpretScreen
+import watson.resumaker.feature.template.TemplateInterpretViewModel
 import watson.resumaker.feature.template.TemplateListScreen
 import watson.resumaker.feature.template.TemplateListViewModel
+import watson.resumaker.feature.template.TemplatePresetScreen
+import watson.resumaker.feature.template.TemplatePresetViewModel
 import watson.resumaker.navigation.AppNavigator
 import watson.resumaker.navigation.BrowserHistory
 import watson.resumaker.navigation.Routes
@@ -133,18 +137,78 @@ fun App(container: AppContainer = remember { AppContainer() }) {
                     onOpen = { navigator.push(Screen.TemplateEdit(it)) },
                     onSelectTab = { navigator.onHeaderTab(it) },
                     onOpenMyPage = { navigator.switchRoot(Screen.MyPage) },
+                    onStartFromPreset = { navigator.push(Screen.TemplatePreset) },
+                    onStartFromPaste = { navigator.push(Screen.TemplateInterpret) },
                 )
             }
 
             is Screen.TemplateEdit -> {
-                val vm = remember(screen.templateId) {
-                    TemplateEditViewModel(container.templateApi, screen.templateId)
+                val vm = remember(screen.templateId, screen.presetName) {
+                    val presetRows = screen.presetSections?.mapIndexed { i, s ->
+                        watson.resumaker.feature.template.SectionRow(
+                            key = i,
+                            name = s.name,
+                            character = s.character,
+                            required = s.required,
+                        )
+                    }
+                    TemplateEditViewModel(
+                        templateApi = container.templateApi,
+                        templateId = screen.templateId,
+                        presetName = screen.presetName,
+                        presetSections = presetRows,
+                    )
                 }
                 TemplateEditScreen(
                     viewModel = vm,
                     onBack = { navigator.pop() },
                     // WX-4: 저장 후 항상 양식 목록으로 + 성공 스낵바 1회.
                     onSaved = { navigator.returnToList(Screen.TemplateList, "양식을 저장했어요") },
+                )
+            }
+
+            Screen.TemplatePreset -> {
+                val vm = remember { TemplatePresetViewModel(container.templatePresetApi) }
+                TemplatePresetScreen(
+                    viewModel = vm,
+                    onBack = { navigator.pop() },
+                    onPresetSelected = { preset ->
+                        val presetSections = preset.sections
+                        navigator.pop()
+                        navigator.push(
+                            Screen.TemplateEdit(
+                                templateId = null,
+                                presetName = preset.name,
+                                presetSections = presetSections,
+                            ),
+                        )
+                    },
+                )
+            }
+
+            Screen.TemplateInterpret -> {
+                val vm = remember { TemplateInterpretViewModel(container.templateInterpretApi) }
+                TemplateInterpretScreen(
+                    viewModel = vm,
+                    onBack = { navigator.pop() },
+                    onConfirmed = { name, sections ->
+                        navigator.pop()
+                        navigator.push(
+                            Screen.TemplateEdit(
+                                templateId = null,
+                                presetName = name,
+                                presetSections = sections,
+                            ),
+                        )
+                    },
+                    onFallbackToPreset = {
+                        navigator.pop()
+                        navigator.push(Screen.TemplatePreset)
+                    },
+                    onFallbackToEdit = {
+                        navigator.pop()
+                        navigator.push(Screen.TemplateEdit(null))
+                    },
                 )
             }
 

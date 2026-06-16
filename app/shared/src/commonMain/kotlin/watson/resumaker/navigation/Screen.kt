@@ -32,8 +32,19 @@ sealed interface Screen {
 
     /**
      * 이력서 양식 생성·수정. [templateId]가 null이면 신규.
+     * [presetName]/[presetSections]가 non-null이면 프리셋에서 시작(FU-B).
      */
-    data class TemplateEdit(val templateId: String? = null) : Screen
+    data class TemplateEdit(
+        val templateId: String? = null,
+        val presetName: String? = null,
+        val presetSections: List<watson.resumaker.model.dto.SectionResponse>? = null,
+    ) : Screen
+
+    /** 프리셋 선택 화면(FU-B). */
+    data object TemplatePreset : Screen
+
+    /** 회사 양식 붙여넣기 + 확정 게이트 화면(FU-C). */
+    data object TemplateInterpret : Screen
 
     /**
      * 산출물 "준비 중". [hasExperiences]가 false면 빈 경험묶음 예방형 카피로 분기한다(수용기준 8).
