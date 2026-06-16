@@ -10,7 +10,9 @@ import java.time.Duration
  * [ClaudeCliClient] 단위 테스트. **실제 `claude` CLI를 호출하지 않는다** — fake [ProcessRunner]가 canned
  * envelope를 돌려준다(구현 설계 §10, 비용 0·결정성).
  *
- * 실측 envelope 형태: {"type":"result","is_error":false, ... ,"result":"<JSON 문자열>"}.
+ * 실측 envelope 형태(--json-schema): {"type":"result","is_error":false, ... ,"result":"","structured_output":{...}}.
+ * 구조화 결과는 `structured_output`(이미 파싱된 JSON)에 담기고 `result`는 빈 문자열이다. 스키마 미사용/구버전
+ * 호환을 위해 `result` 텍스트 폴백도 검증한다.
  */
 class ClaudeCliClientTest {
 
@@ -35,14 +37,26 @@ class ClaudeCliClientTest {
         }
     }
 
-    private fun envelope(resultJson: String, isError: Boolean = false): String =
+    /** 실측 envelope: 구조화 결과는 structured_output(이미 파싱된 JSON 노드)에, result는 빈 문자열로 담긴다. */
+    private fun envelope(structuredJson: String, isError: Boolean = false): String =
         objectMapper.writeValueAsString(
-            mapOf("type" to "result", "is_error" to isError, "result" to resultJson),
+            mapOf(
+                "type" to "result",
+                "is_error" to isError,
+                "result" to "",
+                "structured_output" to objectMapper.readTree(structuredJson),
+            ),
+        )
+
+    /** 폴백 검증용: structured_output 없이 result에 JSON 텍스트만 담는다(스키마 미사용/구버전 CLI). */
+    private fun resultTextEnvelope(resultText: String, isError: Boolean = false): String =
+        objectMapper.writeValueAsString(
+            mapOf("type" to "result", "is_error" to isError, "result" to resultText),
         )
 
     @Test
-    fun 정상_envelope에서_result를_JSON으로_파싱한다() {
-        // given — result 필드에 구조화된 JSON 문자열이 담긴다.
+    fun 정상_envelope에서_structured_output을_그대로_반환한다() {
+        // given — structured_output에 구조화된 JSON 객체가 이미 파싱돼 담긴다.
         val runner = fakeRunner(stdout = envelope("""{"sections":[{"name":"요약"}]}"""))
 
         // when
@@ -51,6 +65,46 @@ class ClaudeCliClientTest {
         // then
         assertThat(node.get("sections").isArray).isTrue()
         assertThat(node.get("sections")[0].get("name").asText()).isEqualTo("요약")
+    }
+
+    @Test
+    fun structured_output이_배열이면_그대로_반환한다() {
+        // given — 배열 스키마 응답: structured_output이 최상위 배열 노드다.
+        val runner = fakeRunner(stdout = envelope("""[{"id":1},{"id":2}]"""))
+
+        // when
+        val node = client(runner).complete(prompt = "p", jsonSchema = "{}")
+
+        // then
+        assertThat(node.isArray).isTrue()
+        assertThat(node).hasSize(2)
+        assertThat(node[0].get("id").asInt()).isEqualTo(1)
+    }
+
+    @Test
+    fun structured_output이_없으면_result_텍스트로_폴백_파싱한다() {
+        // given — 스키마 미사용/구버전: structured_output 없이 result에 JSON 텍스트가 담긴다.
+        val runner = fakeRunner(stdout = resultTextEnvelope("""{"sections":[{"name":"폴백"}]}"""))
+
+        // when
+        val node = client(runner).complete(prompt = "p", jsonSchema = "{}")
+
+        // then
+        assertThat(node.get("sections")[0].get("name").asText()).isEqualTo("폴백")
+    }
+
+    @Test
+    fun structured_output도_result도_없으면_예외로_전파된다() {
+        // given — structured_output 부재 + result 빈 문자열.
+        val runner = fakeRunner(
+            stdout = objectMapper.writeValueAsString(
+                mapOf("type" to "result", "is_error" to false, "result" to ""),
+            ),
+        )
+
+        // when and then
+        assertThatThrownBy { client(runner).complete("p", "{}") }
+            .isInstanceOf(ClaudeCliException::class.java)
     }
 
     @Test
@@ -115,8 +169,8 @@ class ClaudeCliClientTest {
     }
 
     @Test
-    fun result가_없으면_예외로_전파된다() {
-        // given
+    fun structured_output과_result_필드가_모두_없으면_예외로_전파된다() {
+        // given — 두 필드 모두 부재.
         val runner = fakeRunner(
             stdout = objectMapper.writeValueAsString(mapOf("type" to "result", "is_error" to false)),
         )
@@ -127,9 +181,20 @@ class ClaudeCliClientTest {
     }
 
     @Test
-    fun result가_올바른_JSON이_아니면_예외로_전파된다() {
-        // given — result는 텍스트지만 JSON이 아님
-        val runner = fakeRunner(stdout = envelope("이건 JSON이 아니에요"))
+    fun structured_output이_스칼라이고_result가_비면_예외로_전파된다() {
+        // given — structured_output이 객체/배열이 아닌 스칼라(문자열)로 오고 result는 빈 문자열.
+        // 스키마는 항상 객체/배열을 강제하지만, 방어적으로 스칼라는 그대로 반환하지 않고 폴백→예외로 빠져야 한다.
+        val runner = fakeRunner(stdout = envelope(""""그냥문자열""""))
+
+        // when and then
+        assertThatThrownBy { client(runner).complete("p", "{}") }
+            .isInstanceOf(ClaudeCliException::class.java)
+    }
+
+    @Test
+    fun structured_output이_없고_result_폴백이_올바른_JSON이_아니면_예외로_전파된다() {
+        // given — structured_output 부재 + result는 텍스트지만 JSON이 아님.
+        val runner = fakeRunner(stdout = resultTextEnvelope("이건 JSON이 아니에요"))
 
         // when and then
         assertThatThrownBy { client(runner).complete("p", "{}") }

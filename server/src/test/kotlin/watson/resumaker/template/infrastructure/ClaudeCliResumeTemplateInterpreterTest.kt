@@ -27,8 +27,14 @@ class ClaudeCliResumeTemplateInterpreterTest {
     ): ClaudeCliResumeTemplateInterpreter {
         val runner = object : ProcessRunner {
             override fun run(command: List<String>, stdin: String, timeout: Duration): ProcessResult {
+                // 실측 envelope: 구조화 결과는 structured_output(이미 파싱된 JSON), result는 빈 문자열.
                 val stdout = rawStdout ?: objectMapper.writeValueAsString(
-                    mapOf("type" to "result", "is_error" to false, "result" to (resultJson ?: "{}")),
+                    mapOf(
+                        "type" to "result",
+                        "is_error" to false,
+                        "result" to "",
+                        "structured_output" to objectMapper.readTree(resultJson ?: "{}"),
+                    ),
                 )
                 return ProcessResult(exitCode, stdout, "")
             }
