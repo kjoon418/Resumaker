@@ -22,6 +22,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import watson.resumaker.model.dto.SectionResponse
 import watson.resumaker.ui.component.AppScaffold
 import watson.resumaker.ui.component.ContentWidth
+import watson.resumaker.ui.component.GhostButton
 import watson.resumaker.ui.component.LoadingState
 import watson.resumaker.ui.component.PageHeader
 import watson.resumaker.ui.component.PrimaryButton
@@ -96,11 +97,8 @@ fun TemplateInterpretScreen(
                     .padding(top = RmSpacing.space6, bottom = RmSpacing.space10),
                 verticalArrangement = Arrangement.spacedBy(RmSpacing.space4),
             ) {
-                Text(
-                    text = "회사가 요구하는 이력서 양식 설명·항목 목록을 아래에 붙여넣으세요.",
-                    style = RmTextStyles.caption,
-                    color = colors.textTertiary,
-                )
+                // L-1: Idle 안내는 RmTextField placeholder가 이미 같은 내용을 전달하므로
+                // 중복 caption을 제거하고 placeholder로 단일화한다(역할 중복 해소).
                 RmTextField(
                     value = state.pastedText,
                     onValueChange = viewModel::onPastedTextChange,
@@ -160,13 +158,15 @@ fun TemplateInterpretScreen(
                     color = colors.textPrimary,
                 )
                 Text(
-                    text = "프리셋을 고르거나, AI가 알아서 구조를 정하게 둘 수 있어요.",
+                    text = "다시 붙여넣어 시도하거나, 프리셋을 고르거나, 직접 구조를 만들 수 있어요.",
                     style = RmTextStyles.bodyMr,
                     color = colors.textSecondary,
                 )
-                PrimaryButton(text = "프리셋 고르기", onClick = onFallbackToPreset)
-                SecondaryButton(text = "직접 만들기", onClick = onFallbackToEdit)
-                SecondaryButton(text = "다시 붙여넣기", onClick = viewModel::resetToIdle)
+                // M-3: 폴백 액션 위계 분리 — 가장 자연스러운 재시도("다시 붙여넣기")를 Primary로,
+                // 대안("프리셋 고르기")을 Secondary로, 마지막 수단("직접 만들기")을 Ghost로 낮춘다.
+                PrimaryButton(text = "다시 붙여넣기", onClick = viewModel::resetToIdle)
+                SecondaryButton(text = "프리셋 고르기", onClick = onFallbackToPreset)
+                GhostButton(text = "직접 만들기", onClick = onFallbackToEdit)
             }
 
             // Confirmed는 LaunchedEffect에서 처리하므로 여기선 로딩 표시.
@@ -182,7 +182,9 @@ private fun ReadOnlySectionRow(index: Int, section: SectionResponse) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(colors.surface, RoundedCornerShape(RmRadius.card))
+            // M-1: 읽기 전용 섹션 행은 아래 양식 이름 입력(RmTextField)과 시각적으로 구분되도록
+            // 배경을 surfaceSubtle(slate-50)로 낮춘다 — 편집 가능 필드로 오해하지 않게.
+            .background(colors.surfaceSubtle, RoundedCornerShape(RmRadius.card))
             .border(RmSize.hairline, colors.borderSubtle, RoundedCornerShape(RmRadius.card))
             .padding(horizontal = RmSpacing.space4, vertical = RmSpacing.space3),
         horizontalArrangement = Arrangement.SpaceBetween,

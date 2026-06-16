@@ -113,12 +113,11 @@ fun TemplateListScreen(
             }
             state.items.isEmpty() -> Column(
                 contentModifier.padding(horizontal = pad).padding(top = RmSpacing.space6),
+                horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                PageHeaderRow(
-                    onCreate = onCreate,
-                    onStartFromPreset = onStartFromPreset,
-                    onStartFromPaste = onStartFromPaste,
-                )
+                // M-2: 시작 CTA 3개 동등 노출로 인한 인지부하 해소.
+                // primary는 EmptyState의 "양식 만들기" 하나로 단일화하고,
+                // 프리셋·붙여넣기는 본문 아래 보조 위계(GhostButton)로 낮춘다.
                 EmptyState(
                     icon = RmIcons.Note,
                     title = "아직 만든 양식이 없어요",
@@ -126,6 +125,13 @@ fun TemplateListScreen(
                     actionText = "양식 만들기",
                     onAction = onCreate,
                 )
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(RmSpacing.space2),
+                    modifier = Modifier.padding(top = RmSpacing.space3),
+                ) {
+                    GhostButton(text = "프리셋에서 시작", onClick = onStartFromPreset, fillWidth = false)
+                    GhostButton(text = "회사 양식 붙여넣기", onClick = onStartFromPaste, fillWidth = false)
+                }
             }
             else -> LazyVerticalGrid(
                 columns = GridCells.Fixed(columns),

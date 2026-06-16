@@ -100,6 +100,36 @@ class AppNavigatorTest {
         assertFalse(nav.canGoBack)
     }
 
+    // ── L-3: replaceTop(원자적 top 교체) ───────────────────────────────────
+
+    @Test
+    fun replaceTopSwapsCurrentWithoutGrowingStack() {
+        // L-3: 프리셋 선택 흐름(목록 → 프리셋 → 편집)에서 프리셋을 편집으로 원자 교체.
+        // pop→push 이중 호출과 달리 스택 깊이는 유지되고 top만 바뀐다.
+        val nav = AppNavigator(Screen.TemplateList)
+        nav.push(Screen.TemplatePreset)
+
+        nav.replaceTop(Screen.TemplateEdit(null))
+
+        assertEquals(Screen.TemplateEdit(null), nav.current)
+        // 목록 위 한 단계만 남으므로 back은 목록으로(중간 URL이 history에 쌓이지 않음).
+        assertTrue(nav.canGoBack)
+        nav.pop()
+        assertEquals(Screen.TemplateList, nav.current)
+        assertFalse(nav.canGoBack)
+    }
+
+    @Test
+    fun replaceTopOnRootKeepsSingleRoot() {
+        // 루트에서 replaceTop은 루트 자체를 교체하되 스택 깊이는 1로 유지(back 불가).
+        val nav = AppNavigator(Screen.TemplateList)
+
+        nav.replaceTop(Screen.TemplateInterpret)
+
+        assertEquals(Screen.TemplateInterpret, nav.current)
+        assertFalse(nav.canGoBack)
+    }
+
     @Test
     fun popWithHistoryDelegatesToBackAndLetsSyncFromPathUpdateStack() {
         // CQ-1: history 가 있을 때 pop() 은 직접 스택을 줄이지 않고

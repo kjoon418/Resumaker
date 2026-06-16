@@ -48,6 +48,20 @@ class AppNavigator(
         history?.push(Routes.pathOf(screen))
     }
 
+    /**
+     * 현재 화면을 [screen]으로 원자적으로 교체한다(스택 깊이 유지). URL은 replaceState.
+     *
+     * L-3: 프리셋 선택·확정·폴백 내비처럼 "한 화면을 닫고 다른 화면을 여는" 전환에서
+     * pop()→push() 이중 호출은 브라우저 history에 중간 URL을 한 단계 더 쌓는다.
+     * replaceTop은 top 항목만 바꾸고 replaceState로 동기화해 history 누적을 한 단계로 만든다.
+     */
+    fun replaceTop(screen: Screen) {
+        backStack.removeLast()
+        backStack.addLast(screen)
+        current = screen
+        history?.replace(Routes.pathOf(screen))
+    }
+
     /** 탭/루트 전환: 스택을 단일 루트로 리셋. URL은 replaceState(히스토리 누적 방지). */
     fun switchRoot(screen: Screen) {
         backStack.clear()

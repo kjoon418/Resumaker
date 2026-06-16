@@ -1,6 +1,7 @@
 package watson.resumaker.ui.component
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -10,6 +11,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -78,10 +80,21 @@ fun AppHeader(
                     style = RmTextStyles.headingS.copy(fontWeight = FontWeight.Bold),
                     color = colors.primary,
                 )
+                // M-6: 탭이 4개(홈/경험/목표/양식)로 늘어 Compact(<600px)에서 오버플로 위험이 있다.
+                // Compact에서는 탭 행을 가로 스크롤 가능하게 해 라벨 잘림 없이 모든 탭을 노출한다
+                // (Medium/Expanded는 폭이 충분하므로 스크롤 없이 기존 레이아웃 유지 — 회귀 없음).
+                val isCompact = windowSize == WindowSize.COMPACT
+                val tabsBase = Modifier
+                    .weight(1f)
+                    .padding(start = if (isCompact) RmSpacing.space4 else RmSpacing.space6)
                 Row(
-                    modifier = Modifier.weight(1f).padding(start = RmSpacing.space6),
+                    modifier = if (isCompact) {
+                        tabsBase.horizontalScroll(rememberScrollState())
+                    } else {
+                        tabsBase
+                    },
                     horizontalArrangement = Arrangement.spacedBy(
-                        if (windowSize == WindowSize.COMPACT) RmSpacing.space2 else RmSpacing.space5,
+                        if (isCompact) RmSpacing.space2 else RmSpacing.space5,
                     ),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {

@@ -173,15 +173,17 @@ fun App(container: AppContainer = remember { AppContainer() }) {
                     viewModel = vm,
                     onBack = { navigator.pop() },
                     onPresetSelected = { preset ->
-                        val presetSections = preset.sections
-                        navigator.pop()
-                        navigator.push(
+                        // L-3: pop→push 이중 호출 대신 원자적 replaceTop으로 history 중간 URL 노출 방지.
+                        navigator.replaceTop(
                             Screen.TemplateEdit(
                                 templateId = null,
                                 presetName = preset.name,
-                                presetSections = presetSections,
+                                presetSections = preset.sections,
                             ),
                         )
+                    },
+                    onStartFromEdit = {
+                        navigator.replaceTop(Screen.TemplateEdit(null))
                     },
                 )
             }
@@ -192,8 +194,8 @@ fun App(container: AppContainer = remember { AppContainer() }) {
                     viewModel = vm,
                     onBack = { navigator.pop() },
                     onConfirmed = { name, sections ->
-                        navigator.pop()
-                        navigator.push(
+                        // L-3: 원자적 replaceTop으로 history 중간 URL 노출 방지.
+                        navigator.replaceTop(
                             Screen.TemplateEdit(
                                 templateId = null,
                                 presetName = name,
@@ -202,12 +204,10 @@ fun App(container: AppContainer = remember { AppContainer() }) {
                         )
                     },
                     onFallbackToPreset = {
-                        navigator.pop()
-                        navigator.push(Screen.TemplatePreset)
+                        navigator.replaceTop(Screen.TemplatePreset)
                     },
                     onFallbackToEdit = {
-                        navigator.pop()
-                        navigator.push(Screen.TemplateEdit(null))
+                        navigator.replaceTop(Screen.TemplateEdit(null))
                     },
                 )
             }
