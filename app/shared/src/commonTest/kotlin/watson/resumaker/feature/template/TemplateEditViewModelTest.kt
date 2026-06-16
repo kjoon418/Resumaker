@@ -15,6 +15,7 @@ import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -171,5 +172,112 @@ class TemplateEditViewModelTest {
         assertEquals("tpl-7", api.lastUpdate?.first)
         assertEquals("수정본", api.lastUpdate?.second?.name)
         assertTrue(vm.state.value.saved)
+    }
+
+    // GAP-1: 프리셋 프리필 경로 — presetName·presetSections가 초기 state로 채워지는지 검증.
+    @Test
+    fun presetPrefillSetsNameAndSections() = runTest(dispatcher) {
+        val api = FakeTemplateApi()
+        val presetSections = listOf(
+            SectionRow(key = 0, name = "한 줄 자기소개", character = SectionCharacter.SUMMARY, required = true),
+            SectionRow(key = 1, name = "주요 경력", character = SectionCharacter.CAREER, required = false),
+        )
+        val vm = TemplateEditViewModel(
+            templateApi = api,
+            templateId = null,
+            presetName = "신입 개발자 표준",
+            presetSections = presetSections,
+        )
+
+        // init 완료 — loadExisting 호출 없으므로 advanceUntilIdle 불필요.
+        assertEquals("신입 개발자 표준", vm.state.value.name)
+        assertEquals(listOf("한 줄 자기소개", "주요 경력"), vm.state.value.sections.map { it.name })
+        assertEquals(SectionCharacter.CAREER, vm.state.value.sections[1].character)
+        assertTrue(vm.state.value.sections[0].required)
+        assertFalse(vm.state.value.isEditMode)
+    }
+
+    // GAP-1: 프리셋 모드에서 즉시 API를 호출하지 않음을 검증(loadExisting 미실행).
+    @Test
+    fun presetPrefillDoesNotCallApiOnInit() = runTest(dispatcher) {
+        val api = FakeTemplateApi()
+        val presetSections = listOf(
+            SectionRow(key = 0, name = "요약", character = SectionCharacter.SUMMARY, required = false),
+        )
+        TemplateEditViewModel(
+            templateApi = api,
+            templateId = null,
+            presetName = "프리셋명",
+            presetSections = presetSections,
+        )
+        testScheduler.advanceUntilIdle()
+
+        // 프리셋 모드에서는 getOne이 호출되지 않는다.
+        assertNull(api.lastCreate)
+        assertNull(api.lastUpdate)
+    }
+
+    // GAP-1: 프리셋 섹션의 character·required가 save() 시 request에 그대로 전달되는지 검증.
+    @Test
+    fun presetSectionsPreserveCharacterAndRequiredOnSave() = runTest(dispatcher) {
+        val api = FakeTemplateApi()
+        val presetSections = listOf(
+            SectionRow(key = 0, name = "한 줄 자기소개", character = SectionCharacter.SUMMARY, required = true),
+            SectionRow(key = 1, name = "주요 경력", character = SectionCharacter.CAREER, required = false),
+        )
+        val vm = TemplateEditViewModel(
+            templateApi = api,
+            templateId = null,
+            presetName = "신입 개발자 표준",
+            presetSections = presetSections,
+        )
+
+        vm.save()
+        testScheduler.advanceUntilIdle()
+
+        val request = api.lastCreate
+        assertNotNull(request)
+        assertEquals("신입 개발자 표준", request.name)
+        assertEquals(SectionCharacter.SUMMARY, request.sections[0].character)
+        assertTrue(request.sections[0].required)
+        assertEquals(SectionCharacter.CAREER, request.sections[1].character)
+        assertFalse(request.sections[1].required)
+        assertTrue(vm.state.value.saved)
+    }
+
+    // GAP-5: save() API 실패 시 field="name"이면 nameError 인라인, 그 외는 snackbar로 분기.
+    @Test
+    fun saveApiFailureWithNameFieldMapsToNameError() = runTest(dispatcher) {
+        val api = FakeTemplateApi(
+            createResult = ApiResult.Failure("이미 같은 이름의 양식이 있어요.", field = "name"),
+        )
+        val vm = TemplateEditViewModel(api, templateId = null)
+        val key = vm.state.value.sections.first().key
+        vm.onNameChange("중복 이름")
+        vm.onSectionNameChange(key, "요약")
+        vm.save()
+        testScheduler.advanceUntilIdle()
+
+        assertNotNull(vm.state.value.nameError)
+        assertNull(vm.state.value.snackbarMessage)
+        assertFalse(vm.state.value.saved)
+    }
+
+    // GAP-5: save() API 실패 시 field가 null(또는 name 외)이면 snackbar로 표시.
+    @Test
+    fun saveApiFailureWithoutNameFieldShowsSnackbar() = runTest(dispatcher) {
+        val api = FakeTemplateApi(
+            createResult = ApiResult.Failure("서버 오류가 발생했어요."),
+        )
+        val vm = TemplateEditViewModel(api, templateId = null)
+        val key = vm.state.value.sections.first().key
+        vm.onNameChange("내 양식")
+        vm.onSectionNameChange(key, "요약")
+        vm.save()
+        testScheduler.advanceUntilIdle()
+
+        assertNotNull(vm.state.value.snackbarMessage)
+        assertNull(vm.state.value.nameError)
+        assertFalse(vm.state.value.saved)
     }
 }

@@ -17,6 +17,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -186,5 +187,40 @@ class TemplateInterpretViewModelTest {
 
         assertEquals(0, api.interpretCount)
         assertTrue(vm.state.value.gate is InterpretGateState.Fallback)
+    }
+
+    // GAP: resetToIdle은 Gate·Fallback 어느 상태에서도 Idle로 되돌리고 pastedTextError를 지운다.
+    @Test
+    fun resetToIdleFromFallbackReturnsToIdleAndClearsError() = runTest(dispatcher) {
+        val api = FakeTemplateInterpretApi()
+        val vm = TemplateInterpretViewModel(api)
+        vm.onPastedTextChange("   ")
+        vm.interpret()
+        testScheduler.advanceUntilIdle()
+        assertIs<InterpretGateState.Fallback>(vm.state.value.gate)
+
+        vm.resetToIdle()
+
+        assertIs<InterpretGateState.Idle>(vm.state.value.gate)
+        assertNull(vm.state.value.pastedTextError)
+    }
+
+    @Test
+    fun resetToIdleFromGateReturnsToIdle() = runTest(dispatcher) {
+        val api = FakeTemplateInterpretApi(
+            interpretResult = ApiResult.Success(
+                InterpretResponse(status = InterpretResponse.STATUS_INTERPRETED, sections = sections()),
+            ),
+        )
+        val vm = TemplateInterpretViewModel(api)
+        vm.onPastedTextChange("회사 양식 텍스트")
+        vm.interpret()
+        testScheduler.advanceUntilIdle()
+        assertIs<InterpretGateState.Gate>(vm.state.value.gate)
+
+        vm.resetToIdle()
+
+        assertIs<InterpretGateState.Idle>(vm.state.value.gate)
+        assertNull(vm.state.value.pastedTextError)
     }
 }
