@@ -4,6 +4,7 @@ import jakarta.persistence.CascadeType
 import jakarta.persistence.CollectionTable
 import jakarta.persistence.Column
 import jakarta.persistence.ElementCollection
+import jakarta.persistence.Embedded
 import jakarta.persistence.Entity
 import jakarta.persistence.EnumType
 import jakarta.persistence.Enumerated
@@ -50,6 +51,8 @@ class Artifact private constructor(
     @Enumerated(EnumType.STRING)
     @Column(name = "kind", nullable = false)
     val kind: ArtifactKind,
+    @Embedded
+    val targetSnapshot: ArtifactTargetSnapshot,
     @ElementCollection(fetch = FetchType.EAGER)
     @CollectionTable(
         name = "artifact_template_snapshot_sections",
@@ -179,11 +182,13 @@ class Artifact private constructor(
          * 1차 생성 결과로 초기 버전을 만들어 산출물을 생성한다(구현 설계 §3.5). 부분 실패 항목(*_FAILED)도
          * 포함해 저장 가능하다(수용 기준 9). 초기 버전이 곧 활성 버전이 된다.
          *
+         * @param targetSnapshot  생성 시점의 목표 불변 스냅샷(이력서·포트폴리오 모두 필수 — §347).
          * @param templateSnapshot 이력서면 양식 스냅샷, 포트폴리오면 null.
          */
         fun create(
             ownerId: UserId,
             kind: ArtifactKind,
+            targetSnapshot: ArtifactTargetSnapshot,
             templateSnapshot: TemplateSnapshot?,
             initialSections: List<ArtifactSection>,
             createdAt: Instant,
@@ -194,6 +199,7 @@ class Artifact private constructor(
                 id = ArtifactId(IdentifierGenerator.newId()),
                 ownerId = ownerId,
                 kind = kind,
+                targetSnapshot = targetSnapshot,
                 snapshotSectionList = (templateSnapshot?.sections ?: emptyList()).toMutableList(),
                 versionList = mutableListOf(initialVersion),
                 activeVersionId = initialVersion.id,
@@ -204,6 +210,7 @@ class Artifact private constructor(
             id: ArtifactId,
             ownerId: UserId,
             kind: ArtifactKind,
+            targetSnapshot: ArtifactTargetSnapshot,
             templateSnapshot: TemplateSnapshot?,
             versions: List<Version>,
             activeVersionId: VersionId,
@@ -211,6 +218,7 @@ class Artifact private constructor(
             id = id,
             ownerId = ownerId,
             kind = kind,
+            targetSnapshot = targetSnapshot,
             snapshotSectionList = (templateSnapshot?.sections ?: emptyList()).toMutableList(),
             versionList = versions.toMutableList(),
             activeVersionId = activeVersionId,

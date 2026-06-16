@@ -97,7 +97,7 @@ class ArtifactGenerationValidationFlowTest {
         artifactRepository = artifactRepository,
         generationPort = port,
         quotaGuard = quotaGuard,
-        groundingValidator = validator,
+        sectionRegenerationProcessor = SectionRegenerationProcessor(port, validator),
         mapper = mapper,
         transactionTemplate = transactionTemplate,
         clock = clock,

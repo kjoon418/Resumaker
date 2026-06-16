@@ -28,3 +28,13 @@ class UnauthorizedException(message: String) : DomainException(message)
  * action을 함께 내려 사용자가 막다른 길에 빠지지 않게 한다.
  */
 class EmptyExperienceSelectionException(message: String) : DomainException(message)
+
+/**
+ * 현재 상태와 충돌해 요청을 진행할 수 없는 경우. HTTP 409로 매핑된다.
+ * 예: 같은 생성 항목에 대한 재생성이 이미 진행 중일 때의 중복 요청(수용 기준 20, 구현 설계 §185·§305).
+ * 입력 형식 오류가 아니라 "지금은 그 작업을 할 수 없다"이므로 409이며, 사용자가 취할 행동 힌트를 action에 담을 수 있다.
+ */
+class ConflictException(
+    message: String,
+    val action: String? = null,
+) : DomainException(message)

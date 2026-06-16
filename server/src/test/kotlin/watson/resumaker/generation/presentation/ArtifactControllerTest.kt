@@ -17,10 +17,12 @@ import watson.resumaker.account.domain.UserId
 import watson.resumaker.artifact.domain.ArtifactKind
 import watson.resumaker.artifact.domain.SectionKind
 import watson.resumaker.artifact.domain.SectionStatus
+import watson.resumaker.common.domain.ConflictException
 import watson.resumaker.common.domain.EmptyExperienceSelectionException
 import watson.resumaker.common.domain.ResourceNotFoundException
 import watson.resumaker.generation.application.ArtifactGenerationService
 import watson.resumaker.generation.application.ArtifactReadService
+import watson.resumaker.generation.application.SectionRegenerationService
 import java.util.UUID
 
 /**
@@ -42,6 +44,9 @@ class ArtifactControllerTest {
 
     @MockitoBean
     private lateinit var readService: ArtifactReadService
+
+    @MockitoBean
+    private lateinit var regenerationService: SectionRegenerationService
 
     @MockitoBean
     private lateinit var currentUserProvider: CurrentUserProvider
@@ -257,5 +262,119 @@ class ArtifactControllerTest {
                 status { isNotFound() }
                 jsonPath("$.code") { value("NOT_FOUND") }
             }
+    }
+
+    @Test
+    fun 항목_재생성에_성공하면_200과_갱신된_활성_버전을_반환한다() {
+        // given (수용 기준 10·19) — 갱신된 산출물(새 활성 버전)을 그대로 내려준다.
+        val sectionId = UUID.randomUUID().toString()
+        val newVersionId = UUID.randomUUID().toString()
+        whenever(currentUserProvider.currentUserId()).thenReturn(UserId(UUID.randomUUID()))
+        whenever(regenerationService.regenerateSection(any(), any())).thenReturn(
+            ArtifactResponse(
+                id = artifactId,
+                kind = ArtifactKind.RESUME,
+                activeVersion = ArtifactVersionResponse(
+                    versionId = newVersionId,
+                    sections = listOf(
+                        ArtifactSectionResponse(
+                            id = UUID.randomUUID().toString(),
+                            sectionKind = SectionKind.SUMMARY,
+                            definitionKey = "section-0-요약",
+                            content = "다시 만든 요약",
+                            status = SectionStatus.GENERATED,
+                            sourceExperienceIds = listOf(expId),
+                        ),
+                    ),
+                ),
+            ),
+        )
+        val request = RegenerateSectionRequest(directive = "더 짧게")
+
+        // when and then
+        mockMvc.post("/artifacts/$artifactId/sections/$sectionId/regenerate") {
+            contentType = MediaType.APPLICATION_JSON
+            content = objectMapper.writeValueAsString(request)
+        }.andExpect {
+            status { isOk() }
+            jsonPath("$.activeVersion.versionId") { value(newVersionId) }
+            jsonPath("$.activeVersion.sections[0].content") { value("다시 만든 요약") }
+        }
+    }
+
+    @Test
+    fun 같은_항목_동시_재생성은_409와_진행중_안내를_반환한다() {
+        // given (수용 기준 20) — 진행 중이면 ConflictException → 409 + RETRY_LATER 액션.
+        val sectionId = UUID.randomUUID().toString()
+        whenever(currentUserProvider.currentUserId()).thenReturn(UserId(UUID.randomUUID()))
+        whenever(regenerationService.regenerateSection(any(), any()))
+            .thenThrow(ConflictException("이 항목은 지금 다시 만드는 중이에요. 잠시 후 결과를 확인하거나 다시 시도해 주세요.", action = "RETRY_LATER"))
+        val request = RegenerateSectionRequest(directive = null)
+
+        // when and then
+        mockMvc.post("/artifacts/$artifactId/sections/$sectionId/regenerate") {
+            contentType = MediaType.APPLICATION_JSON
+            content = objectMapper.writeValueAsString(request)
+        }.andExpect {
+            status { isConflict() }
+            jsonPath("$.code") { value("CONFLICT") }
+            jsonPath("$.action") { value("RETRY_LATER") }
+        }
+    }
+
+    @Test
+    fun 타인_소유_또는_미존재_항목_재생성은_404를_반환한다() {
+        // given (소유 격리, 수용 기준 13) — 미존재·타인 모두 404.
+        val sectionId = UUID.randomUUID().toString()
+        whenever(currentUserProvider.currentUserId()).thenReturn(UserId(UUID.randomUUID()))
+        whenever(regenerationService.regenerateSection(any(), any()))
+            .thenThrow(ResourceNotFoundException("요청하신 산출물을 찾을 수 없어요."))
+        val request = RegenerateSectionRequest(directive = null)
+
+        // when and then
+        mockMvc.post("/artifacts/$artifactId/sections/$sectionId/regenerate") {
+            contentType = MediaType.APPLICATION_JSON
+            content = objectMapper.writeValueAsString(request)
+        }.andExpect {
+            status { isNotFound() }
+            jsonPath("$.code") { value("NOT_FOUND") }
+        }
+    }
+
+    @Test
+    fun 재생성_요청에_개선_지시_없이_빈_본문이어도_200을_반환한다() {
+        // given — directive는 선택 필드. 목표는 산출물 스냅샷에서 읽으므로 요청 본문에 필수값 없음(§347).
+        val sectionId = UUID.randomUUID().toString()
+        val newVersionId = UUID.randomUUID().toString()
+        whenever(currentUserProvider.currentUserId()).thenReturn(UserId(UUID.randomUUID()))
+        whenever(regenerationService.regenerateSection(any(), any())).thenReturn(
+            ArtifactResponse(
+                id = artifactId,
+                kind = ArtifactKind.RESUME,
+                activeVersion = ArtifactVersionResponse(
+                    versionId = newVersionId,
+                    sections = listOf(
+                        ArtifactSectionResponse(
+                            id = UUID.randomUUID().toString(),
+                            sectionKind = SectionKind.SUMMARY,
+                            definitionKey = "section-0-요약",
+                            content = "다시 만든 요약",
+                            status = SectionStatus.GENERATED,
+                            sourceExperienceIds = listOf(expId),
+                        ),
+                    ),
+                ),
+            ),
+        )
+        val request = RegenerateSectionRequest(directive = null)
+
+        // when and then
+        mockMvc.post("/artifacts/$artifactId/sections/$sectionId/regenerate") {
+            contentType = MediaType.APPLICATION_JSON
+            content = objectMapper.writeValueAsString(request)
+        }.andExpect {
+            status { isOk() }
+            jsonPath("$.activeVersion.versionId") { value(newVersionId) }
+        }
     }
 }

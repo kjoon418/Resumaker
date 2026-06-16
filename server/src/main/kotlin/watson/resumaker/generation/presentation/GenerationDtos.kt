@@ -77,6 +77,19 @@ data class PortfolioGenerationRequest(
     val targetId: String?,
 )
 
+/**
+ * 항목 단위 재생성 요청 DTO(POST /artifacts/{artifactId}/sections/{sectionId}/regenerate, 도메인 이해 §5·§268).
+ * 산출물·항목 식별자는 경로 변수로 받고, 본문에는 선택적 개선 지시만 담는다.
+ *
+ * 목표는 산출물이 생성 시점에 보관한 불변 스냅샷(§347)에서 읽으므로 요청 본문에 포함하지 않는다
+ * (§364: 목표 변경 = 새 산출물 생성 — 재생성은 항상 원본 목표 맥락으로 내용만 갱신한다).
+ *
+ * @param directive 선택적 개선 지시("더 짧게"·"성과 수치 강조" 등). 근거 없는 사실 추가 요구는 거부된다(§284).
+ */
+data class RegenerateSectionRequest(
+    val directive: String? = null,
+)
+
 // ── Cycle D: 열람 응답 DTO(수용 기준 12) ────────────────────────────────────
 
 /**

@@ -5,6 +5,7 @@ import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.MethodArgumentNotValidException
 import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.bind.annotation.RestControllerAdvice
+import watson.resumaker.common.domain.ConflictException
 import watson.resumaker.common.domain.DomainValidationException
 import watson.resumaker.common.domain.EmptyExperienceSelectionException
 import watson.resumaker.common.domain.ResourceNotFoundException
@@ -61,6 +62,21 @@ class GlobalExceptionHandler {
                     code = "EMPTY_EXPERIENCE_SELECTION",
                     message = exception.message ?: "이력서·포트폴리오를 만들려면 경험을 하나 이상 골라 주세요.",
                     action = "ADD_EXPERIENCE",
+                ),
+            )
+
+    /**
+     * 현재 상태와의 충돌(예: 같은 항목 재생성 진행 중 중복 요청) → 409 + 진행 중 안내(수용 기준 20, 구현 설계 §305).
+     */
+    @ExceptionHandler(ConflictException::class)
+    fun handleConflict(exception: ConflictException): ResponseEntity<ErrorResponse> =
+        ResponseEntity
+            .status(HttpStatus.CONFLICT)
+            .body(
+                ErrorResponse(
+                    code = "CONFLICT",
+                    message = exception.message ?: "지금은 이 작업을 할 수 없어요. 잠시 후 다시 시도해 주세요.",
+                    action = exception.action,
                 ),
             )
 

@@ -1,9 +1,12 @@
 package watson.resumaker.generation.presentation
 
 import org.springframework.stereotype.Component
+import watson.resumaker.artifact.domain.ArtifactId
+import watson.resumaker.artifact.domain.SectionId
 import watson.resumaker.experience.domain.ExperienceRecordId
 import watson.resumaker.generation.application.GeneratePortfolioCommand
 import watson.resumaker.generation.application.GenerateResumeCommand
+import watson.resumaker.generation.application.RegenerateSectionCommand
 import watson.resumaker.target.domain.TargetBriefId
 import watson.resumaker.template.domain.ResumeTemplateId
 import java.util.UUID
@@ -28,5 +31,21 @@ class GenerationMapper {
         GeneratePortfolioCommand(
             experienceIds = request.experienceIds!!.map { ExperienceRecordId(UUID.fromString(it)) },
             targetId = TargetBriefId(UUID.fromString(request.targetId!!)),
+        )
+
+    /**
+     * 경로 변수(artifactId·sectionId)와 본문(directive)을 재생성 커맨드로 합친다.
+     * 목표는 산출물의 불변 스냅샷에서 읽으므로(§347) 커맨드에 포함하지 않는다.
+     * 식별자 형식 오류는 IllegalArgument로 전파되어(UUID 파싱) 전역 핸들러 기본 처리된다.
+     */
+    fun toRegenerateSectionCommand(
+        artifactId: String,
+        sectionId: String,
+        request: RegenerateSectionRequest,
+    ): RegenerateSectionCommand =
+        RegenerateSectionCommand(
+            artifactId = ArtifactId(UUID.fromString(artifactId)),
+            sectionId = SectionId(UUID.fromString(sectionId)),
+            directive = request.directive?.takeIf { it.isNotBlank() },
         )
 }

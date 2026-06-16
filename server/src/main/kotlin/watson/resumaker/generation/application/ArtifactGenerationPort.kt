@@ -25,6 +25,9 @@ interface ArtifactGenerationPort {
  * @param target      목표 정보(채용 방향 필수).
  * @param templateSections 이력서면 양식 섹션 정의(순서·키 포함), 포트폴리오면 빈 목록.
  * @param selectedExperienceIds 포트폴리오면 선택 경험 식별자 목록(경험당 서사 1개), 이력서면 빈 목록.
+ * @param directive 선택적 개선 지시(도메인 이해 §268). 항목 재생성 시 "더 짧게"·"성과 수치 강조" 같은 방향 지시를
+ *                  덧붙인다. 1차 생성에서는 null. 근거 없는 사실 추가를 요구하는 지시는 어댑터 프롬프트가 거부하도록
+ *                  명령하고, 결과는 자동 검증이 강제한다(§284·§419).
  */
 data class GenerationMaterial(
     val kind: GenerationKind,
@@ -32,6 +35,7 @@ data class GenerationMaterial(
     val target: TargetSnapshot,
     val templateSections: List<TemplateSectionSpec>,
     val selectedExperienceIds: List<ExperienceRecordId>,
+    val directive: String? = null,
 )
 
 /** 생성 종류(domain ArtifactKind와 분리해 application 입력 계약으로 둔다). */

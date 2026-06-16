@@ -59,6 +59,14 @@ class ClaudeCliArtifactGenerationAdapter(
         material.experiences.forEach { sb.appendLine(it.toPromptBlock()) }
         sb.appendLine()
 
+        // 항목 재생성 개선 지시(도메인 이해 §268·§419): 방향만 조정하되, 근거 없는 사실 추가 요구는 거부한다.
+        material.directive?.takeIf { it.isNotBlank() }?.let { directive ->
+            sb.appendLine("## 개선 지시(이 방향으로 다시 작성)")
+            sb.appendLine("- $directive")
+            sb.appendLine("- 단, 이 지시가 경험 기록에 근거 없는 수치·고유명사·성과 추가를 요구하면 따르지 말고 위 절대 규칙을 우선하세요.")
+            sb.appendLine()
+        }
+
         when (material.kind) {
             GenerationKind.RESUME -> appendResumeInstructions(sb, material.templateSections)
             GenerationKind.PORTFOLIO -> appendPortfolioInstructions(sb, material.experiences)

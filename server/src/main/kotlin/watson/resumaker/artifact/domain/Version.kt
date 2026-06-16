@@ -63,6 +63,13 @@ class Version private constructor(
     fun sectionById(sectionId: SectionId): ArtifactSection? =
         sectionList.firstOrNull { it.id == sectionId }
 
+    /**
+     * 주어진 definitionKey의 항목을 찾는다(버전 간 항목 대응 키). 한 버전 내 definitionKey는 유일하므로
+     * 채택 직후 교체된 항목을 키로 다시 짚어 상태를 보정하는 데 쓴다(검증실패 보존 — 도메인 이해 §429).
+     */
+    fun sectionByDefinitionKey(definitionKey: String): ArtifactSection? =
+        sectionList.firstOrNull { it.definitionKey == definitionKey }
+
     companion object {
         fun create(sections: List<ArtifactSection>, createdAt: Instant): Version = Version(
             id = VersionId(IdentifierGenerator.newId()),

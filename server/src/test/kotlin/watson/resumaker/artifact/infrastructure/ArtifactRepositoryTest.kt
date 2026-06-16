@@ -14,6 +14,7 @@ import watson.resumaker.artifact.domain.FactToken
 import watson.resumaker.artifact.domain.SectionContent
 import watson.resumaker.artifact.domain.SectionKind
 import watson.resumaker.artifact.domain.SectionStatus
+import watson.resumaker.artifact.domain.ArtifactTargetSnapshot
 import watson.resumaker.artifact.domain.SnapshotSection
 import watson.resumaker.artifact.domain.TemplateSnapshot
 import watson.resumaker.experience.domain.ExperienceRecordId
@@ -62,6 +63,7 @@ class ArtifactRepositoryTest {
         return Artifact.create(
             ownerId = owner,
             kind = ArtifactKind.RESUME,
+            targetSnapshot = ArtifactTargetSnapshot.of("백엔드 신입", null, null),
             templateSnapshot = snapshot(),
             initialSections = listOf(summary, career),
             createdAt = baseTime,
@@ -82,6 +84,11 @@ class ArtifactRepositoryTest {
         assertThat(found!!.kind).isEqualTo(ArtifactKind.RESUME)
         assertThat(found.versions).hasSize(1)
         assertThat(found.activeVersion().id).isEqualTo(found.versions.first().id)
+
+        // 목표 스냅샷 라운드트립(@Embedded — nullable company·job 포함)
+        assertThat(found.targetSnapshot.recruitDirection).isEqualTo("백엔드 신입")
+        assertThat(found.targetSnapshot.company).isNull()
+        assertThat(found.targetSnapshot.job).isNull()
 
         // 양식 스냅샷 순서 보존
         assertThat(found.templateSnapshot).isNotNull
@@ -203,6 +210,41 @@ class ArtifactRepositoryTest {
 
         // then
         assertThat(mine).hasSize(2)
+    }
+
+    @Test
+    fun 목표_스냅샷의_non_null_company_job이_라운드트립으로_복원된다() {
+        // given (MEDIUM #1) — nullable 컬럼(target_company_name·target_job_title)에 값이 있을 때 @Embedded 복원 검증.
+        // @Embedded에서 non-null 컬럼이 실제로 DB에 쓰이고 읽히는지 확인한다.
+        val section = ArtifactSection.create(
+            definitionKey = "summary",
+            sectionKind = SectionKind.SUMMARY,
+            content = SectionContent.of("요약"),
+            status = SectionStatus.GENERATED,
+            sourceExperienceIds = emptyList(),
+            factGroundings = emptyList(),
+        )
+        val artifact = Artifact.create(
+            ownerId = ownerId,
+            kind = ArtifactKind.RESUME,
+            targetSnapshot = ArtifactTargetSnapshot.of(
+                recruitDirection = "프론트엔드 시니어",
+                company = "카카오",
+                job = "웹 개발자",
+            ),
+            templateSnapshot = snapshot(),
+            initialSections = listOf(section),
+            createdAt = baseTime,
+        )
+
+        // when
+        val saved = repository.saveAndFlush(artifact)
+        val found = repository.findByIdAndOwnerId(saved.id, ownerId)!!
+
+        // then — 세 컬럼 모두 저장값 그대로 복원된다.
+        assertThat(found.targetSnapshot.recruitDirection).isEqualTo("프론트엔드 시니어")
+        assertThat(found.targetSnapshot.company).isEqualTo("카카오")
+        assertThat(found.targetSnapshot.job).isEqualTo("웹 개발자")
     }
 
     @Test

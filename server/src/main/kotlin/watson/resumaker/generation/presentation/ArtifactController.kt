@@ -14,6 +14,7 @@ import watson.resumaker.artifact.domain.ArtifactId
 import watson.resumaker.artifact.domain.SectionStatus
 import watson.resumaker.generation.application.ArtifactGenerationService
 import watson.resumaker.generation.application.ArtifactReadService
+import watson.resumaker.generation.application.SectionRegenerationService
 import java.util.UUID
 
 /**
@@ -21,16 +22,20 @@ import java.util.UUID
  * - POST /artifacts/resume    : 이력서 1차 생성. 부분 실패 버전도 200으로 내려간다(도메인 이해 §306).
  * - POST /artifacts/portfolio : 포트폴리오 1차 생성(경험당 항목 1개).
  * - GET  /artifacts/{id}      : 열람(수용 기준 12). 활성 버전 전체/항목 텍스트·상태·출처 반환. 복사는 클라이언트.
+ * - POST /artifacts/{artifactId}/sections/{sectionId}/regenerate : 항목 단위 재생성(수용 기준 10·19·20).
+ *   해당 항목만 다시 만들어 새 활성 버전을 만들고, 갱신된 산출물(활성 버전)을 돌려준다. 동시 중복은 409.
  *
  * 모든 엔드포인트는 인증 주체 ownerId로 소유 격리한다(CurrentUserProvider). 생성 엔드포인트는 정적 경로
- * (`/resume`, `/portfolio`)이고 열람은 경로 변수(`/{id}`)지만 HTTP 메서드가 달라 충돌하지 않는다. 정적 경로를
- * 먼저 선언해 매핑 의도를 분명히 한다(기존 컨벤션).
+ * (`/resume`, `/portfolio`)이고 열람은 경로 변수(`/{id}`)지만 HTTP 메서드가 달라 충돌하지 않는다. 재생성은 더
+ * 깊은 정적 세그먼트(`/sections/{sectionId}/regenerate`)라 `/{id}` GET과 충돌하지 않는다. 정적 경로를 먼저
+ * 선언해 매핑 의도를 분명히 한다(기존 컨벤션).
  */
 @RestController
 @RequestMapping("/artifacts")
 class ArtifactController(
     private val generationService: ArtifactGenerationService,
     private val readService: ArtifactReadService,
+    private val regenerationService: SectionRegenerationService,
     private val mapper: GenerationMapper,
     private val currentUserProvider: CurrentUserProvider,
 ) {
@@ -58,6 +63,23 @@ class ArtifactController(
     @GetMapping("/{id}")
     fun getArtifact(@PathVariable id: String): ResponseEntity<ArtifactResponse> =
         ResponseEntity.ok(readService.getArtifact(currentUserProvider.currentUserId(), toId(id)))
+
+    /**
+     * 항목 단위 재생성(도메인 이해 §5, 수용 기준 10·19·20). 해당 항목만 다시 만들어 새 활성 버전을 만들고,
+     * 갱신된 산출물(활성 버전)을 200으로 돌려준다. 같은 항목 동시 재생성은 서비스가 409(CONFLICT)로 거절한다.
+     */
+    @PostMapping("/{artifactId}/sections/{sectionId}/regenerate")
+    fun regenerateSection(
+        @PathVariable artifactId: String,
+        @PathVariable sectionId: String,
+        @Valid @RequestBody request: RegenerateSectionRequest,
+    ): ResponseEntity<ArtifactResponse> {
+        val response = regenerationService.regenerateSection(
+            currentUserProvider.currentUserId(),
+            mapper.toRegenerateSectionCommand(artifactId, sectionId, request),
+        )
+        return ResponseEntity.ok(response)
+    }
 
     /**
      * 생성 응답의 HTTP 상태를 결정한다(도메인 이해 §306). 모든 항목이 GENERATED면 새 산출물 생성으로 201,

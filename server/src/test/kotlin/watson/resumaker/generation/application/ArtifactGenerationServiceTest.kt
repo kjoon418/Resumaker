@@ -93,7 +93,7 @@ class ArtifactGenerationServiceTest {
         artifactRepository = artifactRepository,
         generationPort = port,
         quotaGuard = quotaGuard,
-        groundingValidator = groundingValidator,
+        sectionRegenerationProcessor = SectionRegenerationProcessor(port, groundingValidator),
         mapper = mapper,
         transactionTemplate = transactionTemplate,
         clock = clock,
@@ -395,6 +395,63 @@ class ArtifactGenerationServiceTest {
         // then — 키 길이가 상한 이내이고 항목이 보존된다(throw 없음).
         assertThat(expectedKey.length).isLessThanOrEqualTo(100)
         assertThat(response.sections.map { it.definitionKey }).containsExactly(expectedKey)
+    }
+
+    @Test
+    fun 이력서_1차_생성이_목표_스냅샷을_산출물에_저장한다() {
+        // given (§347) — 생성 시점의 목표(채용방향·회사·직무)를 산출물이 불변 스냅샷으로 보존해야 한다.
+        stubResumeMaterial()
+        // target()은 "백엔드 신입"·company=null·job=null 으로 stubbing됨(stubResumeMaterial 내 targetRepository).
+        val output = GenerationOutput(
+            listOf(generated("section-0-요약", SectionKind.SUMMARY, "요약", succeeded = true, sources = listOf(exp1))),
+        )
+        val capturedArtifacts = mutableListOf<Artifact>()
+        whenever(artifactRepository.save(any<Artifact>())).thenAnswer { invocation ->
+            val a = invocation.arguments[0] as Artifact
+            capturedArtifacts += a
+            a
+        }
+        val port = FakePort(output)
+
+        // when
+        service(port).generateResume(ownerId, resumeCommand())
+
+        // then — 저장된 산출물의 목표 스냅샷이 목표 정보와 일치한다.
+        assertThat(capturedArtifacts).hasSize(1)
+        val snap = capturedArtifacts.first().targetSnapshot
+        assertThat(snap.recruitDirection).isEqualTo("백엔드 신입")
+        assertThat(snap.company).isNull()
+        assertThat(snap.job).isNull()
+    }
+
+    @Test
+    fun 포트폴리오_1차_생성도_목표_스냅샷을_산출물에_저장한다() {
+        // given (§347 — 포트폴리오도 목표 스냅샷 보유) — 채용방향 포함 여부 검증.
+        stubPortfolioMaterial()
+        val expId = ExperienceRecordId(UUID.randomUUID())
+        val output = GenerationOutput(
+            listOf(
+                generated(expId.value.toString(), SectionKind.EXPERIENCE_NARRATIVE, "서사", succeeded = true, sources = listOf(expId)),
+            ),
+        )
+        val capturedArtifacts = mutableListOf<Artifact>()
+        whenever(artifactRepository.save(any<Artifact>())).thenAnswer { invocation ->
+            val a = invocation.arguments[0] as Artifact
+            capturedArtifacts += a
+            a
+        }
+        val port = FakePort(output)
+
+        // when
+        service(port).generatePortfolio(
+            ownerId,
+            GeneratePortfolioCommand(experienceIds = listOf(expId), targetId = targetId),
+        )
+
+        // then
+        assertThat(capturedArtifacts).hasSize(1)
+        val snap = capturedArtifacts.first().targetSnapshot
+        assertThat(snap.recruitDirection).isEqualTo("백엔드 신입")
     }
 
     private fun generated(

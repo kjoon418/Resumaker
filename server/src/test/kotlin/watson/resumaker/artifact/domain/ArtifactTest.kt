@@ -37,10 +37,14 @@ class ArtifactTest {
         factGroundings = groundings,
     )
 
+    private fun targetSnapshot(): ArtifactTargetSnapshot =
+        ArtifactTargetSnapshot.of(recruitDirection = "백엔드 신입", company = null, job = null)
+
     private fun resume(sections: List<ArtifactSection>, createdAt: Instant = baseTime): Artifact =
         Artifact.create(
             ownerId = ownerId,
             kind = ArtifactKind.RESUME,
+            targetSnapshot = targetSnapshot(),
             templateSnapshot = snapshot(),
             initialSections = sections,
             createdAt = createdAt,
@@ -222,6 +226,7 @@ class ArtifactTest {
             id = artifact.id,
             ownerId = ownerId,
             kind = ArtifactKind.RESUME,
+            targetSnapshot = targetSnapshot(),
             templateSnapshot = snapshot(),
             versions = artifact.versions,
             activeVersionId = v1.id,
@@ -253,6 +258,7 @@ class ArtifactTest {
         val artifact = Artifact.create(
             ownerId = ownerId,
             kind = ArtifactKind.PORTFOLIO,
+            targetSnapshot = targetSnapshot(),
             templateSnapshot = null,
             initialSections = listOf(
                 section("exp-1", SectionKind.EXPERIENCE_NARRATIVE, "경험 서사"),
@@ -271,6 +277,7 @@ class ArtifactTest {
             Artifact.create(
                 ownerId = ownerId,
                 kind = ArtifactKind.RESUME,
+                targetSnapshot = targetSnapshot(),
                 templateSnapshot = null,
                 initialSections = listOf(section("summary", SectionKind.SUMMARY, "x")),
                 createdAt = baseTime,
@@ -285,6 +292,7 @@ class ArtifactTest {
             Artifact.create(
                 ownerId = ownerId,
                 kind = ArtifactKind.PORTFOLIO,
+                targetSnapshot = targetSnapshot(),
                 templateSnapshot = snapshot(),
                 initialSections = listOf(section("exp-1", SectionKind.EXPERIENCE_NARRATIVE, "x")),
                 createdAt = baseTime,
@@ -337,6 +345,7 @@ class ArtifactTest {
             Artifact.create(
                 ownerId = ownerId,
                 kind = ArtifactKind.PORTFOLIO,
+                targetSnapshot = targetSnapshot(),
                 templateSnapshot = null,
                 initialSections = listOf(section("exp-1", SectionKind.SUMMARY, "x")),
                 createdAt = baseTime,
@@ -355,6 +364,7 @@ class ArtifactTest {
                 id = artifact.id,
                 ownerId = ownerId,
                 kind = ArtifactKind.RESUME,
+                targetSnapshot = targetSnapshot(),
                 templateSnapshot = snapshot(),
                 versions = artifact.versions,
                 activeVersionId = VersionId(UUID.randomUUID()),

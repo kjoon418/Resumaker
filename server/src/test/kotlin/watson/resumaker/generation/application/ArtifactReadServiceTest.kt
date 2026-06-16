@@ -13,6 +13,7 @@ import watson.resumaker.artifact.domain.ArtifactSection
 import watson.resumaker.artifact.domain.SectionContent
 import watson.resumaker.artifact.domain.SectionKind
 import watson.resumaker.artifact.domain.SectionStatus
+import watson.resumaker.artifact.domain.ArtifactTargetSnapshot
 import watson.resumaker.artifact.domain.SnapshotSection
 import watson.resumaker.artifact.domain.TemplateSnapshot
 import watson.resumaker.artifact.infrastructure.ArtifactRepository
@@ -50,6 +51,7 @@ class ArtifactReadServiceTest {
         return Artifact.create(
             ownerId = ownerId,
             kind = ArtifactKind.RESUME,
+            targetSnapshot = ArtifactTargetSnapshot.of("백엔드 신입", null, null),
             templateSnapshot = snapshot,
             initialSections = listOf(section),
             createdAt = Instant.parse("2026-06-16T00:00:00Z"),
