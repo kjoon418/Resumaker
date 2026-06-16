@@ -43,14 +43,76 @@ class ProcessBuilderProcessRunner(
          * 잡아두지 않는 값이다. 테스트에서는 생성자 파라미터로 짧게 주입한다.
          */
         const val DEFAULT_readerJoinTimeoutMillis = 5_000L
+
+        /**
+         * 해석된 명령의 **인자(인덱스 1 이후)** 만 Windows 인용 규칙으로 이스케이프한 새 리스트를 반환한다(결함4).
+         *
+         * **왜 필요한가:** `ClaudeCliClient`는 `--json-schema <JSON>`처럼 큰따옴표가 가득한 JSON 문자열을 인자로 넘긴다.
+         * JVM [ProcessBuilder]가 이 인자를 Windows 명령행으로 변환할 때 Java의 인용 로직과 대상 바이너리(claude.exe →
+         * `CommandLineToArgvW` 파서)의 파싱이 불일치해 JSON의 모든 `"`가 소실된다(`{"type":"object"}` → `{type:object}`).
+         * 무효 JSON을 받은 claude.exe는 출력 한 줄 없이 무한 행하다 타임아웃된다.
+         *
+         * **해법:** 각 인자를 정규 Windows 인용 규칙(소위 "Daniel Colascione / MSVCRT" 알고리즘)으로 미리 `"..."` 토큰으로
+         * 인용하면, Java가 이를 "이미 인용됨"으로 인식해 그대로 통과시키고 대상 파서가 `\"`→`"`로 복원한다(실증됨).
+         *
+         * - 실행 파일(인덱스 0)은 Java/[CommandResolver]가 처리하므로 **변형하지 않는다**.
+         * - `isWindows`가 false(Linux/프로덕션 docker)면 원본을 그대로 반환한다(인자 절대 무변형).
+         */
+        fun escapeArgumentsForWindows(command: List<String>, isWindows: Boolean): List<String> {
+            if (!isWindows || command.size <= 1) return command
+            return listOf(command[0]) + command.drop(1).map { quoteWindowsArgument(it) }
+        }
+
+        /**
+         * 단일 인자를 정규 Windows 인용 규칙으로 인용한다(순수 함수: 문자열 in → 문자열 out).
+         *
+         * 공백·탭·`"`·줄바꿈 등 특수문자가 없으면 **그대로 둔다**(불필요한 인용 금지, 멱등).
+         * 그 외에는 큰따옴표로 감싸되:
+         * - `"` 앞에 쌓인 연속 백슬래시 런은 2배로 만든 뒤 `\"`로 escape한다.
+         * - 닫는 따옴표 직전의 trailing 백슬래시 런도 2배로 만든다(이 단계 없이 단순 치환만 하면 trailing 백슬래시가
+         *   닫는 따옴표를 escape해버려 파싱이 깨진다 — 이게 단순 `replace`가 틀리는 엣지케이스다).
+         */
+        fun quoteWindowsArgument(argument: String): String {
+            if (argument.isNotEmpty() && argument.none { it == ' ' || it == '\t' || it == '"' || it == '\n' || it == '\r' }) {
+                return argument
+            }
+
+            val sb = StringBuilder()
+            sb.append('"')
+            var backslashCount = 0
+            for (ch in argument) {
+                when (ch) {
+                    '\\' -> backslashCount++
+                    '"' -> {
+                        // `"` 앞의 백슬래시 런을 2배로 만든 뒤(리터럴 백슬래시 보존) `"`를 escape한다.
+                        sb.append("\\".repeat(backslashCount * 2 + 1))
+                        sb.append('"')
+                        backslashCount = 0
+                    }
+                    else -> {
+                        sb.append("\\".repeat(backslashCount))
+                        sb.append(ch)
+                        backslashCount = 0
+                    }
+                }
+            }
+            // 닫는 따옴표 직전의 trailing 백슬래시 런을 2배로(닫는 `"`를 escape하지 않도록).
+            sb.append("\\".repeat(backslashCount * 2))
+            sb.append('"')
+            return sb.toString()
+        }
     }
 
     override fun run(command: List<String>, stdin: String, timeout: Duration): ProcessResult {
         // 실행 직전 OS에 맞게 실행 파일(command[0])을 해석한다(해석 실패 시 원본 그대로).
         val resolvedCommand = commandResolver.resolve(command)
 
+        // Windows에서만 인자를 정규 Windows 인용 규칙으로 이스케이프한다(결함4).
+        // Linux/프로덕션 docker는 ProcessBuilder가 execvp로 인자를 verbatim 전달하므로 절대 변형하면 안 된다.
+        val launchCommand = escapeArgumentsForWindows(resolvedCommand, commandResolver.isWindows)
+
         val process = try {
-            ProcessBuilder(resolvedCommand)
+            ProcessBuilder(launchCommand)
                 .redirectErrorStream(false)
                 .start()
         } catch (e: IOException) {
@@ -142,7 +204,11 @@ class ProcessBuilderProcessRunner(
  * @param fileExists  주어진 절대경로에 실제 파일이 존재하는지 확인하는 술어(파일시스템 seam).
  */
 class CommandResolver(
-    private val isWindows: Boolean,
+    /**
+     * 현재 OS가 Windows인지 여부. 실행 파일 해석 분기뿐 아니라 Windows 전용 인자 이스케이프(결함4) 분기에서도
+     * 동일 seam을 재사용하도록 외부에서 읽을 수 있게 공개한다(실제 OS 비의존 단위 테스트 가능).
+     */
+    val isWindows: Boolean,
     private val pathDirs: List<String>,
     private val pathExts: List<String>,
     private val fileExists: (String) -> Boolean,
