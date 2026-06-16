@@ -7,6 +7,8 @@ spring:
     name: resumaker
   datasource:
     # 환경변수 우선, 기본값은 로컬 개발 예시.
+    # 로컬에서는 루트 compose.yaml의 PostgreSQL을 Spring Boot Docker Compose가 자동 기동·주입한다
+    # (도커 엔진만 떠 있으면 됨). 환경변수로 외부 DB를 지정하면 그 값을 사용한다.
     url: ${DB_URL:jdbc:postgresql://localhost:5432/resumaker}
     username: ${DB_USERNAME:resumaker}
     password: ${DB_PASSWORD:resumaker}

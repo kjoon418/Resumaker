@@ -1,0 +1,21 @@
+# 로컬 개발용 인프라. Spring Boot Docker Compose 지원(spring-boot-docker-compose)이
+# bootRun 시 이 파일을 자동으로 `docker compose up` 하고, 컨테이너 접속 정보를
+# 데이터소스로 주입한다. 도커 엔진만 떠 있으면 `./gradlew :server:bootRun`만으로
+# PostgreSQL이 함께 기동되어 백엔드가 바로 실행된다.
+#
+# 자격증명은 server/src/main/resources/application.yml의 기본값과 일치한다.
+services:
+  postgres:
+    image: 'postgres:16'
+    environment:
+      POSTGRES_DB: 'resumaker'
+      POSTGRES_USER: 'resumaker'
+      POSTGRES_PASSWORD: 'resumaker'
+    ports:
+      - '5432:5432'
+    volumes:
+      # 명명 볼륨으로 데이터를 보존해 재기동 간 유지한다.
+      - 'resumaker-postgres-data:/var/lib/postgresql/data'
+
+volumes:
+  resumaker-postgres-data:
