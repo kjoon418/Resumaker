@@ -27,7 +27,23 @@ import java.util.concurrent.TimeUnit
 @Component
 class ProcessBuilderProcessRunner(
     private val commandResolver: CommandResolver = CommandResolver.production(),
+    /**
+     * 리더 스레드 [Thread.join] 대기 상한(ms). 기본값은 프로덕션 값([DEFAULT_readerJoinTimeoutMillis]).
+     * 테스트에서 짧은 값(예: 200ms)을 주입하면 "EOF 없이도 join이 cap 이내에 반환"하는지 빠르게 단언할 수 있다(결함3).
+     */
+    private val readerJoinTimeoutMillis: Long = DEFAULT_readerJoinTimeoutMillis,
 ) : ProcessRunner {
+
+    companion object {
+        /**
+         * 리더 스레드 [Thread.join] 대기 상한 기본값(ms). 정상 종료 경로에서는 프로세스가 이미 exit해 파이프가 곧
+         * EOF가 되므로 이 상한 안에 결과 수집이 끝난다(결과 유실 없음). 타임아웃·강제 종료 경로에서는 orphan(손자
+         * 프로세스)이 파이프를 잡고 있어도 데몬 리더가 이 상한까지만 기다린 뒤 요청 스레드가 진행하도록 보장한다
+         * (영구 블록 방지, 결함3). 5초는 정상 EOF 도달에는 충분히 넉넉하고, 비정상 경로에서 요청 스레드를 과도하게
+         * 잡아두지 않는 값이다. 테스트에서는 생성자 파라미터로 짧게 주입한다.
+         */
+        const val DEFAULT_readerJoinTimeoutMillis = 5_000L
+    }
 
     override fun run(command: List<String>, stdin: String, timeout: Duration): ProcessResult {
         // 실행 직전 OS에 맞게 실행 파일(command[0])을 해석한다(해석 실패 시 원본 그대로).
@@ -65,21 +81,27 @@ class ProcessBuilderProcessRunner(
             }
 
             // 리더 스레드를 먼저 join해 stdout/stderr를 완전히 수집한 뒤 결과를 읽는다.
-            stdoutReader.join()
-            stderrReader.join()
+            // 프로세스가 정상 exit했으므로 파이프는 곧 EOF가 되고, 데몬 리더는 타임아웃 안에 결과 수집을 끝낸다.
+            stdoutReader.join(readerJoinTimeoutMillis)
+            stderrReader.join(readerJoinTimeoutMillis)
             return ProcessResult(
                 exitCode = process.exitValue(),
                 stdout = stdoutReader.result(),
                 stderr = stderrReader.result(),
             )
         } finally {
-            // 살아 있으면 강제 종료해 자식 프로세스가 남지 않게 하고, 리더 스레드는 항상 join한다.
-            // (정상 경로는 위에서 이미 join했으므로 멱등하게 다시 join해도 안전하다.)
+            // 살아 있으면 프로세스 트리 전체를 강제 종료한다. 직계 자식(Windows의 claude.cmd)만 죽이면
+            // 손자(claude.exe)가 살아남아 stdout 파이프를 잡고 있어 리더가 EOF를 영영 못 받는다(결함3).
+            // descendants()는 destroy 호출 후 비므로 **죽이기 전에 스냅샷**으로 수집해 자식 → 손자 순으로 종료한다.
             if (process.isAlive) {
+                val descendants = process.descendants().toList()
                 process.destroyForcibly()
+                descendants.forEach { it.destroyForcibly() }
             }
-            stdoutReader.join()
-            stderrReader.join()
+            // 데몬 리더는 타임아웃까지만 기다린 뒤 요청 스레드를 진행시킨다. orphan이 파이프를 잡고 있어도
+            // 리더는 데몬이라 JVM 종료를 막지 않으며, 요청 스레드는 여기서 영구 블록되지 않는다(결함3).
+            stdoutReader.join(readerJoinTimeoutMillis)
+            stderrReader.join(readerJoinTimeoutMillis)
         }
     }
 
@@ -90,6 +112,12 @@ class ProcessBuilderProcessRunner(
     }
 
     private class StreamReaderThread(private val stream: java.io.InputStream) : Thread() {
+        init {
+            // 데몬 스레드: orphan(손자 프로세스)이 파이프를 잡아 리더가 EOF를 못 받고 살아남아도
+            // JVM 종료를 막지 않게 한다(결함3). join 타임아웃과 함께 요청 스레드 영구 블록을 차단한다.
+            isDaemon = true
+        }
+
         @Volatile
         private var collected: String = ""
 
