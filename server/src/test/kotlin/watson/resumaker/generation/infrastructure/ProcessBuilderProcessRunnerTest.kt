@@ -3,11 +3,12 @@ package watson.resumaker.generation.infrastructure
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.Test
+import java.io.IOException
 import java.io.InputStream
 import java.time.Duration
 
 /**
- * [ProcessBuilderProcessRunner] 단위 테스트(결함3 수정 검증).
+ * [ProcessBuilderProcessRunner] 단위 테스트(결함3·결함4 수정 검증).
  *
  * ## 테스트 전략
  *
@@ -26,6 +27,14 @@ import java.time.Duration
  * `StreamReaderThread`는 private이므로 리플렉션으로 인스턴스화해 직접 검증한다.
  * — 영구 블록 InputStream을 주입하고 `join(cap)`이 cap + 마진 안에 반환하는지, isDaemon이 true인지 단언.
  * — fix를 되돌려 join(cap) → join()으로 바꾸면 이 테스트가 JUnit 타임아웃으로 실패한다.
+ *
+ * ### 결함4 배선 회귀 테스트
+ * `processBuilderFactory` seam으로 `launchCommand`를 캡처해, `run()`이 실제로
+ * [ProcessBuilderProcessRunner.escapeArgumentsForWindows]를 적용한 명령을 [ProcessBuilder]에
+ * 넘기는지를 프로세스 실행 없이 단언한다.
+ * — `isWindows=true` 주입 시 `"` 포함 인자가 이스케이프된 토큰으로 도착하는지 확인.
+ * — `isWindows=false` 주입 시 인자가 무변형으로 도착하는지 확인.
+ * — `run()`에서 escapeArgumentsForWindows 호출을 제거하거나 isWindows 상수화하면 이 테스트가 실패한다.
  */
 class ProcessBuilderProcessRunnerTest {
 
@@ -157,5 +166,100 @@ class ProcessBuilderProcessRunnerTest {
         // 정리: 인터럽트로 블록 해제 후 종료 대기.
         thread.interrupt()
         thread.join(500)
+    }
+
+    // ─────────────────────────────────────────────
+    // 결함4 배선 회귀 테스트
+    // ─────────────────────────────────────────────
+
+    /**
+     * **결함4 배선 회귀 테스트 — Windows 분기.**
+     *
+     * `isWindows=true`로 주입한 [CommandResolver]와 `processBuilderFactory` seam을 함께 사용해,
+     * `run()`이 실제로 [ProcessBuilderProcessRunner.escapeArgumentsForWindows]를 적용한 `launchCommand`를
+     * [ProcessBuilder]에 전달하는지 단언한다. 실 프로세스를 띄우지 않으며 OS·환경 비의존이다.
+     *
+     * **factory 전략:** factory가 `IOException`을 던지면 `run()`은 [ProcessExecutionException]으로 감싸 던진다.
+     * 그 전에 factory 인자로 넘어온 `launchCommand`를 캡처해 단언할 수 있다.
+     *
+     * **fix 되돌림 시 실패 방식:** `run()`에서 `escapeArgumentsForWindows(...)` 호출을 제거하거나
+     * `isWindows`를 `false` 상수로 바꾸면 `"` 포함 인자가 이스케이프되지 않아 `startsWith('"')` 단언이 실패한다.
+     */
+    @Test
+    fun `결함4 배선 - Windows에서 run이 이스케이프된 launchCommand를 ProcessBuilder에 전달한다`() {
+        val capturedCommand = mutableListOf<String>()
+        val windowsResolver = CommandResolver(
+            isWindows = true,
+            pathDirs = emptyList(),
+            pathExts = emptyList(),
+            fileExists = { false },
+        )
+        val capturingRunner = ProcessBuilderProcessRunner(
+            commandResolver = windowsResolver,
+            readerJoinTimeoutMillis = testJoinCapMillis,
+            processBuilderFactory = { cmd ->
+                capturedCommand.addAll(cmd)
+                throw IOException("capture-only: 실 프로세스 미실행")
+            },
+        )
+
+        // `"` 포함 인자를 담은 명령(ClaudeCliClient가 넘기는 패턴과 동일).
+        val jsonSchema = """{"type":"object"}"""
+        assertThatThrownBy {
+            capturingRunner.run(
+                command = listOf("claude.CMD", "--json-schema", jsonSchema),
+                stdin = "",
+                timeout = Duration.ofSeconds(5),
+            )
+        }.isInstanceOf(ProcessExecutionException::class.java)
+
+        // 실행 파일(인덱스 0)은 무변형이어야 한다.
+        assertThat(capturedCommand[0]).isEqualTo("claude.CMD")
+        // --json-schema 플래그(특수문자 없음) → 무변형.
+        assertThat(capturedCommand[1]).isEqualTo("--json-schema")
+        // JSON 값(`"` 포함) → Windows 인용 규칙으로 이스케이프돼 `"..."` 토큰이어야 한다.
+        assertThat(capturedCommand[2])
+            .withFailMessage(
+                "Windows isWindows=true 분기에서 JSON 인자가 이스케이프되지 않았습니다. " +
+                "run()의 escapeArgumentsForWindows 호출이 제거됐거나 isWindows가 잘못 주입된 것입니다."
+            )
+            .startsWith("\"")
+            .endsWith("\"")
+            .contains("\\\"")
+    }
+
+    /**
+     * **결함4 배선 회귀 테스트 — non-Windows 분기.**
+     *
+     * `isWindows=false`일 때 `run()`이 인자를 **전혀 변형하지 않고** [ProcessBuilder]에 그대로 전달하는지 단언한다.
+     * Linux/프로덕션 docker에서 인자를 변형하면 리터럴 `"..."`가 exec 인자로 들어가 오히려 깨진다.
+     *
+     * **fix 되돌림 시 실패 방식:** non-Windows 분기에서 이스케이프를 잘못 적용하면 원본 JSON 문자열과
+     * 달라져 `isEqualTo(jsonSchema)` 단언이 실패한다.
+     */
+    @Test
+    fun `결함4 배선 - non-Windows에서 run이 인자를 무변형으로 ProcessBuilder에 전달한다`() {
+        val capturedCommand = mutableListOf<String>()
+        // identityResolver는 isWindows=false로 이미 정의돼 있다.
+        val capturingRunner = ProcessBuilderProcessRunner(
+            commandResolver = identityResolver,
+            readerJoinTimeoutMillis = testJoinCapMillis,
+            processBuilderFactory = { cmd ->
+                capturedCommand.addAll(cmd)
+                throw IOException("capture-only: 실 프로세스 미실행")
+            },
+        )
+
+        val jsonSchema = """{"type":"object"}"""
+        assertThatThrownBy {
+            capturingRunner.run(
+                command = listOf("claude", "--json-schema", jsonSchema),
+                stdin = "",
+                timeout = Duration.ofSeconds(5),
+            )
+        }.isInstanceOf(ProcessExecutionException::class.java)
+
+        // non-Windows: 모든 토큰이 원본 그대로여야 한다.
+        assertThat(capturedCommand).containsExactly("claude", "--json-schema", jsonSchema)
     }
 }

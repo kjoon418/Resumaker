@@ -32,6 +32,14 @@ class ProcessBuilderProcessRunner(
      * 테스트에서 짧은 값(예: 200ms)을 주입하면 "EOF 없이도 join이 cap 이내에 반환"하는지 빠르게 단언할 수 있다(결함3).
      */
     private val readerJoinTimeoutMillis: Long = DEFAULT_readerJoinTimeoutMillis,
+    /**
+     * [ProcessBuilder] 생성 seam. 기본값은 프로덕션 구현(`ProcessBuilder(command)`).
+     *
+     * 테스트에서 이 factory를 주입하면 **실 프로세스를 띄우지 않고** `run()`이 [ProcessBuilder]에 넘기는
+     * `launchCommand`를 캡처해 단언할 수 있다(결함4 배선 회귀 테스트용). factory가 `IOException`을 던지면
+     * [ProcessExecutionException]으로 감싸는 기존 경로가 그대로 동작한다.
+     */
+    internal val processBuilderFactory: (List<String>) -> ProcessBuilder = { cmd -> ProcessBuilder(cmd) },
 ) : ProcessRunner {
 
     companion object {
@@ -112,7 +120,7 @@ class ProcessBuilderProcessRunner(
         val launchCommand = escapeArgumentsForWindows(resolvedCommand, commandResolver.isWindows)
 
         val process = try {
-            ProcessBuilder(launchCommand)
+            processBuilderFactory(launchCommand)
                 .redirectErrorStream(false)
                 .start()
         } catch (e: IOException) {
