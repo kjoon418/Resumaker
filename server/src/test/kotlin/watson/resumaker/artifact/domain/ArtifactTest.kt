@@ -1,0 +1,364 @@
+package watson.resumaker.artifact.domain
+
+import org.assertj.core.api.Assertions.assertThat
+import org.assertj.core.api.Assertions.assertThatThrownBy
+import org.junit.jupiter.api.Test
+import watson.resumaker.account.domain.UserId
+import watson.resumaker.common.domain.DomainValidationException
+import watson.resumaker.experience.domain.ExperienceRecordId
+import java.time.Instant
+import java.util.UUID
+
+class ArtifactTest {
+
+    private val ownerId = UserId(UUID.randomUUID())
+    private val baseTime = Instant.parse("2026-06-16T00:00:00Z")
+
+    private fun snapshot(): TemplateSnapshot = TemplateSnapshot.of(
+        listOf(
+            SnapshotSection.of("summary", "한 줄 자기소개", SectionKind.SUMMARY, required = true),
+            SnapshotSection.of("career", "주요 경력", SectionKind.CAREER, required = true),
+        ),
+    )
+
+    private fun section(
+        definitionKey: String,
+        kind: SectionKind,
+        content: String,
+        status: SectionStatus = SectionStatus.GENERATED,
+        sources: List<ExperienceRecordId> = emptyList(),
+        groundings: List<FactGrounding> = emptyList(),
+    ): ArtifactSection = ArtifactSection.create(
+        definitionKey = definitionKey,
+        sectionKind = kind,
+        content = SectionContent.of(content),
+        status = status,
+        sourceExperienceIds = sources,
+        factGroundings = groundings,
+    )
+
+    private fun resume(sections: List<ArtifactSection>, createdAt: Instant = baseTime): Artifact =
+        Artifact.create(
+            ownerId = ownerId,
+            kind = ArtifactKind.RESUME,
+            templateSnapshot = snapshot(),
+            initialSections = sections,
+            createdAt = createdAt,
+        )
+
+    @Test
+    fun 초기_생성_시_초기_버전이_활성이고_식별자와_소유자를_가진다() {
+        // when
+        val artifact = resume(
+            listOf(
+                section("summary", SectionKind.SUMMARY, "요약 내용"),
+                section("career", SectionKind.CAREER, "경력 내용"),
+            ),
+        )
+
+        // then
+        assertThat(artifact.id.value).isNotNull()
+        assertThat(artifact.ownerId).isEqualTo(ownerId)
+        assertThat(artifact.versions).hasSize(1)
+        assertThat(artifact.activeVersion()).isEqualTo(artifact.versions.first())
+        assertThat(artifact.templateSnapshot).isNotNull()
+        assertThat(artifact.templateSnapshot!!.sections.map { it.definitionKey })
+            .containsExactly("summary", "career")
+    }
+
+    @Test
+    fun 부분_실패_항목을_포함한_초기_버전을_저장할_수_있다() {
+        // when (수용 기준 9 — 도메인)
+        val artifact = resume(
+            listOf(
+                section("summary", SectionKind.SUMMARY, "요약 성공", SectionStatus.GENERATED),
+                section("career", SectionKind.CAREER, "", SectionStatus.GENERATION_FAILED),
+            ),
+        )
+
+        // then
+        val statuses = artifact.activeVersion().sections.map { it.status }
+        assertThat(statuses).containsExactly(SectionStatus.GENERATED, SectionStatus.GENERATION_FAILED)
+    }
+
+    @Test
+    fun 항목_채택은_새_버전을_만들고_활성을_전환하며_대상만_교체한다() {
+        // given (수용 기준 19)
+        val artifact = resume(
+            listOf(
+                section("summary", SectionKind.SUMMARY, "원래 요약"),
+                section("career", SectionKind.CAREER, "원래 경력"),
+            ),
+        )
+        val active = artifact.activeVersion()
+        val targetSection = active.sections.first { it.definitionKey == "career" }
+
+        // when
+        val newVersion = artifact.adoptSection(
+            targetSection.id,
+            SectionContent.of("새 경력"),
+            baseTime.plusSeconds(60),
+        )
+
+        // then — 새 버전이 활성이고 버전이 2개
+        assertThat(artifact.versions).hasSize(2)
+        assertThat(artifact.activeVersion()).isEqualTo(newVersion)
+        assertThat(newVersion).isNotEqualTo(active)
+
+        // 대상 항목만 교체
+        val newCareer = newVersion.sections.first { it.definitionKey == "career" }
+        assertThat(newCareer.content.value).isEqualTo("새 경력")
+        // 미변경 항목은 그대로 복제(내용 불변)
+        val newSummary = newVersion.sections.first { it.definitionKey == "summary" }
+        assertThat(newSummary.content.value).isEqualTo("원래 요약")
+    }
+
+    @Test
+    fun 채택해도_직전_버전은_불변이다() {
+        // given (수용 기준 19 — 다른 항목 불변)
+        val artifact = resume(
+            listOf(
+                section("summary", SectionKind.SUMMARY, "원래 요약"),
+                section("career", SectionKind.CAREER, "원래 경력"),
+            ),
+        )
+        val previous = artifact.activeVersion()
+        val previousCareerContent = previous.sections.first { it.definitionKey == "career" }.content.value
+
+        // when
+        artifact.adoptSection(
+            previous.sections.first { it.definitionKey == "career" }.id,
+            SectionContent.of("새 경력"),
+            baseTime.plusSeconds(60),
+        )
+
+        // then — 직전 버전의 내용은 그대로
+        val stillPrevious = artifact.versions.first { it.id == previous.id }
+        assertThat(stillPrevious.sections.first { it.definitionKey == "career" }.content.value)
+            .isEqualTo(previousCareerContent)
+    }
+
+    @Test
+    fun 활성_버전에_없는_항목을_채택하면_거부된다() {
+        // given
+        val artifact = resume(listOf(section("summary", SectionKind.SUMMARY, "요약")))
+
+        // when and then
+        assertThatThrownBy {
+            artifact.adoptSection(SectionId(UUID.randomUUID()), SectionContent.of("x"), baseTime)
+        }.isInstanceOf(DomainValidationException::class.java)
+    }
+
+    @Test
+    fun 상한_초과_시_가장_오래된_버전을_정리한다() {
+        // given (수용 기준 11) — 버전 3개 생성
+        val artifact = resume(listOf(section("summary", SectionKind.SUMMARY, "v1")))
+        artifact.adoptSection(
+            artifact.activeVersion().sections.first().id,
+            SectionContent.of("v2"),
+            baseTime.plusSeconds(60),
+        )
+        artifact.adoptSection(
+            artifact.activeVersion().sections.first().id,
+            SectionContent.of("v3"),
+            baseTime.plusSeconds(120),
+        )
+        val oldestId = artifact.versions.minByOrNull { it.createdAt }!!.id
+
+        // when — 상한 2로 정리
+        val pruned = artifact.pruneOldestIfExceeds(limit = 2)
+
+        // then
+        assertThat(pruned).hasSize(1)
+        assertThat(pruned.first().id).isEqualTo(oldestId)
+        assertThat(artifact.versions).hasSize(2)
+        assertThat(artifact.versions.map { it.id }).doesNotContain(oldestId)
+    }
+
+    @Test
+    fun 상한을_여럿_초과하면_상한_이하까지_반복_정리한다() {
+        // given (MEDIUM-1) — 버전 4개 생성
+        val artifact = resume(listOf(section("summary", SectionKind.SUMMARY, "v1")))
+        artifact.adoptSection(
+            artifact.activeVersion().sections.first().id,
+            SectionContent.of("v2"),
+            baseTime.plusSeconds(60),
+        )
+        artifact.adoptSection(
+            artifact.activeVersion().sections.first().id,
+            SectionContent.of("v3"),
+            baseTime.plusSeconds(120),
+        )
+        artifact.adoptSection(
+            artifact.activeVersion().sections.first().id,
+            SectionContent.of("v4"),
+            baseTime.plusSeconds(180),
+        )
+        val activeId = artifact.activeVersion().id
+
+        // when — 상한 2로 정리(4 → 2, 2개 제거)
+        val pruned = artifact.pruneOldestIfExceeds(limit = 2)
+
+        // then — 2개가 오래된 순으로 제거되고 활성은 보존
+        assertThat(pruned).hasSize(2)
+        assertThat(pruned.map { it.createdAt }).isSorted()
+        assertThat(artifact.versions).hasSize(2)
+        assertThat(artifact.versions.map { it.id }).contains(activeId)
+        assertThat(artifact.activeVersion().id).isEqualTo(activeId)
+    }
+
+    @Test
+    fun 정리_시_활성_버전은_대상에서_제외된다() {
+        // given (수용 기준 11 불변식) — 활성이 가장 오래된 버전이 되도록 구성
+        val artifact = resume(listOf(section("summary", SectionKind.SUMMARY, "v1")))
+        artifact.adoptSection(
+            artifact.activeVersion().sections.first().id,
+            SectionContent.of("v2"),
+            baseTime.plusSeconds(60),
+        )
+        // 활성을 가장 오래된 v1로 되돌리기 위해 retrieve로 재구성
+        val v1 = artifact.versions.minByOrNull { it.createdAt }!!
+        val reconstructed = Artifact.retrieve(
+            id = artifact.id,
+            ownerId = ownerId,
+            kind = ArtifactKind.RESUME,
+            templateSnapshot = snapshot(),
+            versions = artifact.versions,
+            activeVersionId = v1.id,
+        )
+
+        // when — 상한 1로 정리(활성 v1은 제외, v2가 정리되어야 함)
+        val pruned = reconstructed.pruneOldestIfExceeds(limit = 1)
+
+        // then
+        assertThat(pruned).hasSize(1)
+        assertThat(pruned.first().id).isNotEqualTo(v1.id)
+        assertThat(reconstructed.versions.map { it.id }).contains(v1.id)
+        assertThat(reconstructed.activeVersion().id).isEqualTo(v1.id)
+    }
+
+    @Test
+    fun 상한_이내면_정리하지_않는다() {
+        // given
+        val artifact = resume(listOf(section("summary", SectionKind.SUMMARY, "v1")))
+
+        // when and then
+        assertThat(artifact.pruneOldestIfExceeds(limit = 5)).isEmpty()
+        assertThat(artifact.versions).hasSize(1)
+    }
+
+    @Test
+    fun 포트폴리오는_양식_스냅샷이_없다() {
+        // when
+        val artifact = Artifact.create(
+            ownerId = ownerId,
+            kind = ArtifactKind.PORTFOLIO,
+            templateSnapshot = null,
+            initialSections = listOf(
+                section("exp-1", SectionKind.EXPERIENCE_NARRATIVE, "경험 서사"),
+            ),
+            createdAt = baseTime,
+        )
+
+        // then
+        assertThat(artifact.templateSnapshot).isNull()
+    }
+
+    @Test
+    fun 이력서인데_양식_스냅샷이_없으면_생성이_거부된다() {
+        // when and then
+        assertThatThrownBy {
+            Artifact.create(
+                ownerId = ownerId,
+                kind = ArtifactKind.RESUME,
+                templateSnapshot = null,
+                initialSections = listOf(section("summary", SectionKind.SUMMARY, "x")),
+                createdAt = baseTime,
+            )
+        }.isInstanceOf(DomainValidationException::class.java)
+    }
+
+    @Test
+    fun 포트폴리오인데_양식_스냅샷이_있으면_생성이_거부된다() {
+        // when and then
+        assertThatThrownBy {
+            Artifact.create(
+                ownerId = ownerId,
+                kind = ArtifactKind.PORTFOLIO,
+                templateSnapshot = snapshot(),
+                initialSections = listOf(section("exp-1", SectionKind.EXPERIENCE_NARRATIVE, "x")),
+                createdAt = baseTime,
+            )
+        }.isInstanceOf(DomainValidationException::class.java)
+    }
+
+    @Test
+    fun 채택해도_직전_버전_섹션의_출처_경험_목록은_영향받지_않는다() {
+        // given (수용 기준 19 — sourceExperienceIds 버전 간 격리, 메모리 단언)
+        val exp1 = ExperienceRecordId(UUID.randomUUID())
+        val exp2 = ExperienceRecordId(UUID.randomUUID())
+        val artifact = resume(
+            listOf(
+                section("summary", SectionKind.SUMMARY, "원래 요약", sources = listOf(exp1)),
+                section("career", SectionKind.CAREER, "원래 경력", sources = listOf(exp1, exp2)),
+            ),
+        )
+        val previous = artifact.activeVersion()
+        val previousCareerSources =
+            previous.sections.first { it.definitionKey == "career" }.sourceExperienceIds
+
+        // when — career 채택으로 새 버전 생성
+        val newVersion = artifact.adoptSection(
+            previous.sections.first { it.definitionKey == "career" }.id,
+            SectionContent.of("새 경력"),
+            baseTime.plusSeconds(60),
+        )
+
+        // then — 직전 버전의 출처 목록은 그대로(컨테이너 격리), 새 버전과 같은 값이되 다른 인스턴스
+        assertThat(previous.sections.first { it.definitionKey == "career" }.sourceExperienceIds)
+            .containsExactlyElementsOf(previousCareerSources)
+        val newCareerSources =
+            newVersion.sections.first { it.definitionKey == "career" }.sourceExperienceIds
+        assertThat(newCareerSources).containsExactly(exp1, exp2)
+    }
+
+    @Test
+    fun 이력서에_포트폴리오_섹션_종류가_섞이면_생성이_거부된다() {
+        // when and then (LOW-4 — §166~169 정합 가드)
+        assertThatThrownBy {
+            resume(listOf(section("summary", SectionKind.EXPERIENCE_NARRATIVE, "x")))
+        }.isInstanceOf(DomainValidationException::class.java)
+    }
+
+    @Test
+    fun 포트폴리오에_이력서_섹션_종류가_섞이면_생성이_거부된다() {
+        // when and then (LOW-4 — §166~169 정합 가드)
+        assertThatThrownBy {
+            Artifact.create(
+                ownerId = ownerId,
+                kind = ArtifactKind.PORTFOLIO,
+                templateSnapshot = null,
+                initialSections = listOf(section("exp-1", SectionKind.SUMMARY, "x")),
+                createdAt = baseTime,
+            )
+        }.isInstanceOf(DomainValidationException::class.java)
+    }
+
+    @Test
+    fun 활성_버전_식별자가_버전_목록에_없으면_복원이_거부된다() {
+        // given
+        val artifact = resume(listOf(section("summary", SectionKind.SUMMARY, "v1")))
+
+        // when and then
+        assertThatThrownBy {
+            Artifact.retrieve(
+                id = artifact.id,
+                ownerId = ownerId,
+                kind = ArtifactKind.RESUME,
+                templateSnapshot = snapshot(),
+                versions = artifact.versions,
+                activeVersionId = VersionId(UUID.randomUUID()),
+            )
+        }.isInstanceOf(DomainValidationException::class.java)
+    }
+}
