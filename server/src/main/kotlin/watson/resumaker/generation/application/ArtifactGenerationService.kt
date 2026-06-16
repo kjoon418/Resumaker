@@ -14,6 +14,7 @@ import watson.resumaker.artifact.domain.SnapshotSection
 import watson.resumaker.artifact.domain.TemplateSnapshot
 import watson.resumaker.artifact.infrastructure.ArtifactRepository
 import watson.resumaker.common.domain.DomainValidationException
+import watson.resumaker.common.domain.EmptyExperienceSelectionException
 import watson.resumaker.common.domain.ResourceNotFoundException
 import watson.resumaker.experience.domain.ExperienceRecord
 import watson.resumaker.experience.domain.ExperienceRecordId
@@ -177,8 +178,9 @@ class ArtifactGenerationService(
 
     private fun loadExperiences(ownerId: UserId, ids: List<ExperienceRecordId>): List<ExperienceRecord> {
         if (ids.isEmpty()) {
-            // 빈 경험 묶음 거부(수용 기준 8). 경험 추가 유도는 상위 계층 에러 응답이 다룬다.
-            throw DomainValidationException("이력서·포트폴리오를 만들려면 경험을 하나 이상 골라 주세요.")
+            // 빈 경험 묶음 거부(수용 기준 8). 형식 오류(400)가 아니라 생성 불가 충돌(409)로 매핑해
+            // 경험 추가 유도 action을 함께 내린다(구현 설계 §9, 전역 핸들러).
+            throw EmptyExperienceSelectionException("이력서·포트폴리오를 만들려면 경험을 하나 이상 골라 주세요.")
         }
         // N+1 회피: ownerId 조건 배치 쿼리 1회로 적재한다(소유 격리 유지).
         val distinctIds = ids.distinct()

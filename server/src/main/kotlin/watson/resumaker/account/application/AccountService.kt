@@ -11,6 +11,7 @@ import watson.resumaker.common.domain.UnauthorizedException
 import watson.resumaker.experience.infrastructure.ExperienceRecordRepository
 import watson.resumaker.account.presentation.LoginResponse
 import watson.resumaker.account.presentation.SignUpResponse
+import watson.resumaker.artifact.infrastructure.ArtifactRepository
 import watson.resumaker.target.infrastructure.TargetBriefRepository
 import watson.resumaker.template.infrastructure.ResumeTemplateRepository
 
@@ -21,6 +22,7 @@ import watson.resumaker.template.infrastructure.ResumeTemplateRepository
  * 로그인 검증도 영속된 비밀번호 해시에 의존하므로 서비스에서 수행하며, PasswordHasher를 주입받는다(검증 가이드).
  * 계정 삭제는 정합성 최우선(부분 삭제 금지)이므로 단일 트랜잭션으로 귀속 데이터를 함께 지운다(구현 설계 §3.2).
  * §2.5: 양식 삭제 정책은 목표 정보 정책을 따른다 — 계정 삭제 시 resumeTemplate도 함께 삭제한다.
+ * 수용 기준 14: 계정 삭제 시 산출물(Artifact·버전·항목)도 같은 트랜잭션에서 함께 삭제한다.
  */
 @Service
 class AccountService(
@@ -28,6 +30,7 @@ class AccountService(
     private val experienceRecordRepository: ExperienceRecordRepository,
     private val targetBriefRepository: TargetBriefRepository,
     private val resumeTemplateRepository: ResumeTemplateRepository,
+    private val artifactRepository: ArtifactRepository,
     private val mapper: AccountServiceMapper,
     private val passwordHasher: PasswordHasher,
 ) {
@@ -76,6 +79,7 @@ class AccountService(
         experienceRecordRepository.deleteByOwnerId(userId)
         targetBriefRepository.deleteByOwnerId(userId)
         resumeTemplateRepository.deleteByOwnerId(userId)
+        artifactRepository.deleteByOwnerId(userId)
         userRepository.deleteById(userId.value)
     }
 

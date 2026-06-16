@@ -6,6 +6,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException
 import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.bind.annotation.RestControllerAdvice
 import watson.resumaker.common.domain.DomainValidationException
+import watson.resumaker.common.domain.EmptyExperienceSelectionException
 import watson.resumaker.common.domain.ResourceNotFoundException
 import watson.resumaker.common.domain.UnauthorizedException
 
@@ -46,6 +47,22 @@ class GlobalExceptionHandler {
         ResponseEntity
             .status(HttpStatus.NOT_FOUND)
             .body(ErrorResponse(code = "NOT_FOUND", message = exception.message ?: "요청하신 정보를 찾을 수 없어요."))
+
+    /**
+     * 빈 경험 묶음 생성 시도 → 409 + 경험 추가 유도 action(수용 기준 8, 구현 설계 §9).
+     * 입력 형식 오류가 아니라 현재 상태로는 생성할 수 없는 충돌이므로 409로 매핑한다.
+     */
+    @ExceptionHandler(EmptyExperienceSelectionException::class)
+    fun handleEmptyExperienceSelection(exception: EmptyExperienceSelectionException): ResponseEntity<ErrorResponse> =
+        ResponseEntity
+            .status(HttpStatus.CONFLICT)
+            .body(
+                ErrorResponse(
+                    code = "EMPTY_EXPERIENCE_SELECTION",
+                    message = exception.message ?: "이력서·포트폴리오를 만들려면 경험을 하나 이상 골라 주세요.",
+                    action = "ADD_EXPERIENCE",
+                ),
+            )
 
     /**
      * 인증 주체 해석 실패 → 401.

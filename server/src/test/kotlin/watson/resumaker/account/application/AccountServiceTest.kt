@@ -14,6 +14,7 @@ import watson.resumaker.account.domain.User
 import watson.resumaker.account.domain.UserTimeZone
 import watson.resumaker.account.infrastructure.PasswordHasher
 import watson.resumaker.account.infrastructure.UserRepository
+import watson.resumaker.artifact.infrastructure.ArtifactRepository
 import watson.resumaker.common.domain.UnauthorizedException
 import watson.resumaker.account.domain.UserId
 import watson.resumaker.experience.infrastructure.ExperienceRecordRepository
@@ -27,6 +28,7 @@ class AccountServiceTest {
     private val experienceRecordRepository: ExperienceRecordRepository = mock()
     private val targetBriefRepository: TargetBriefRepository = mock()
     private val resumeTemplateRepository: ResumeTemplateRepository = mock()
+    private val artifactRepository: ArtifactRepository = mock()
     private val passwordHasher: PasswordHasher = mock()
     private val mapper = AccountServiceMapper()
 
@@ -42,6 +44,7 @@ class AccountServiceTest {
             experienceRecordRepository = experienceRecordRepository,
             targetBriefRepository = targetBriefRepository,
             resumeTemplateRepository = resumeTemplateRepository,
+            artifactRepository = artifactRepository,
             mapper = mapper,
             passwordHasher = passwordHasher,
         )
@@ -127,7 +130,7 @@ class AccountServiceTest {
     inner class 계정삭제 {
 
         @Test
-        fun `계정 삭제 시 경험·목표·양식이 모두 같은 트랜잭션에서 삭제된다`() {
+        fun `계정 삭제 시 경험·목표·양식·산출물이 모두 같은 트랜잭션에서 삭제된다`() {
             // given
             val userId = UserId(UUID.randomUUID())
             whenever(userRepository.existsById(userId.value)).thenReturn(true)
@@ -135,10 +138,11 @@ class AccountServiceTest {
             // when
             accountService.deleteAccount(userId)
 
-            // then — 세 귀속 데이터 레포 모두 deleteByOwnerId가 호출돼야 한다(회귀 방지).
+            // then — 네 귀속 데이터 레포 모두 deleteByOwnerId가 호출돼야 한다(회귀 방지, 수용 기준 14).
             verify(experienceRecordRepository).deleteByOwnerId(userId)
             verify(targetBriefRepository).deleteByOwnerId(userId)
             verify(resumeTemplateRepository).deleteByOwnerId(userId)
+            verify(artifactRepository).deleteByOwnerId(userId)
             verify(userRepository).deleteById(userId.value)
         }
     }

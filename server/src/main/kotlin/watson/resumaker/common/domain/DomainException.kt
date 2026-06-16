@@ -21,3 +21,10 @@ class ResourceNotFoundException(message: String) : DomainException(message)
  * 인증 주체를 해석할 수 없는 경우. HTTP 401로 매핑된다.
  */
 class UnauthorizedException(message: String) : DomainException(message)
+
+/**
+ * 빈 경험 묶음으로 산출물 생성을 시도한 경우(수용 기준 8, 구현 설계 §9).
+ * 입력 형식 오류가 아니라 "지금 상태로는 생성 불가"이므로 409로 매핑하고, 경험 추가를 유도하는
+ * action을 함께 내려 사용자가 막다른 길에 빠지지 않게 한다.
+ */
+class EmptyExperienceSelectionException(message: String) : DomainException(message)

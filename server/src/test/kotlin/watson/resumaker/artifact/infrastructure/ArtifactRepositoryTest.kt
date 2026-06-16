@@ -178,6 +178,20 @@ class ArtifactRepositoryTest {
     }
 
     @Test
+    fun 타인_소유_산출물을_본인_식별자로_조회해도_null이_반환된다() {
+        // given (수용 기준 13) — 타 사용자 산출물을 실제로 영속한 뒤, 그 식별자로 본인이 조회하면 격리되어야 한다.
+        val othersArtifact = repository.saveAndFlush(resume(otherOwnerId))
+
+        // when — 존재하는 식별자지만 소유자가 다르므로 격리된다.
+        val foundByMe = repository.findByIdAndOwnerId(othersArtifact.id, ownerId)
+
+        // then
+        assertThat(foundByMe).isNull()
+        // 실제 소유자로는 정상 복원되어 "미존재가 아니라 격리"임을 증명한다.
+        assertThat(repository.findByIdAndOwnerId(othersArtifact.id, otherOwnerId)).isNotNull
+    }
+
+    @Test
     fun 소유자_기준_목록_조회는_본인_데이터만_가져온다() {
         // given
         repository.saveAndFlush(resume(ownerId))

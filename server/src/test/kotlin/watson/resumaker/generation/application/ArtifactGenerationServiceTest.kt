@@ -20,6 +20,7 @@ import watson.resumaker.artifact.domain.SectionKind
 import watson.resumaker.artifact.domain.SectionStatus
 import watson.resumaker.artifact.infrastructure.ArtifactRepository
 import watson.resumaker.common.domain.DomainValidationException
+import watson.resumaker.common.domain.EmptyExperienceSelectionException
 import watson.resumaker.common.domain.ResourceNotFoundException
 import watson.resumaker.experience.domain.ExperienceBody
 import watson.resumaker.experience.domain.ExperienceDetail
@@ -157,9 +158,9 @@ class ArtifactGenerationServiceTest {
         val port = FakePort(GenerationOutput(emptyList()))
         whenever(targetRepository.findByIdAndOwnerId(any(), any())).thenReturn(target())
 
-        // when and then
+        // when and then — 빈 묶음은 형식 오류(400)가 아니라 생성 불가 충돌(409)로 매핑되는 전용 예외다.
         assertThatThrownBy { service(port).generateResume(ownerId, resumeCommand(ids = emptyList())) }
-            .isInstanceOf(DomainValidationException::class.java)
+            .isInstanceOf(EmptyExperienceSelectionException::class.java)
         verify(artifactRepository, never()).save(any<Artifact>())
     }
 
