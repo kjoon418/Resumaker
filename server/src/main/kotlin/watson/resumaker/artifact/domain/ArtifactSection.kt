@@ -149,5 +149,22 @@ class ArtifactSection private constructor(
             sourceExperienceIdList = source.sourceExperienceIdList.toMutableList(),
             factGroundingList = source.factGroundingList.map { FactGrounding.copyOf(it) }.toMutableList(),
         )
+
+        /**
+         * 직접 편집으로 새 버전을 만들 때 대상 항목을 복제한다(도메인 이해 §382·§428).
+         * [copyForNewVersion]과 달리 **factGroundingList를 빈 목록으로** 만든다. 사용자가 직접 쓴 내용에는
+         * AI 파생 토큰별 근거가 더 이상 대응하지 않아(§382 "산출물에 등장한 수치·고유명사 각각의 근거") 비운다.
+         * sourceExperienceIdList는 "근거 없이 만들어진 항목 0건" 불변식 유지를 위해 그대로 보존한다.
+         * 대상 항목에만 쓰이며, 미변경 항목은 [copyForNewVersion]으로 복제한다.
+         */
+        fun copyForEditedVersion(source: ArtifactSection): ArtifactSection = ArtifactSection(
+            id = SectionId(IdentifierGenerator.newId()),
+            definitionKey = source.definitionKey,
+            sectionKind = source.sectionKind,
+            content = source.content,
+            status = source.status,
+            sourceExperienceIdList = source.sourceExperienceIdList.toMutableList(),
+            factGroundingList = mutableListOf(),
+        )
     }
 }

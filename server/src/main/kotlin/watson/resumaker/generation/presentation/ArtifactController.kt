@@ -6,6 +6,7 @@ import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
+import org.springframework.web.bind.annotation.PutMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
@@ -14,6 +15,7 @@ import watson.resumaker.artifact.domain.ArtifactId
 import watson.resumaker.artifact.domain.SectionStatus
 import watson.resumaker.generation.application.ArtifactGenerationService
 import watson.resumaker.generation.application.ArtifactReadService
+import watson.resumaker.generation.application.SectionEditService
 import watson.resumaker.generation.application.SectionRegenerationService
 import java.util.UUID
 
@@ -24,6 +26,9 @@ import java.util.UUID
  * - GET  /artifacts/{id}      : 열람(수용 기준 12). 활성 버전 전체/항목 텍스트·상태·출처 반환. 복사는 클라이언트.
  * - POST /artifacts/{artifactId}/sections/{sectionId}/regenerate : 항목 단위 재생성(수용 기준 10·19·20).
  *   해당 항목만 다시 만들어 새 활성 버전을 만들고, 갱신된 산출물(활성 버전)을 돌려준다. 동시 중복은 409.
+ * - PUT  /artifacts/{artifactId}/sections/{sectionId}/content : 항목 직접 편집(수용 기준 10·19, §267).
+ *   사용자가 항목 텍스트를 직접 수정해 새 활성 버전을 만들고, 갱신된 산출물(활성 버전)을 돌려준다.
+ *   직접 편집에는 자동 검증을 적용하지 않는다(§428) — AI 비호출 순수 동기 영속.
  *
  * 모든 엔드포인트는 인증 주체 ownerId로 소유 격리한다(CurrentUserProvider). 생성 엔드포인트는 정적 경로
  * (`/resume`, `/portfolio`)이고 열람은 경로 변수(`/{id}`)지만 HTTP 메서드가 달라 충돌하지 않는다. 재생성은 더
@@ -36,6 +41,7 @@ class ArtifactController(
     private val generationService: ArtifactGenerationService,
     private val readService: ArtifactReadService,
     private val regenerationService: SectionRegenerationService,
+    private val editService: SectionEditService,
     private val mapper: GenerationMapper,
     private val currentUserProvider: CurrentUserProvider,
 ) {
@@ -77,6 +83,24 @@ class ArtifactController(
         val response = regenerationService.regenerateSection(
             currentUserProvider.currentUserId(),
             mapper.toRegenerateSectionCommand(artifactId, sectionId, request),
+        )
+        return ResponseEntity.ok(response)
+    }
+
+    /**
+     * 항목 직접 편집(도메인 이해 §5·§267·§271, 수용 기준 10·19). 사용자가 항목 텍스트를 직접 수정해 새 활성
+     * 버전을 만들고, 갱신된 산출물(활성 버전)을 200으로 돌려준다. 직접 편집에는 자동 검증을 적용하지 않으며(§428)
+     * AI 호출이 없는 순수 동기 영속이다. 빈 내용은 400(Bean Validation), 타인/미존재 산출물·항목은 404로 매핑된다.
+     */
+    @PutMapping("/{artifactId}/sections/{sectionId}/content")
+    fun editSectionContent(
+        @PathVariable artifactId: String,
+        @PathVariable sectionId: String,
+        @Valid @RequestBody request: EditSectionContentRequest,
+    ): ResponseEntity<ArtifactResponse> {
+        val response = editService.editSectionContent(
+            currentUserProvider.currentUserId(),
+            mapper.toEditSectionContentCommand(artifactId, sectionId, request),
         )
         return ResponseEntity.ok(response)
     }

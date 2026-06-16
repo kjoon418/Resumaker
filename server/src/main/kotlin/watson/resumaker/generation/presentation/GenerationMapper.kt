@@ -4,6 +4,7 @@ import org.springframework.stereotype.Component
 import watson.resumaker.artifact.domain.ArtifactId
 import watson.resumaker.artifact.domain.SectionId
 import watson.resumaker.experience.domain.ExperienceRecordId
+import watson.resumaker.generation.application.EditSectionContentCommand
 import watson.resumaker.generation.application.GeneratePortfolioCommand
 import watson.resumaker.generation.application.GenerateResumeCommand
 import watson.resumaker.generation.application.RegenerateSectionCommand
@@ -47,5 +48,21 @@ class GenerationMapper {
             artifactId = ArtifactId(UUID.fromString(artifactId)),
             sectionId = SectionId(UUID.fromString(sectionId)),
             directive = request.directive?.takeIf { it.isNotBlank() },
+        )
+
+    /**
+     * 경로 변수(artifactId·sectionId)와 본문(content)을 직접 편집 커맨드로 합친다.
+     * Bean Validation(@NotBlank)을 통과한 뒤이므로 content는 non-null·비공백으로 단정한다.
+     * 식별자 형식 오류는 IllegalArgument로 전파되어(UUID 파싱) 전역 핸들러 기본 처리된다.
+     */
+    fun toEditSectionContentCommand(
+        artifactId: String,
+        sectionId: String,
+        request: EditSectionContentRequest,
+    ): EditSectionContentCommand =
+        EditSectionContentCommand(
+            artifactId = ArtifactId(UUID.fromString(artifactId)),
+            sectionId = SectionId(UUID.fromString(sectionId)),
+            content = request.content!!,
         )
 }

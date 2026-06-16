@@ -12,6 +12,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.get
 import org.springframework.test.web.servlet.post
+import org.springframework.test.web.servlet.put
 import watson.resumaker.account.application.CurrentUserProvider
 import watson.resumaker.account.domain.UserId
 import watson.resumaker.artifact.domain.ArtifactKind
@@ -22,6 +23,7 @@ import watson.resumaker.common.domain.EmptyExperienceSelectionException
 import watson.resumaker.common.domain.ResourceNotFoundException
 import watson.resumaker.generation.application.ArtifactGenerationService
 import watson.resumaker.generation.application.ArtifactReadService
+import watson.resumaker.generation.application.SectionEditService
 import watson.resumaker.generation.application.SectionRegenerationService
 import java.util.UUID
 
@@ -47,6 +49,9 @@ class ArtifactControllerTest {
 
     @MockitoBean
     private lateinit var regenerationService: SectionRegenerationService
+
+    @MockitoBean
+    private lateinit var editService: SectionEditService
 
     @MockitoBean
     private lateinit var currentUserProvider: CurrentUserProvider
@@ -375,6 +380,80 @@ class ArtifactControllerTest {
         }.andExpect {
             status { isOk() }
             jsonPath("$.activeVersion.versionId") { value(newVersionId) }
+        }
+    }
+
+    @Test
+    fun 항목_직접_편집에_성공하면_200과_갱신된_활성_버전을_반환한다() {
+        // given (수용 기준 10·19, §267) — 갱신된 산출물(새 활성 버전)을 그대로 내려준다.
+        val sectionId = UUID.randomUUID().toString()
+        val newVersionId = UUID.randomUUID().toString()
+        whenever(currentUserProvider.currentUserId()).thenReturn(UserId(UUID.randomUUID()))
+        whenever(editService.editSectionContent(any(), any())).thenReturn(
+            ArtifactResponse(
+                id = artifactId,
+                kind = ArtifactKind.RESUME,
+                activeVersion = ArtifactVersionResponse(
+                    versionId = newVersionId,
+                    sections = listOf(
+                        ArtifactSectionResponse(
+                            id = UUID.randomUUID().toString(),
+                            sectionKind = SectionKind.SUMMARY,
+                            definitionKey = "section-0-요약",
+                            content = "직접 고친 요약",
+                            status = SectionStatus.GENERATED,
+                            sourceExperienceIds = listOf(expId),
+                        ),
+                    ),
+                ),
+            ),
+        )
+        val request = EditSectionContentRequest(content = "직접 고친 요약")
+
+        // when and then
+        mockMvc.put("/artifacts/$artifactId/sections/$sectionId/content") {
+            contentType = MediaType.APPLICATION_JSON
+            content = objectMapper.writeValueAsString(request)
+        }.andExpect {
+            status { isOk() }
+            jsonPath("$.activeVersion.versionId") { value(newVersionId) }
+            jsonPath("$.activeVersion.sections[0].content") { value("직접 고친 요약") }
+        }
+    }
+
+    @Test
+    fun 직접_편집_요청에_내용이_비어있으면_400을_반환한다() {
+        // given (UX 에러 가이드) — 빈 content는 형식 검증으로 거부한다(@NotBlank).
+        val sectionId = UUID.randomUUID().toString()
+        whenever(currentUserProvider.currentUserId()).thenReturn(UserId(UUID.randomUUID()))
+        val request = EditSectionContentRequest(content = "   ")
+
+        // when and then
+        mockMvc.put("/artifacts/$artifactId/sections/$sectionId/content") {
+            contentType = MediaType.APPLICATION_JSON
+            content = objectMapper.writeValueAsString(request)
+        }.andExpect {
+            status { isBadRequest() }
+            jsonPath("$.field") { value("content") }
+        }
+    }
+
+    @Test
+    fun 타인_소유_또는_미존재_항목_직접_편집은_404를_반환한다() {
+        // given (소유 격리, 수용 기준 13) — 미존재·타인(산출물/항목) 모두 404.
+        val sectionId = UUID.randomUUID().toString()
+        whenever(currentUserProvider.currentUserId()).thenReturn(UserId(UUID.randomUUID()))
+        whenever(editService.editSectionContent(any(), any()))
+            .thenThrow(ResourceNotFoundException("수정할 항목을 찾을 수 없어요."))
+        val request = EditSectionContentRequest(content = "고친 내용")
+
+        // when and then
+        mockMvc.put("/artifacts/$artifactId/sections/$sectionId/content") {
+            contentType = MediaType.APPLICATION_JSON
+            content = objectMapper.writeValueAsString(request)
+        }.andExpect {
+            status { isNotFound() }
+            jsonPath("$.code") { value("NOT_FOUND") }
         }
     }
 }

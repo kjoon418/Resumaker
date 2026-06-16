@@ -6,6 +6,9 @@ import org.junit.jupiter.api.Test
 import watson.resumaker.account.domain.UserId
 import watson.resumaker.common.domain.DomainValidationException
 import watson.resumaker.experience.domain.ExperienceRecordId
+import watson.resumaker.artifact.domain.FactGrounding
+import watson.resumaker.artifact.domain.FactKind
+import watson.resumaker.artifact.domain.FactToken
 import java.time.Instant
 import java.util.UUID
 
@@ -350,6 +353,130 @@ class ArtifactTest {
                 initialSections = listOf(section("exp-1", SectionKind.SUMMARY, "x")),
                 createdAt = baseTime,
             )
+        }.isInstanceOf(DomainValidationException::class.java)
+    }
+
+    // ── editSection 도메인 테스트 ────────────────────────────────────────────
+
+    private fun groundingOn(section: ArtifactSection): FactGrounding = FactGrounding.create(
+        token = FactToken.of("40%"),
+        kind = FactKind.NUMERIC,
+        sourceExperienceId = ExperienceRecordId(UUID.randomUUID()),
+        evidenceText = "응답 속도를 40% 단축",
+    )
+
+    @Test
+    fun editSection은_새_버전을_만들고_편집_항목만_교체하며_이전_버전을_보존한다() {
+        // given (수용 기준 10·19)
+        val artifact = resume(
+            listOf(
+                section("summary", SectionKind.SUMMARY, "원래 요약"),
+                section("career", SectionKind.CAREER, "원래 경력"),
+            ),
+        )
+        val active = artifact.activeVersion()
+        val targetSection = active.sections.first { it.definitionKey == "summary" }
+
+        // when
+        val newVersion = artifact.editSection(targetSection.id, SectionContent.of("직접 고친 요약"), baseTime.plusSeconds(60))
+
+        // then — 새 버전이 활성이고 버전이 2개
+        assertThat(artifact.versions).hasSize(2)
+        assertThat(artifact.activeVersion()).isEqualTo(newVersion)
+        assertThat(newVersion).isNotEqualTo(active)
+        // 편집 항목만 교체
+        val newSummary = newVersion.sections.first { it.definitionKey == "summary" }
+        assertThat(newSummary.content.value).isEqualTo("직접 고친 요약")
+        assertThat(newSummary.status).isEqualTo(SectionStatus.GENERATED)
+        // 미변경 항목은 그대로 복제
+        val newCareer = newVersion.sections.first { it.definitionKey == "career" }
+        assertThat(newCareer.content.value).isEqualTo("원래 경력")
+    }
+
+    @Test
+    fun editSection은_편집_항목의_factGroundings를_비운다() {
+        // given (§382·§428) — summary에 grounding 1개 심기.
+        // 만약 copyForNewVersion을 쓰면 grounding이 복제·보존되어 이 단언이 실패한다.
+        val exp1 = ExperienceRecordId(UUID.randomUUID())
+        val grounding = FactGrounding.create(
+            token = FactToken.of("40%"),
+            kind = FactKind.NUMERIC,
+            sourceExperienceId = exp1,
+            evidenceText = "40% 단축",
+        )
+        val artifact = resume(
+            listOf(
+                section("summary", SectionKind.SUMMARY, "원래 요약", sources = listOf(exp1), groundings = listOf(grounding)),
+                section("career", SectionKind.CAREER, "원래 경력"),
+            ),
+        )
+        val summarySection = artifact.activeVersion().sections.first { it.definitionKey == "summary" }
+        assertThat(summarySection.factGroundings).hasSize(1) // 사전 조건
+
+        // when
+        val newVersion = artifact.editSection(summarySection.id, SectionContent.of("고친 요약"), baseTime.plusSeconds(60))
+
+        // then — 편집 항목의 factGroundings는 비어 있다.
+        val newSummary = newVersion.sections.first { it.definitionKey == "summary" }
+        assertThat(newSummary.factGroundings).isEmpty()
+    }
+
+    @Test
+    fun editSection은_편집_항목의_sourceExperienceIds를_보존한다() {
+        // given (§428) — "근거 없이 만들어진 항목 0건" 불변식 유지.
+        val exp1 = ExperienceRecordId(UUID.randomUUID())
+        val exp2 = ExperienceRecordId(UUID.randomUUID())
+        val artifact = resume(
+            listOf(
+                section("summary", SectionKind.SUMMARY, "원래 요약", sources = listOf(exp1, exp2)),
+                section("career", SectionKind.CAREER, "원래 경력"),
+            ),
+        )
+        val summarySection = artifact.activeVersion().sections.first { it.definitionKey == "summary" }
+
+        // when
+        val newVersion = artifact.editSection(summarySection.id, SectionContent.of("고친 요약"), baseTime.plusSeconds(60))
+
+        // then — 편집 항목의 출처 경험은 그대로 보존된다.
+        val newSummary = newVersion.sections.first { it.definitionKey == "summary" }
+        assertThat(newSummary.sourceExperienceIds).containsExactly(exp1, exp2)
+    }
+
+    @Test
+    fun editSection은_미변경_항목의_factGroundings를_그대로_복제한다() {
+        // given (수용 기준 10) — career에 grounding 1개. summary만 편집 → career grounding 보존.
+        val exp1 = ExperienceRecordId(UUID.randomUUID())
+        val grounding = FactGrounding.create(
+            token = FactToken.of("네이버"),
+            kind = FactKind.PROPER_NOUN,
+            sourceExperienceId = exp1,
+            evidenceText = "네이버 인턴",
+        )
+        val artifact = resume(
+            listOf(
+                section("summary", SectionKind.SUMMARY, "원래 요약"),
+                section("career", SectionKind.CAREER, "원래 경력", sources = listOf(exp1), groundings = listOf(grounding)),
+            ),
+        )
+        val summarySection = artifact.activeVersion().sections.first { it.definitionKey == "summary" }
+
+        // when — summary만 편집
+        val newVersion = artifact.editSection(summarySection.id, SectionContent.of("고친 요약"), baseTime.plusSeconds(60))
+
+        // then — 미변경 career의 factGroundings는 복제되어 1개 유지된다.
+        val newCareer = newVersion.sections.first { it.definitionKey == "career" }
+        assertThat(newCareer.factGroundings).hasSize(1)
+        assertThat(newCareer.factGroundings.first().tokenValue).isEqualTo("네이버")
+    }
+
+    @Test
+    fun editSection은_활성_버전에_없는_항목을_편집하면_거부된다() {
+        // given
+        val artifact = resume(listOf(section("summary", SectionKind.SUMMARY, "요약")))
+
+        // when and then
+        assertThatThrownBy {
+            artifact.editSection(SectionId(UUID.randomUUID()), SectionContent.of("x"), baseTime)
         }.isInstanceOf(DomainValidationException::class.java)
     }
 

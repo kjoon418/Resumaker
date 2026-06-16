@@ -1,5 +1,6 @@
 package watson.resumaker.generation.presentation
 
+import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.NotEmpty
 import jakarta.validation.constraints.NotNull
 import watson.resumaker.artifact.domain.ArtifactKind
@@ -88,6 +89,20 @@ data class PortfolioGenerationRequest(
  */
 data class RegenerateSectionRequest(
     val directive: String? = null,
+)
+
+/**
+ * 항목 직접 편집 요청 DTO(PUT /artifacts/{artifactId}/sections/{sectionId}/content, 도메인 이해 §5·§267).
+ * 산출물·항목 식별자는 경로 변수로 받고, 본문에는 사용자가 직접 작성한 내용만 담는다.
+ *
+ * 직접 편집에는 자동 검증을 적용하지 않으므로(§428) 검증을 통과하지 못할 내용도 그대로 저장된다. 다만 빈
+ * 내용은 편집의 의미가 없어(항목을 비우는 것은 삭제 의미) 형식 검증으로 거부한다(400, UX 에러 가이드).
+ *
+ * @param content 사용자가 직접 작성한 항목 내용(필수·비어 있을 수 없음). 길이 상한 초과는 도메인 VO가 400으로 거부한다.
+ */
+data class EditSectionContentRequest(
+    @field:NotBlank(message = "수정할 내용을 입력해 주세요.")
+    val content: String? = null,
 )
 
 // ── Cycle D: 열람 응답 DTO(수용 기준 12) ────────────────────────────────────

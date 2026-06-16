@@ -155,6 +155,46 @@ class Artifact private constructor(
     }
 
     /**
+     * 항목 직접 편집(도메인 이해 §5·§267·§382·§428, 수용 기준 10·19): 직전 활성 버전을 복제한 뒤 대상 항목만
+     * content를 교체한 새 버전을 만들어 활성으로 전환한다. 교체되지 않은 항목은 [ArtifactSection.copyForNewVersion]으로
+     * 그대로 복제되어 **한 항목 편집이 다른 항목을 바꾸지 않는다.**
+     *
+     * [adoptSection]과의 차이: 대상 항목을 [ArtifactSection.copyForEditedVersion]으로 복제해
+     * **factGroundingList를 빈 목록으로** 만든다. 사용자가 직접 쓴 내용엔 AI 파생 토큰별 근거가 더 이상 대응하지
+     * 않으므로(§382) 비워 "factGroundings = AI 파생 근거" 불변식을 정직하게 유지한다.
+     * sourceExperienceIds는 "근거 없이 만들어진 항목 0건" 불변식 유지를 위해 보존한다(§428).
+     * 직접 편집 결과는 사용자가 확정한 내용이므로 GENERATED로 둔다.
+     *
+     * @param sectionId 활성 버전에서 편집할 항목의 식별자.
+     * @param edited    편집된 내용.
+     * @return 새로 만들어진 활성 버전.
+     */
+    fun editSection(sectionId: SectionId, edited: SectionContent, createdAt: Instant): Version {
+        val active = activeVersion()
+        val target = active.sectionById(sectionId)
+            ?: throw DomainValidationException("편집할 항목을 활성 버전에서 찾을 수 없어요.")
+
+        val newSections = active.sections.map { source ->
+            if (source.definitionKey == target.definitionKey) {
+                // 대상 항목: factGroundings 비움 + content 교체 + GENERATED.
+                val copy = ArtifactSection.copyForEditedVersion(source)
+                copy.content = edited
+                copy.status = SectionStatus.GENERATED
+                copy
+            } else {
+                // 미변경 항목: 그대로 복제(factGroundings 포함).
+                ArtifactSection.copyForNewVersion(source)
+            }
+        }
+
+        val newVersion = Version.create(newSections, createdAt)
+        newVersion.assignArtifact(this)
+        versionList.add(newVersion)
+        activeVersionId = newVersion.id
+        return newVersion
+    }
+
+    /**
      * 버전 보관 상한 정리(구현 설계 §3.5, 수용 기준 11): 버전 수가 상한을 초과하면 가장 오래된 버전부터
      * **상한 이하가 되거나 정리 가능한 비활성 버전이 없을 때까지 반복 정리**한다. 단, **활성 버전은 정리
      * 대상에서 제외**한다(항상 활성 버전 존재 불변식 — §135). 사전 고지는 상위 계층 책임.

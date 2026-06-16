@@ -46,3 +46,20 @@ data class RegenerateSectionCommand(
     val sectionId: SectionId,
     val directive: String?,
 )
+
+/**
+ * 항목 직접 편집 유스케이스 입력 커맨드(도메인 이해 §5 직접 편집·§267·§271, 수용 기준 10·19).
+ *
+ * 사용자가 활성 버전의 한 항목 텍스트를 직접 수정한다. 직전 활성 버전을 복제한 위에 **이 항목만** 교체한
+ * 새 버전을 만든다(다른 항목 불변·이전 버전 보존). 직접 편집에는 자동 검증을 적용하지 않으며(§428), AI 호출이
+ * 없는 순수 동기 영속 작업이다. 목표는 산출물의 불변 스냅샷에서 정의되므로 커맨드에 목표 식별자를 포함하지 않는다.
+ *
+ * @param artifactId 편집 대상 산출물(소유 격리).
+ * @param sectionId  활성 버전에서 편집할 항목.
+ * @param content    사용자가 직접 작성한 내용(빈 내용은 presentation Bean Validation에서 400으로 거부됨).
+ */
+data class EditSectionContentCommand(
+    val artifactId: ArtifactId,
+    val sectionId: SectionId,
+    val content: String,
+)
