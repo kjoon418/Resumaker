@@ -12,7 +12,8 @@ import watson.resumaker.model.type.SectionStatus
  * 부분 실패 버전도 정상 응답(생성 200, 모두 성공 201)으로 내려오며(도메인 이해 §306), 항목별 [SectionStatus]로
  * 성공/실패를 구분한다. 클라이언트는 가짜 성공을 만들지 않고 항목 상태를 그대로 고지한다(신뢰성 가드레일).
  *
- * Slice 2/3(항목 재생성·직접 편집·버전 목록·복원) 요청/응답 DTO는 다음 슬라이스에서 추가한다.
+ * Slice 2(항목 재생성·직접 편집) 요청 DTO는 아래에 추가한다(응답은 [ArtifactResponse] 재사용).
+ * Slice 3(버전 목록·복원) 요청/응답 DTO는 다음 슬라이스에서 추가한다.
  */
 
 /**
@@ -32,6 +33,32 @@ data class ResumeGenerationRequest(
 data class PortfolioGenerationRequest(
     val experienceIds: List<String>,
     val targetId: String,
+)
+
+/**
+ * 항목 단위 재생성 요청(POST /artifacts/{artifactId}/sections/{sectionId}/regenerate). 서버 RegenerateSectionRequest와 1:1.
+ * 산출물·항목 식별자는 경로 변수로 전달하고, 본문에는 선택적 개선 지시만 담는다(빈/null 허용 — §364: 목표는
+ * 산출물 스냅샷에서 읽으므로 본문에 목표를 넣지 않는다).
+ *
+ * @param directive 선택적 개선 지시("더 짧게"·"성과 수치 강조" 등). 없으면 null.
+ */
+@Serializable
+data class RegenerateSectionRequest(
+    val directive: String? = null,
+)
+
+/**
+ * 항목 직접 편집 요청(PUT /artifacts/{artifactId}/sections/{sectionId}/content). 서버 EditSectionContentRequest와 1:1.
+ * 산출물·항목 식별자는 경로 변수로 전달하고, 본문에는 사용자가 직접 작성한 내용만 담는다.
+ *
+ * 직접 편집에는 자동 검증을 적용하지 않으므로(§428) 검증을 통과하지 못할 내용도 그대로 저장된다. 다만 빈 내용은
+ * 서버가 400으로 거부하므로 클라이언트도 빈 입력 시 저장을 막는다(인라인 검증 — UX 에러 가이드).
+ *
+ * @param content 사용자가 직접 작성한 항목 내용(필수·비어 있을 수 없음).
+ */
+@Serializable
+data class EditSectionContentRequest(
+    val content: String,
 )
 
 /**

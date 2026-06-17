@@ -198,10 +198,37 @@ class FakeArtifactApi(
     var generateResumeResult: ApiResult<GenerationResponse>? = null,
     var generatePortfolioResult: ApiResult<GenerationResponse>? = null,
     var getArtifactResult: ApiResult<ArtifactResponse>? = null,
+    var regenerateResult: ApiResult<ArtifactResponse>? = null,
+    var editResult: ApiResult<ArtifactResponse>? = null,
 ) : ArtifactApi {
     var lastResumeRequest: ResumeGenerationRequest? = null
     var lastPortfolioRequest: PortfolioGenerationRequest? = null
     var getArtifactId: String? = null
+
+    /** 재생성 호출 인자(artifactId, sectionId, directive) 기록. directive는 trim 후 빈 값이면 null로 들어온다. */
+    var lastRegenerate: Triple<String, String, String?>? = null
+
+    /** 편집 호출 인자(artifactId, sectionId, content) 기록. */
+    var lastEdit: Triple<String, String, String>? = null
+
+    /** 같은 호출 카운트(in-flight 가드·중복 호출 검증용). */
+    var regenerateCount = 0
+        private set
+    var editCount = 0
+        private set
+
+    /**
+     * 재생성 호출을 한 번 일시정지시키는 게이트. `gate.complete(Unit)`를 호출해야 응답이 반환된다.
+     * null이면 즉시 반환한다. in-flight(진행 중) 상태에서의 중복 액션 차단을 테스트할 때 진행 중을
+     * 유지하는 데 쓴다.
+     */
+    var regenerateGate: kotlinx.coroutines.CompletableDeferred<Unit>? = null
+
+    /**
+     * 편집 호출을 한 번 일시정지시키는 게이트. `gate.complete(Unit)`를 호출해야 응답이 반환된다.
+     * null이면 즉시 반환한다. 편집-in-flight 상태에서의 재생성 교차 차단을 테스트할 때 쓴다.
+     */
+    var editGate: kotlinx.coroutines.CompletableDeferred<Unit>? = null
 
     override suspend fun generateResume(request: ResumeGenerationRequest): ApiResult<GenerationResponse> {
         lastResumeRequest = request
@@ -216,6 +243,28 @@ class FakeArtifactApi(
     override suspend fun getArtifact(id: String): ApiResult<ArtifactResponse> {
         getArtifactId = id
         return getArtifactResult ?: ApiResult.Failure("no result")
+    }
+
+    override suspend fun regenerateSection(
+        artifactId: String,
+        sectionId: String,
+        directive: String?,
+    ): ApiResult<ArtifactResponse> {
+        regenerateCount++
+        lastRegenerate = Triple(artifactId, sectionId, directive)
+        regenerateGate?.await()
+        return regenerateResult ?: ApiResult.Failure("no result")
+    }
+
+    override suspend fun editSectionContent(
+        artifactId: String,
+        sectionId: String,
+        content: String,
+    ): ApiResult<ArtifactResponse> {
+        editCount++
+        lastEdit = Triple(artifactId, sectionId, content)
+        editGate?.await()
+        return editResult ?: ApiResult.Failure("no result")
     }
 }
 
