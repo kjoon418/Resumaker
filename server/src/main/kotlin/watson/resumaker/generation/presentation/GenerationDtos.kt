@@ -112,11 +112,16 @@ data class EditSectionContentRequest(
  * 표시용으로 내려준다. 복사는 클라이언트가 이 텍스트로 수행한다(도메인 이해 §6).
  *
  * 지연 로딩 경계를 넘지 않도록 read 서비스의 트랜잭션 내부에서 변환된다(구현 설계 §5).
+ *
+ * @param prunedVersionCount 이 응답을 만든 작업(재생성·직접 편집)에서 보관 상한 초과로 정리된 버전 수
+ *   (도메인 이해 §398·§273 "정리 전에 사용자에게 알린다", 사전 고지는 상위 계층 책임 §157·§135). 정리가 없으면 0.
+ *   열람·복원처럼 버전을 추가하지 않는 경로에서는 항상 0이다.
  */
 data class ArtifactResponse(
     val id: String,
     val kind: ArtifactKind,
     val activeVersion: ArtifactVersionResponse,
+    val prunedVersionCount: Int = 0,
 )
 
 /**
@@ -124,6 +129,29 @@ data class ArtifactResponse(
  */
 data class ArtifactVersionResponse(
     val versionId: String,
+    val sections: List<ArtifactSectionResponse>,
+)
+
+/**
+ * 버전 목록 조회 응답 DTO(GET /artifacts/{artifactId}/versions, 수용 기준 11·12, 도메인 이해 §271~283·§363).
+ * 한 산출물의 **모든 버전**을 생성 순서(오래된→최신)로 내려준다. 클라이언트는 definitionKey로 버전 간 '같은 항목'을
+ * 맞춰 비교한다(§363: 같은 항목 = 같은 섹션 정의 대응). 활성 버전은 [activeVersionId]로 가린다.
+ */
+data class ArtifactVersionsResponse(
+    val artifactId: String,
+    val kind: ArtifactKind,
+    val activeVersionId: String,
+    val versions: List<VersionHistoryResponse>,
+)
+
+/**
+ * 버전 목록의 한 버전 응답 DTO. 비교용으로 버전의 모든 항목(definitionKey·종류·내용·상태·출처)·활성 여부·생성시각을
+ * 담는다. 근거(factGroundings)는 비교·복원 가치에 비해 부차적이라 포함하지 않는다(열람 응답과 동형 — §6).
+ */
+data class VersionHistoryResponse(
+    val versionId: String,
+    val active: Boolean,
+    val createdAt: String,
     val sections: List<ArtifactSectionResponse>,
 )
 

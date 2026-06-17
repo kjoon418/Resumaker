@@ -6,6 +6,7 @@ import watson.resumaker.account.domain.UserId
 import watson.resumaker.artifact.domain.SectionContent
 import watson.resumaker.artifact.infrastructure.ArtifactRepository
 import watson.resumaker.common.domain.ResourceNotFoundException
+import watson.resumaker.generation.infrastructure.ArtifactVersioningProperties
 import watson.resumaker.generation.presentation.ArtifactResponse
 import java.time.Clock
 import java.time.Instant
@@ -35,6 +36,7 @@ import java.time.Instant
 class SectionEditService(
     private val artifactRepository: ArtifactRepository,
     private val mapper: ArtifactReadServiceMapper,
+    private val versioningProperties: ArtifactVersioningProperties,
     private val clock: Clock,
 ) {
 
@@ -53,7 +55,10 @@ class SectionEditService(
         // 도메인 editSection: 직전 활성 버전 복제 + 대상 항목 content 교체 + factGroundings 비움 + 새 활성 버전.
         // sourceExperienceIds는 보존, 미변경 항목은 factGroundings 포함 그대로 복제(수용 기준 10·19).
         artifact.editSection(command.sectionId, edited, now)
+        // 보관 상한 정리(수용 기준 11): 새 버전 추가로 상한을 넘으면 같은 트랜잭션 안에서 가장 오래된 비활성
+        // 버전부터 정리한다(orphanRemoval로 삭제 영속). 활성은 제외되어 불변식 유지. 사전 고지는 응답으로 내려준다.
+        val pruned = artifact.pruneOldestIfExceeds(versioningProperties.versionRetentionLimit)
         val saved = artifactRepository.save(artifact)
-        return mapper.toResponse(saved)
+        return mapper.toResponse(saved, prunedVersionCount = pruned.size)
     }
 }

@@ -25,6 +25,7 @@ import watson.resumaker.generation.application.ArtifactGenerationService
 import watson.resumaker.generation.application.ArtifactReadService
 import watson.resumaker.generation.application.SectionEditService
 import watson.resumaker.generation.application.SectionRegenerationService
+import watson.resumaker.generation.application.VersionRestoreService
 import java.util.UUID
 
 /**
@@ -52,6 +53,9 @@ class ArtifactControllerTest {
 
     @MockitoBean
     private lateinit var editService: SectionEditService
+
+    @MockitoBean
+    private lateinit var restoreService: VersionRestoreService
 
     @MockitoBean
     private lateinit var currentUserProvider: CurrentUserProvider
@@ -455,5 +459,128 @@ class ArtifactControllerTest {
             status { isNotFound() }
             jsonPath("$.code") { value("NOT_FOUND") }
         }
+    }
+
+    @Test
+    fun 버전_목록을_조회하면_200과_모든_버전을_생성순서로_반환한다() {
+        // given (수용 기준 11·12, §363) — 두 버전을 생성 순서로, 활성 표시·섹션 데이터와 함께 내려준다.
+        val olderVersionId = UUID.randomUUID().toString()
+        val newerVersionId = UUID.randomUUID().toString()
+        whenever(currentUserProvider.currentUserId()).thenReturn(UserId(UUID.randomUUID()))
+        whenever(readService.getVersions(any(), any())).thenReturn(
+            ArtifactVersionsResponse(
+                artifactId = artifactId,
+                kind = ArtifactKind.RESUME,
+                activeVersionId = newerVersionId,
+                versions = listOf(
+                    VersionHistoryResponse(
+                        versionId = olderVersionId,
+                        active = false,
+                        createdAt = "2026-06-15T00:00:00Z",
+                        sections = listOf(
+                            ArtifactSectionResponse(
+                                id = UUID.randomUUID().toString(),
+                                sectionKind = SectionKind.SUMMARY,
+                                definitionKey = "section-0-요약",
+                                content = "이전 요약",
+                                status = SectionStatus.GENERATED,
+                                sourceExperienceIds = listOf(expId),
+                            ),
+                        ),
+                    ),
+                    VersionHistoryResponse(
+                        versionId = newerVersionId,
+                        active = true,
+                        createdAt = "2026-06-16T00:00:00Z",
+                        sections = listOf(
+                            ArtifactSectionResponse(
+                                id = UUID.randomUUID().toString(),
+                                sectionKind = SectionKind.SUMMARY,
+                                definitionKey = "section-0-요약",
+                                content = "최신 요약",
+                                status = SectionStatus.GENERATED,
+                                sourceExperienceIds = listOf(expId),
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+        )
+
+        // when and then
+        mockMvc.get("/artifacts/$artifactId/versions")
+            .andExpect {
+                status { isOk() }
+                jsonPath("$.activeVersionId") { value(newerVersionId) }
+                jsonPath("$.versions[0].versionId") { value(olderVersionId) }
+                jsonPath("$.versions[0].active") { value(false) }
+                jsonPath("$.versions[1].active") { value(true) }
+                jsonPath("$.versions[1].sections[0].content") { value("최신 요약") }
+            }
+    }
+
+    @Test
+    fun 타인_소유_또는_미존재_산출물_버전_목록조회는_404를_반환한다() {
+        // given (소유 격리, 수용 기준 13) — 미존재·타인 모두 404.
+        whenever(currentUserProvider.currentUserId()).thenReturn(UserId(UUID.randomUUID()))
+        whenever(readService.getVersions(any(), any()))
+            .thenThrow(ResourceNotFoundException("요청하신 산출물을 찾을 수 없어요."))
+
+        // when and then
+        mockMvc.get("/artifacts/$artifactId/versions")
+            .andExpect {
+                status { isNotFound() }
+                jsonPath("$.code") { value("NOT_FOUND") }
+            }
+    }
+
+    @Test
+    fun 버전_복원에_성공하면_200과_활성이_전환된_산출물을_반환한다() {
+        // given (§277·§283, "복원 = 활성 전환") — 고른 버전이 활성으로 바뀐 산출물을 내려준다.
+        val versionId = UUID.randomUUID().toString()
+        whenever(currentUserProvider.currentUserId()).thenReturn(UserId(UUID.randomUUID()))
+        whenever(restoreService.restoreVersion(any(), any())).thenReturn(
+            ArtifactResponse(
+                id = artifactId,
+                kind = ArtifactKind.RESUME,
+                activeVersion = ArtifactVersionResponse(
+                    versionId = versionId,
+                    sections = listOf(
+                        ArtifactSectionResponse(
+                            id = UUID.randomUUID().toString(),
+                            sectionKind = SectionKind.SUMMARY,
+                            definitionKey = "section-0-요약",
+                            content = "복원된 요약",
+                            status = SectionStatus.GENERATED,
+                            sourceExperienceIds = listOf(expId),
+                        ),
+                    ),
+                ),
+            ),
+        )
+
+        // when and then
+        mockMvc.post("/artifacts/$artifactId/versions/$versionId/restore")
+            .andExpect {
+                status { isOk() }
+                jsonPath("$.activeVersion.versionId") { value(versionId) }
+                jsonPath("$.activeVersion.sections[0].content") { value("복원된 요약") }
+            }
+    }
+
+    @Test
+    fun 타인_소유_또는_미존재_버전_복원은_404를_반환한다() {
+        // given (소유 격리, 수용 기준 13) — 미존재·타인(산출물/버전) 모두 404.
+        val versionId = UUID.randomUUID().toString()
+        whenever(currentUserProvider.currentUserId()).thenReturn(UserId(UUID.randomUUID()))
+        whenever(restoreService.restoreVersion(any(), any()))
+            .thenThrow(ResourceNotFoundException("되돌릴 버전을 찾을 수 없어요."))
+
+        // when and then
+        mockMvc.post("/artifacts/$artifactId/versions/$versionId/restore")
+            .andExpect {
+                status { isNotFound() }
+                jsonPath("$.code") { value("NOT_FOUND") }
+            }
     }
 }

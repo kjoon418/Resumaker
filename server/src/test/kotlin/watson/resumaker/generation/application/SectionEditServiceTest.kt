@@ -25,6 +25,7 @@ import watson.resumaker.artifact.infrastructure.ArtifactRepository
 import watson.resumaker.common.domain.DomainValidationException
 import watson.resumaker.common.domain.ResourceNotFoundException
 import watson.resumaker.experience.domain.ExperienceRecordId
+import watson.resumaker.generation.infrastructure.ArtifactVersioningProperties
 import java.time.Clock
 import java.time.Instant
 import java.time.ZoneOffset
@@ -50,6 +51,7 @@ class SectionEditServiceTest {
     private val service = SectionEditService(
         artifactRepository = artifactRepository,
         mapper = mapper,
+        versioningProperties = ArtifactVersioningProperties(),
         clock = clock,
     )
 
@@ -229,6 +231,49 @@ class SectionEditServiceTest {
         assertThatThrownBy {
             service.editSectionContent(ownerId, command(artifact.id, SectionId(UUID.randomUUID()), "내용"))
         }.isInstanceOf(ResourceNotFoundException::class.java)
+    }
+
+    @Test
+    fun 직접_편집_반복으로_상한을_넘으면_가장_오래된_비활성_버전부터_정리되고_활성은_보존된다() {
+        // given (수용 기준 11) — 보관 상한 2. 반복 편집으로 버전이 늘면 상한 이하로 정리되고 활성은 남는다.
+        val limitedService = SectionEditService(
+            artifactRepository = artifactRepository,
+            mapper = mapper,
+            versioningProperties = ArtifactVersioningProperties(versionRetentionLimit = 2),
+            clock = clock,
+        )
+        val (artifact, _, _) = resumeArtifact()
+        whenever(artifactRepository.findByIdAndOwnerId(artifact.id, ownerId)).thenReturn(artifact)
+        stubSave()
+
+        // when — 초기 1버전에서 3회 편집(편집은 새 활성 버전을 추가). 매번 활성 요약 항목을 다시 잡아 편집한다.
+        repeat(3) { i ->
+            val summaryId = artifact.activeVersion().sections.single { it.definitionKey == "section-0-요약" }.id
+            limitedService.editSectionContent(ownerId, command(artifact.id, summaryId, "편집 $i"))
+        }
+
+        // then — 상한 2 이하로 정리됨. 마지막 편집의 응답 prunedVersionCount는 1(직전 정리 1건).
+        assertThat(artifact.versions).hasSize(2)
+        // 활성 버전(가장 최근 편집)이 보존된다.
+        assertThat(artifact.activeVersion().sections.single { it.definitionKey == "section-0-요약" }.content.value)
+            .isEqualTo("편집 2")
+        // 정리는 가장 오래된(초기) 버전부터 일어난다 — 활성은 항상 제외된다.
+        assertThat(artifact.versions.map { it.id }).contains(artifact.activeVersion().id)
+    }
+
+    @Test
+    fun 상한_이내면_직접_편집해도_정리하지_않는다() {
+        // given (수용 기준 11) — 상한 10(기본). 1회 편집은 2버전이라 정리 없음, prunedVersionCount=0.
+        val (artifact, summaryId, _) = resumeArtifact()
+        whenever(artifactRepository.findByIdAndOwnerId(artifact.id, ownerId)).thenReturn(artifact)
+        stubSave()
+
+        // when
+        val response = service.editSectionContent(ownerId, command(artifact.id, summaryId, "한 번만 편집"))
+
+        // then — 버전 2개 보존, 정리 고지 0.
+        assertThat(artifact.versions).hasSize(2)
+        assertThat(response.prunedVersionCount).isEqualTo(0)
     }
 
     @Test

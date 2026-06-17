@@ -88,4 +88,45 @@ class ArtifactReadServiceTest {
         assertThatThrownBy { service.getArtifact(ownerId, artifactId) }
             .isInstanceOf(ResourceNotFoundException::class.java)
     }
+
+    @Test
+    fun 버전_목록을_조회하면_모든_버전을_생성순서로_활성표시와_섹션데이터와_함께_반환한다() {
+        // given (수용 기준 11·12, §363) — 편집으로 v2를 만들어 버전 2개. v2가 활성.
+        val artifact = resumeArtifact()
+        val v1Id = artifact.activeVersion().id
+        artifact.editSection(
+            artifact.activeVersion().sections.first().id,
+            SectionContent.of("고친 요약"),
+            Instant.parse("2026-06-17T00:00:00Z"),
+        )
+        val v2Id = artifact.activeVersion().id
+        whenever(artifactRepository.findByIdAndOwnerId(artifact.id, ownerId)).thenReturn(artifact)
+
+        // when
+        val response = service.getVersions(ownerId, artifact.id)
+
+        // then — 생성 순서(v1→v2), 활성은 v2, 각 버전의 섹션 데이터 포함.
+        assertThat(response.artifactId).isEqualTo(artifact.id.value.toString())
+        assertThat(response.activeVersionId).isEqualTo(v2Id.value.toString())
+        assertThat(response.versions.map { it.versionId })
+            .containsExactly(v1Id.value.toString(), v2Id.value.toString())
+        assertThat(response.versions[0].active).isFalse()
+        assertThat(response.versions[1].active).isTrue()
+        // 섹션 데이터(definitionKey·내용·출처)가 비교용으로 담긴다.
+        assertThat(response.versions[0].sections.first().definitionKey).isEqualTo("section-0-요약")
+        assertThat(response.versions[0].sections.first().content).isEqualTo("요약 본문")
+        assertThat(response.versions[1].sections.first().content).isEqualTo("고친 요약")
+        assertThat(response.versions[0].sections.first().sourceExperienceIds)
+            .containsExactly(exp1.value.toString())
+    }
+
+    @Test
+    fun 버전_목록조회는_타인_소유이거나_미존재면_404() {
+        // given (소유 격리, 수용 기준 13).
+        whenever(artifactRepository.findByIdAndOwnerId(artifactId, ownerId)).thenReturn(null)
+
+        // when and then
+        assertThatThrownBy { service.getVersions(ownerId, artifactId) }
+            .isInstanceOf(ResourceNotFoundException::class.java)
+    }
 }

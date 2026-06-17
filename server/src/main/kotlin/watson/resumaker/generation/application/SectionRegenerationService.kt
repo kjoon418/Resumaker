@@ -16,6 +16,7 @@ import watson.resumaker.common.domain.ResourceNotFoundException
 import watson.resumaker.experience.domain.ExperienceRecord
 import watson.resumaker.experience.domain.ExperienceRecordId
 import watson.resumaker.experience.infrastructure.ExperienceRecordRepository
+import watson.resumaker.generation.infrastructure.ArtifactVersioningProperties
 import watson.resumaker.generation.presentation.ArtifactResponse
 import java.time.Clock
 import java.time.Instant
@@ -47,6 +48,7 @@ class SectionRegenerationService(
     private val quotaGuard: GenerationQuotaGuard,
     private val locks: SectionRegenerationLocks,
     private val mapper: ArtifactReadServiceMapper,
+    private val versioningProperties: ArtifactVersioningProperties,
     private val transactionTemplate: TransactionTemplate,
     private val clock: Clock,
 ) {
@@ -183,6 +185,9 @@ class SectionRegenerationService(
         if (resolved.status != SectionStatus.GENERATED) {
             newVersion.sectionByDefinitionKey(resolved.section.definitionKey)?.status = resolved.status
         }
+        // 보관 상한 정리(수용 기준 11): 새 버전 추가로 상한을 넘으면 같은 tx2(영속) 안에서 가장 오래된 비활성
+        // 버전부터 정리한다(orphanRemoval로 삭제 영속). 방금 만든 활성 버전은 제외되어 불변식 유지(§135).
+        val pruned = artifact.pruneOldestIfExceeds(versioningProperties.versionRetentionLimit)
         val saved = artifactRepository.save(artifact)
 
         // Cycle 6 경계: 재생성은 최종 성공 시 1회 차감해야 한다(§397). 차감 카운팅 구현은 태스크 6 범위이므로,
@@ -190,7 +195,7 @@ class SectionRegenerationService(
         if (resolved.status == SectionStatus.GENERATED) {
             quotaGuard.checkInitialGeneration(ownerId) // TODO(태스크 6): 재생성 전용 차감으로 교체.
         }
-        return mapper.toResponse(saved)
+        return mapper.toResponse(saved, prunedVersionCount = pruned.size)
     }
 
     // ----- 스냅샷 변환 -----

@@ -195,6 +195,26 @@ class Artifact private constructor(
     }
 
     /**
+     * 버전 복원(도메인 이해 §277·§283, 구현 설계 §3.6 "복원 = 활성 전환"): 사용자가 고른 이전 버전을
+     * **활성으로 되돌린다**. 채택·편집과 달리 새 버전을 만들지 않고 기존 버전을 그대로 활성으로 재지정한다.
+     *
+     * **복원 의미론(설계 결정 — 활성 전환):** §287은 복원을 "활성 전환"으로 못박는다. 채택·편집(§344)은 직전
+     * 활성 버전을 복제해 **내용을 바꾸므로** 새 버전을 만들지만, 복원은 과거 시점 스냅샷을 **있는 그대로** 다시
+     * 보는 행위라 새 버전이 불필요하다(복제하면 같은 내용의 버전이 늘어 보관 상한만 빨리 소진된다). 버전 생성
+     * 순서(createdAt)도 보존되어 비교의 시간축이 흐트러지지 않는다. 불변식(활성은 항상 versions 안에 존재)은
+     * 대상이 versions 안에 있을 때만 전환해 유지한다.
+     *
+     * @param versionId 활성으로 되돌릴 버전. 이 산출물의 버전이 아니면 [DomainValidationException].
+     * @return 활성으로 전환된 버전.
+     */
+    fun restoreVersion(versionId: VersionId): Version {
+        val target = versionList.firstOrNull { it.id == versionId }
+            ?: throw DomainValidationException("되돌릴 버전을 이 산출물에서 찾을 수 없어요.")
+        activeVersionId = target.id
+        return target
+    }
+
+    /**
      * 버전 보관 상한 정리(구현 설계 §3.5, 수용 기준 11): 버전 수가 상한을 초과하면 가장 오래된 버전부터
      * **상한 이하가 되거나 정리 가능한 비활성 버전이 없을 때까지 반복 정리**한다. 단, **활성 버전은 정리
      * 대상에서 제외**한다(항상 활성 버전 존재 불변식 — §135). 사전 고지는 상위 계층 책임.

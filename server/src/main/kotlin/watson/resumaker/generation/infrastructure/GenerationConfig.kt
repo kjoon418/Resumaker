@@ -14,7 +14,7 @@ import java.time.Clock
  * - [TransactionTemplate]: 외부 호출 전후로 트랜잭션을 짧게 끊기 위한 프로그래매틱 트랜잭션 경계(설계 §5).
  */
 @Configuration
-@EnableConfigurationProperties(ClaudeCliProperties::class)
+@EnableConfigurationProperties(ClaudeCliProperties::class, ArtifactVersioningProperties::class)
 class GenerationConfig {
 
     @Bean

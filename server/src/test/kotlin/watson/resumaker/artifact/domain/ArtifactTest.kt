@@ -215,6 +215,44 @@ class ArtifactTest {
     }
 
     @Test
+    fun 상한_1로_정리하면_활성_버전만_남고_나머지는_반복_정리된다() {
+        // given (MEDIUM-1, ArtifactVersioningProperties KDoc "상한이 1이어도 불변식 유지") — 버전 3개
+        val artifact = resume(listOf(section("summary", SectionKind.SUMMARY, "v1")))
+        artifact.adoptSection(
+            artifact.activeVersion().sections.first().id,
+            SectionContent.of("v2"),
+            baseTime.plusSeconds(60),
+        )
+        artifact.adoptSection(
+            artifact.activeVersion().sections.first().id,
+            SectionContent.of("v3"),
+            baseTime.plusSeconds(120),
+        )
+        val activeId = artifact.activeVersion().id
+
+        // when — 상한 1로 정리(3 → 1, 비활성 2개를 오래된 순으로 반복 제거하고 활성에서 멈춤)
+        val pruned = artifact.pruneOldestIfExceeds(limit = 1)
+
+        // then — 정확히 활성만 남고, 제거분은 오래된 순 2개
+        assertThat(pruned).hasSize(2)
+        assertThat(pruned.map { it.createdAt }).isSorted()
+        assertThat(pruned.map { it.id }).doesNotContain(activeId)
+        assertThat(artifact.versions.map { it.id }).containsExactly(activeId)
+        assertThat(artifact.activeVersion().id).isEqualTo(activeId)
+    }
+
+    @Test
+    fun 상한은_1_미만이면_거부한다() {
+        // given (pruneOldestIfExceeds 계약: limit >= 1) — 활성 보존 불변식이 무의미해지는 입력 방어
+        val artifact = resume(listOf(section("summary", SectionKind.SUMMARY, "v1")))
+
+        // when and then
+        assertThatThrownBy {
+            artifact.pruneOldestIfExceeds(limit = 0)
+        }.isInstanceOf(DomainValidationException::class.java)
+    }
+
+    @Test
     fun 정리_시_활성_버전은_대상에서_제외된다() {
         // given (수용 기준 11 불변식) — 활성이 가장 오래된 버전이 되도록 구성
         val artifact = resume(listOf(section("summary", SectionKind.SUMMARY, "v1")))
@@ -477,6 +515,58 @@ class ArtifactTest {
         // when and then
         assertThatThrownBy {
             artifact.editSection(SectionId(UUID.randomUUID()), SectionContent.of("x"), baseTime)
+        }.isInstanceOf(DomainValidationException::class.java)
+    }
+
+    // ── restoreVersion 도메인 테스트 ─────────────────────────────────────────
+
+    @Test
+    fun restoreVersion은_고른_이전_버전을_활성으로_전환하고_새_버전을_만들지_않는다() {
+        // given (§277·§283, "복원 = 활성 전환") — 편집으로 v2를 만들어 활성이 v2가 된 상태.
+        val artifact = resume(listOf(section("summary", SectionKind.SUMMARY, "v1")))
+        val v1Id = artifact.activeVersion().id
+        artifact.editSection(
+            artifact.activeVersion().sections.first().id,
+            SectionContent.of("v2"),
+            baseTime.plusSeconds(60),
+        )
+        val v2Id = artifact.activeVersion().id
+        assertThat(v2Id).isNotEqualTo(v1Id)
+
+        // when — v1으로 복원
+        val restored = artifact.restoreVersion(v1Id)
+
+        // then — 활성이 v1으로 전환되고, 버전 수는 그대로(새 버전 미생성). v2도 보존된다.
+        assertThat(restored.id).isEqualTo(v1Id)
+        assertThat(artifact.activeVersion().id).isEqualTo(v1Id)
+        assertThat(artifact.versions).hasSize(2)
+        assertThat(artifact.versions.map { it.id }).contains(v2Id)
+        assertThat(artifact.activeVersion().sections.first().content.value).isEqualTo("v1")
+    }
+
+    @Test
+    fun restoreVersion은_이미_활성인_버전으로_복원해도_안전하다() {
+        // given — 현재 활성 버전으로 복원하는 멱등 케이스.
+        val artifact = resume(listOf(section("summary", SectionKind.SUMMARY, "v1")))
+        val activeId = artifact.activeVersion().id
+
+        // when
+        val restored = artifact.restoreVersion(activeId)
+
+        // then
+        assertThat(restored.id).isEqualTo(activeId)
+        assertThat(artifact.activeVersion().id).isEqualTo(activeId)
+        assertThat(artifact.versions).hasSize(1)
+    }
+
+    @Test
+    fun restoreVersion은_이_산출물에_없는_버전으로_복원하면_거부된다() {
+        // given
+        val artifact = resume(listOf(section("summary", SectionKind.SUMMARY, "v1")))
+
+        // when and then
+        assertThatThrownBy {
+            artifact.restoreVersion(VersionId(UUID.randomUUID()))
         }.isInstanceOf(DomainValidationException::class.java)
     }
 

@@ -3,9 +3,12 @@ package watson.resumaker.generation.application
 import org.springframework.stereotype.Component
 import watson.resumaker.artifact.domain.Artifact
 import watson.resumaker.artifact.domain.ArtifactSection
+import watson.resumaker.artifact.domain.Version
 import watson.resumaker.generation.presentation.ArtifactResponse
 import watson.resumaker.generation.presentation.ArtifactSectionResponse
 import watson.resumaker.generation.presentation.ArtifactVersionResponse
+import watson.resumaker.generation.presentation.ArtifactVersionsResponse
+import watson.resumaker.generation.presentation.VersionHistoryResponse
 
 /**
  * 열람 응답 Service Mapper(구현 설계 §8 "Response DTO 변환은 Service Mapper", §5 흐름 "트랜잭션 내부 변환").
@@ -17,7 +20,11 @@ import watson.resumaker.generation.presentation.ArtifactVersionResponse
 @Component
 class ArtifactReadServiceMapper {
 
-    fun toResponse(artifact: Artifact): ArtifactResponse {
+    /**
+     * 활성 버전 응답으로 변환한다. [prunedVersionCount]는 이 응답을 만든 작업에서 보관 상한 정리로 사라진
+     * 버전 수다(사전 고지 — §398·§273). 열람·복원처럼 정리가 없는 경로는 기본값 0을 쓴다.
+     */
+    fun toResponse(artifact: Artifact, prunedVersionCount: Int = 0): ArtifactResponse {
         val active = artifact.activeVersion()
         return ArtifactResponse(
             id = artifact.id.value.toString(),
@@ -26,8 +33,33 @@ class ArtifactReadServiceMapper {
                 versionId = active.id.value.toString(),
                 sections = active.sections.map { toSectionResponse(it) },
             ),
+            prunedVersionCount = prunedVersionCount,
         )
     }
+
+    /**
+     * 한 산출물의 모든 버전을 생성 순서(오래된→최신)로 비교용 응답으로 변환한다(수용 기준 11·12, §363).
+     * JPA 지연 로딩 경계를 넘지 않도록 readOnly 트랜잭션 내부에서 호출된다.
+     */
+    fun toVersionsResponse(artifact: Artifact): ArtifactVersionsResponse {
+        val activeVersionId = artifact.activeVersion().id
+        return ArtifactVersionsResponse(
+            artifactId = artifact.id.value.toString(),
+            kind = artifact.kind,
+            activeVersionId = activeVersionId.value.toString(),
+            versions = artifact.versions
+                .sortedBy { it.createdAt }
+                .map { toVersionHistoryResponse(it, active = it.id == activeVersionId) },
+        )
+    }
+
+    private fun toVersionHistoryResponse(version: Version, active: Boolean): VersionHistoryResponse =
+        VersionHistoryResponse(
+            versionId = version.id.value.toString(),
+            active = active,
+            createdAt = version.createdAt.toString(),
+            sections = version.sections.map { toSectionResponse(it) },
+        )
 
     private fun toSectionResponse(section: ArtifactSection): ArtifactSectionResponse =
         ArtifactSectionResponse(

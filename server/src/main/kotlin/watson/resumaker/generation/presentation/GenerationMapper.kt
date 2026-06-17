@@ -3,11 +3,13 @@ package watson.resumaker.generation.presentation
 import org.springframework.stereotype.Component
 import watson.resumaker.artifact.domain.ArtifactId
 import watson.resumaker.artifact.domain.SectionId
+import watson.resumaker.artifact.domain.VersionId
 import watson.resumaker.experience.domain.ExperienceRecordId
 import watson.resumaker.generation.application.EditSectionContentCommand
 import watson.resumaker.generation.application.GeneratePortfolioCommand
 import watson.resumaker.generation.application.GenerateResumeCommand
 import watson.resumaker.generation.application.RegenerateSectionCommand
+import watson.resumaker.generation.application.RestoreVersionCommand
 import watson.resumaker.target.domain.TargetBriefId
 import watson.resumaker.template.domain.ResumeTemplateId
 import java.util.UUID
@@ -64,5 +66,15 @@ class GenerationMapper {
             artifactId = ArtifactId(UUID.fromString(artifactId)),
             sectionId = SectionId(UUID.fromString(sectionId)),
             content = request.content!!,
+        )
+
+    /**
+     * 경로 변수(artifactId·versionId)를 버전 복원 커맨드로 합친다(도메인 이해 §277·§283).
+     * 식별자 형식 오류는 IllegalArgument로 전파되어(UUID 파싱) 전역 핸들러 기본 처리된다.
+     */
+    fun toRestoreVersionCommand(artifactId: String, versionId: String): RestoreVersionCommand =
+        RestoreVersionCommand(
+            artifactId = ArtifactId(UUID.fromString(artifactId)),
+            versionId = VersionId(UUID.fromString(versionId)),
         )
 }

@@ -17,6 +17,7 @@ import watson.resumaker.generation.application.ArtifactGenerationService
 import watson.resumaker.generation.application.ArtifactReadService
 import watson.resumaker.generation.application.SectionEditService
 import watson.resumaker.generation.application.SectionRegenerationService
+import watson.resumaker.generation.application.VersionRestoreService
 import java.util.UUID
 
 /**
@@ -29,6 +30,10 @@ import java.util.UUID
  * - PUT  /artifacts/{artifactId}/sections/{sectionId}/content : 항목 직접 편집(수용 기준 10·19, §267).
  *   사용자가 항목 텍스트를 직접 수정해 새 활성 버전을 만들고, 갱신된 산출물(활성 버전)을 돌려준다.
  *   직접 편집에는 자동 검증을 적용하지 않는다(§428) — AI 비호출 순수 동기 영속.
+ * - GET  /artifacts/{artifactId}/versions : 버전 목록 조회(수용 기준 11·12, §271~283·§363). 모든 버전을
+ *   생성 순서로, 각 버전의 항목·활성여부·생성시각과 함께 비교용으로 내려준다. 비교는 definitionKey로 클라이언트가 한다.
+ * - POST /artifacts/{artifactId}/versions/{versionId}/restore : 버전 복원(§277·§283, "복원 = 활성 전환").
+ *   고른 이전 버전을 활성으로 되돌려 갱신된 산출물(활성 버전)을 돌려준다. 새 버전은 만들지 않는다.
  *
  * 모든 엔드포인트는 인증 주체 ownerId로 소유 격리한다(CurrentUserProvider). 생성 엔드포인트는 정적 경로
  * (`/resume`, `/portfolio`)이고 열람은 경로 변수(`/{id}`)지만 HTTP 메서드가 달라 충돌하지 않는다. 재생성은 더
@@ -42,6 +47,7 @@ class ArtifactController(
     private val readService: ArtifactReadService,
     private val regenerationService: SectionRegenerationService,
     private val editService: SectionEditService,
+    private val restoreService: VersionRestoreService,
     private val mapper: GenerationMapper,
     private val currentUserProvider: CurrentUserProvider,
 ) {
@@ -69,6 +75,32 @@ class ArtifactController(
     @GetMapping("/{id}")
     fun getArtifact(@PathVariable id: String): ResponseEntity<ArtifactResponse> =
         ResponseEntity.ok(readService.getArtifact(currentUserProvider.currentUserId(), toId(id)))
+
+    /**
+     * 버전 목록 조회(수용 기준 11·12, 도메인 이해 §271~283·§363). 한 산출물의 모든 버전을 생성 순서로, 각 버전의
+     * 항목·활성여부·생성시각과 함께 비교용으로 200으로 돌려준다. 클라이언트는 definitionKey로 버전 간 항목을 맞춰
+     * 비교한다(§363: 같은 항목 = 같은 섹션 정의). 타인 소유·미존재 산출물은 404로 매핑된다(소유 격리).
+     */
+    @GetMapping("/{artifactId}/versions")
+    fun getVersions(@PathVariable artifactId: String): ResponseEntity<ArtifactVersionsResponse> =
+        ResponseEntity.ok(readService.getVersions(currentUserProvider.currentUserId(), toId(artifactId)))
+
+    /**
+     * 버전 복원(도메인 이해 §277·§283, "복원 = 활성 전환"). 고른 이전 버전을 활성으로 되돌려 갱신된 산출물
+     * (활성 버전)을 200으로 돌려준다. 새 버전을 만들지 않으므로 이전 버전들이 그대로 보존된다. 타인 소유·미존재
+     * 산출물·버전은 404로 매핑된다(소유 격리).
+     */
+    @PostMapping("/{artifactId}/versions/{versionId}/restore")
+    fun restoreVersion(
+        @PathVariable artifactId: String,
+        @PathVariable versionId: String,
+    ): ResponseEntity<ArtifactResponse> {
+        val response = restoreService.restoreVersion(
+            currentUserProvider.currentUserId(),
+            mapper.toRestoreVersionCommand(artifactId, versionId),
+        )
+        return ResponseEntity.ok(response)
+    }
 
     /**
      * 항목 단위 재생성(도메인 이해 §5, 수용 기준 10·19·20). 해당 항목만 다시 만들어 새 활성 버전을 만들고,

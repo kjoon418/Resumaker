@@ -34,6 +34,8 @@ import watson.resumaker.experience.domain.ExperienceRecordId
 import watson.resumaker.experience.domain.ExperienceTitle
 import watson.resumaker.experience.domain.ExperienceType
 import watson.resumaker.experience.infrastructure.ExperienceRecordRepository
+import watson.resumaker.generation.infrastructure.ArtifactVersioningProperties
+import watson.resumaker.generation.presentation.ArtifactResponse
 import java.time.Clock
 import java.time.Instant
 import java.time.ZoneOffset
@@ -85,7 +87,11 @@ class SectionRegenerationServiceTest {
         }
     }
 
-    private fun service(port: ArtifactGenerationPort, validator: GroundingValidator = PermissiveGroundingValidator()) =
+    private fun service(
+        port: ArtifactGenerationPort,
+        validator: GroundingValidator = PermissiveGroundingValidator(),
+        versionRetentionLimit: Int = 10,
+    ) =
         SectionRegenerationService(
             artifactRepository = artifactRepository,
             experienceRepository = experienceRepository,
@@ -94,6 +100,9 @@ class SectionRegenerationServiceTest {
             quotaGuard = quotaGuard,
             locks = locks,
             mapper = mapper,
+            versioningProperties = ArtifactVersioningProperties(
+                versionRetentionLimit = versionRetentionLimit,
+            ),
             transactionTemplate = transactionTemplate,
             clock = clock,
         )
@@ -195,6 +204,45 @@ class SectionRegenerationServiceTest {
         assertThat(artifact.versions).hasSize(2)
         assertThat(artifact.activeVersion().id).isNotEqualTo(originalVersionId)
         verify(artifactRepository).save(any<Artifact>())
+    }
+
+    @Test
+    fun 재생성_반복으로_상한을_넘으면_가장_오래된_비활성_버전부터_정리되고_활성은_보존된다() {
+        // given (수용 기준 11) — 보관 상한 2. 반복 재생성으로 버전이 늘면 상한 이하로 정리되고 활성은 남는다.
+        val (artifact, _, _) = resumeArtifact()
+        whenever(artifactRepository.findByIdAndOwnerId(artifact.id, ownerId)).thenReturn(artifact)
+        stubLoads()
+        val port = FakePort(GenerationOutput(listOf(generated("section-0-요약", SectionKind.SUMMARY, "다시 만든 요약"))))
+        val limitedService = service(port, versionRetentionLimit = 2)
+
+        // when — 초기 1버전에서 3회 재생성(재생성은 새 활성 버전을 추가). 매번 활성 요약 항목을 다시 잡는다.
+        var lastResponse: ArtifactResponse? = null
+        repeat(3) {
+            val summaryId = artifact.activeVersion().sections.single { it.definitionKey == "section-0-요약" }.id
+            lastResponse = limitedService.regenerateSection(ownerId, command(artifact.id, summaryId))
+        }
+
+        // then — 상한 2 이하로 정리되고 활성(가장 최근 재생성)은 보존된다.
+        assertThat(artifact.versions).hasSize(2)
+        assertThat(artifact.versions.map { it.id }).contains(artifact.activeVersion().id)
+        // 마지막 재생성 응답은 직전 정리 1건을 고지한다(3→2 정리 1건).
+        assertThat(lastResponse!!.prunedVersionCount).isEqualTo(1)
+    }
+
+    @Test
+    fun 상한_이내면_재생성해도_정리하지_않는다() {
+        // given (수용 기준 11) — 상한 10(기본). 1회 재생성은 2버전이라 정리 없음, prunedVersionCount=0.
+        val (artifact, summaryId, _) = resumeArtifact()
+        whenever(artifactRepository.findByIdAndOwnerId(artifact.id, ownerId)).thenReturn(artifact)
+        stubLoads()
+        val port = FakePort(GenerationOutput(listOf(generated("section-0-요약", SectionKind.SUMMARY, "다시 만든 요약"))))
+
+        // when
+        val response = service(port).regenerateSection(ownerId, command(artifact.id, summaryId))
+
+        // then
+        assertThat(artifact.versions).hasSize(2)
+        assertThat(response.prunedVersionCount).isEqualTo(0)
     }
 
     @Test

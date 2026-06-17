@@ -34,3 +34,7 @@ resumaker:
     executable-path: ${CLAUDE_CLI_PATH:claude}
     model: ${CLAUDE_CLI_MODEL:claude-sonnet-4-5}
     timeout: ${CLAUDE_CLI_TIMEOUT:120s}
+  # 산출물당 보관 버전 수 상한(도메인 이해 §398, 수용 기준 11). 새 버전 추가 경로(재생성·직접 편집)에서
+  # 영속과 같은 트랜잭션 안에 가장 오래된 비활성 버전부터 정리한다(활성은 제외). 운영에서 수치만 조정한다.
+  artifact:
+    version-retention-limit: ${ARTIFACT_VERSION_RETENTION_LIMIT:10}
