@@ -35,9 +35,10 @@ import java.time.Instant
  * **동시 재생성 거절(수용 기준 20):** [SectionRegenerationLocks]로 같은 항목 중복 진행을 거절한다(409). 서로 다른
  * 항목은 병렬 허용. 점유는 임계 구간(적재~영속) 전체를 감싸고 finally에서 해제한다.
  *
- * **재생성 한도(§397, Cycle 6 경계):** 사용자 요청 재생성은 최종 성공 시 1회 차감하되, 실제 차감 카운팅은
- * 태스크 6(비용 가드레일) 범위다. 여기서는 [GenerationQuotaGuard] seam을 **호출 위치만**(tx2 영속 후, 최소 성공 시)
- * 표시하고 no-op으로 둔다(반쪽 구현 금지). 검증실패 자동 재시도는 차감 대상이 아니다(프로세서가 가드를 호출하지 않음).
+ * **재생성 한도(§397):** 사용자 요청 재생성은 외부 호출 전 [GenerationQuotaGuard.checkRegeneration]으로 항목당
+ * 잔여 횟수를 점검(상한 도달 시 429로 차단)하고, tx2 영속 후 최종 성공(GENERATED) 시에만
+ * [GenerationQuotaGuard.recordRegeneration]으로 생성 항목당 1회 차감한다. 검증실패 자동 재시도는 차감 대상이
+ * 아니다(프로세서가 가드를 호출하지 않음 — 구조적 미차감).
  */
 @Service
 class SectionRegenerationService(
@@ -66,6 +67,9 @@ class SectionRegenerationService(
             val prepared = requireNotNull(
                 transactionTemplate.execute { loadRegenerationMaterial(ownerId, command) },
             ) { "항목 재생성 재료 적재 트랜잭션이 결과를 돌려주지 못했어요." }
+
+            // 재생성 사전 점검(빠른 실패): 외부 LLM 호출 전에 항목당 잔여 횟수를 확인해 상한 도달 시 즉시 막는다(§397).
+            quotaGuard.checkRegeneration(ownerId, command.sectionId)
 
             // 2. (tx 밖) 포트 생성 + 자동 검증 + 검증실패 자동 1회 재생성(공유 회복 규칙).
             //    포트가 대상 키 항목을 끝내 누락하면 resolved는 null(→ 영속 단계에서 거부).
@@ -190,10 +194,11 @@ class SectionRegenerationService(
         val pruned = artifact.pruneOldestIfExceeds(versioningProperties.versionRetentionLimit)
         val saved = artifactRepository.save(artifact)
 
-        // Cycle 6 경계: 재생성은 최종 성공 시 1회 차감해야 한다(§397). 차감 카운팅 구현은 태스크 6 범위이므로,
-        // 여기서는 호출 위치(영속 후, 최소 성공)만 표시하고 no-op seam을 둔다(검증실패 자동재시도는 미차감).
+        // 재생성 차감(§397): 사용자 요청 재생성이 최종 성공(GENERATED)했을 때만 생성 항목당 1회 차감한다.
+        // 검증실패(VALIDATION_FAILED 등)는 미차감하며, 검증실패 자동 재시도는 프로세서가 가드를 호출하지 않아
+        // 구조적으로 미차감이다. 영속 성공 후이므로 차감과 새 버전이 같은 tx2에서 원자적으로 함께 반영된다.
         if (resolved.status == SectionStatus.GENERATED) {
-            quotaGuard.checkInitialGeneration(ownerId) // TODO(태스크 6): 재생성 전용 차감으로 교체.
+            quotaGuard.recordRegeneration(ownerId, command.sectionId)
         }
         return mapper.toResponse(saved, prunedVersionCount = pruned.size)
     }

@@ -69,6 +69,9 @@ class ArtifactGenerationValidationFlowTest {
     private class CountingQuotaGuard : GenerationQuotaGuard {
         var checks = 0
         override fun checkInitialGeneration(ownerId: UserId) { checks++ }
+        override fun recordInitialGeneration(ownerId: UserId) {}
+        override fun checkRegeneration(ownerId: UserId, sectionId: watson.resumaker.artifact.domain.SectionId) {}
+        override fun recordRegeneration(ownerId: UserId, sectionId: watson.resumaker.artifact.domain.SectionId) {}
     }
 
     /**

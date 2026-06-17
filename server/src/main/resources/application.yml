@@ -38,3 +38,8 @@ resumaker:
   # 영속과 같은 트랜잭션 안에 가장 오래된 비활성 버전부터 정리한다(활성은 제외). 운영에서 수치만 조정한다.
   artifact:
     version-retention-limit: ${ARTIFACT_VERSION_RETENTION_LIMIT:10}
+  # 비용 가드레일 수치(도메인 이해 §394~401, 수용 기준 15). 카운트 대상·차감 시점·리셋 경계(사용자 시간대 달력일)는
+  # 코드 고정이고, 수치만 외부화한다(열린질문#1: 운영·비용 데이터로 조정). 1차 생성=사용자당 하루, 재생성=항목당 하루.
+  quota:
+    daily-initial-generation-limit: ${DAILY_INITIAL_GENERATION_LIMIT:10}
+    daily-regeneration-limit-per-section: ${DAILY_REGENERATION_LIMIT_PER_SECTION:5}

@@ -57,7 +57,18 @@ class ArtifactGenerationServiceTest {
     private val targetRepository: TargetBriefRepository = mock()
     private val templateRepository: ResumeTemplateRepository = mock()
     private val artifactRepository: ArtifactRepository = mock()
-    private val quotaGuard: GenerationQuotaGuard = AllowingGenerationQuotaGuard()
+
+    /** 차감 호출을 세는 fake 가드(한도는 항상 통과). 차감이 정확한 지점에서 1회만 일어나는지 검증한다. */
+    private class RecordingQuotaGuard : GenerationQuotaGuard {
+        var initialRecorded = 0
+        var regenerationRecorded = 0
+        override fun checkInitialGeneration(ownerId: UserId) {}
+        override fun recordInitialGeneration(ownerId: UserId) { initialRecorded++ }
+        override fun checkRegeneration(ownerId: UserId, sectionId: watson.resumaker.artifact.domain.SectionId) {}
+        override fun recordRegeneration(ownerId: UserId, sectionId: watson.resumaker.artifact.domain.SectionId) { regenerationRecorded++ }
+    }
+
+    private val quotaGuard = RecordingQuotaGuard()
     private val groundingValidator: GroundingValidator = PermissiveGroundingValidator()
     private val mapper = ArtifactGenerationServiceMapper()
     private val clock: Clock = Clock.fixed(Instant.parse("2026-06-16T00:00:00Z"), ZoneOffset.UTC)
@@ -452,6 +463,33 @@ class ArtifactGenerationServiceTest {
         assertThat(capturedArtifacts).hasSize(1)
         val snap = capturedArtifacts.first().targetSnapshot
         assertThat(snap.recruitDirection).isEqualTo("백엔드 신입")
+    }
+
+    @Test
+    fun 최소_1항목_성공해_영속되면_1차_생성을_정확히_1회_차감한다() {
+        // given (수용 기준 15, §396) — 영속 성공(최소 1항목) 시 tx2에서 1회 차감.
+        stubResumeMaterial()
+        val output = GenerationOutput(
+            listOf(generated("section-0-요약", SectionKind.SUMMARY, "요약", succeeded = true, sources = listOf(exp1))),
+        )
+
+        // when
+        service(FakePort(output)).generateResume(ownerId, resumeCommand())
+
+        // then — 정확히 1회 차감.
+        assertThat(quotaGuard.initialRecorded).isEqualTo(1)
+    }
+
+    @Test
+    fun 전_항목이_미실체화되어_영속이_거부되면_차감하지_않는다() {
+        // given (수용 기준 15, §396 "전 항목 실패 시 미차감") — 빈 결과로 영속 단계에서 throw → 차감 미발생.
+        stubResumeMaterial()
+        val port = FakePort(GenerationOutput(emptyList()))
+
+        // when and then
+        assertThatThrownBy { service(port).generateResume(ownerId, resumeCommand()) }
+            .isInstanceOf(DomainValidationException::class.java)
+        assertThat(quotaGuard.initialRecorded).isEqualTo(0)
     }
 
     private fun generated(

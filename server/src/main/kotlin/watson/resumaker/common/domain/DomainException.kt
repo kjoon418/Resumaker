@@ -38,3 +38,20 @@ class ConflictException(
     message: String,
     val action: String? = null,
 ) : DomainException(message)
+
+/**
+ * 비용 가드레일 상한 초과로 작업을 진행할 수 없는 경우(도메인 이해 §396~399·404, 수용 기준 15).
+ *
+ * 1차 생성 한도(사용자당·하루)나 항목 재생성 한도(생성 항목당·하루)에 도달하면 작업을 막는다. 입력 오류도,
+ * 상태 충돌도 아니라 "사용량 한도 소진"이므로 **HTTP 429(Too Many Requests)**로 매핑한다(의미상 정확 —
+ * 429는 '요청 자체는 유효하나 사용량 한도를 초과'를 뜻함). 사용자에게 회복 시점(시간대 기준 내일 자정)과
+ * 대안(직접 편집 등)을 message·action으로 안내한다(§399, UX 에러 가이드).
+ *
+ * @param code   클라이언트 분기용 식별자(예: GENERATION_QUOTA_EXCEEDED, REGENERATION_QUOTA_EXCEEDED).
+ * @param action 사용자가 취할 수 있는 대안 행동 힌트(예: EDIT_MANUALLY). 없으면 null.
+ */
+class QuotaExceededException(
+    message: String,
+    val code: String,
+    val action: String? = null,
+) : DomainException(message)

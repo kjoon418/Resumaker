@@ -34,7 +34,7 @@ import java.time.Instant
  *
  * **트랜잭션 경계(설계 §5·트랜잭션 분리 가이드):**
  * 1. (tx) 재료 적재·검증 — 경험 묶음(ownerId 격리) 적재, **빈 묶음 거부**(수용 기준 8), 목표 채용 방향 필수,
- *    이력서는 양식 스냅샷 복제. 비용 가드레일 사전 점검([GenerationQuotaGuard], Cycle 6 seam).
+ *    이력서는 양식 스냅샷 복제. 비용 가드레일 사전 점검([GenerationQuotaGuard.checkInitialGeneration], 차감은 tx4).
  * 2. **(tx 밖)** [ArtifactGenerationPort.generate] 호출 — 외부 LLM. 항목 단위 성공/실패 수집(부분 실패 허용 — 수용 기준 9).
  * 3. **(tx 밖)** 자동 검증([GroundingValidator], Cycle C seam — Cycle B는 permissive 통과).
  * 4. (tx) 영속화 — 성공·실패 항목을 함께 담은 초기 Version 저장·활성, Artifact 저장. **Response DTO 변환을
@@ -80,11 +80,14 @@ class ArtifactGenerationService(
         val resolved = validateAndAutoRegenerate(prepared.material, output.sections)
 
         // 4. (tx) 영속화 + Response DTO 변환(트랜잭션 내부)
-        // Cycle 6: 가드레일 차감은 tx2(영속 후, 최소 1항목 성공 시)에서 수행한다(tx1에 넣지 말 것).
+        // 가드레일 차감은 tx2(영속 후, 최소 1항목 성공 시)에서 수행한다(tx1에 넣지 말 것).
         return requireNotNull(
             transactionTemplate.execute {
                 val templateSnapshot = toTemplateSnapshot(prepared.material.templateSections)
-                persistAndMap(ownerId, ArtifactKind.RESUME, prepared.targetSnapshot, templateSnapshot, resolved, prepared.material)
+                val response = persistAndMap(ownerId, ArtifactKind.RESUME, prepared.targetSnapshot, templateSnapshot, resolved, prepared.material)
+                // persistAndMap이 빈 결과면 throw하므로 여기 도달 = 최소 1항목 영속 성공 → 1차 생성 1회 차감(§396).
+                quotaGuard.recordInitialGeneration(ownerId)
+                response
             },
         ) { "이력서 영속 트랜잭션이 응답을 돌려주지 못했어요." }
     }
@@ -109,10 +112,13 @@ class ArtifactGenerationService(
         val resolved = validateAndAutoRegenerate(prepared.material, output.sections)
 
         // 4. (tx) 영속화 + Response DTO 변환(트랜잭션 내부)
-        // Cycle 6: 가드레일 차감은 tx2(영속 후, 최소 1항목 성공 시)에서 수행한다(tx1에 넣지 말 것).
+        // 가드레일 차감은 tx2(영속 후, 최소 1항목 성공 시)에서 수행한다(tx1에 넣지 말 것).
         return requireNotNull(
             transactionTemplate.execute {
-                persistAndMap(ownerId, ArtifactKind.PORTFOLIO, prepared.targetSnapshot, templateSnapshot = null, resolved = resolved, material = prepared.material)
+                val response = persistAndMap(ownerId, ArtifactKind.PORTFOLIO, prepared.targetSnapshot, templateSnapshot = null, resolved = resolved, material = prepared.material)
+                // persistAndMap이 빈 결과면 throw하므로 여기 도달 = 최소 1항목 영속 성공 → 1차 생성 1회 차감(§396).
+                quotaGuard.recordInitialGeneration(ownerId)
+                response
             },
         ) { "포트폴리오 영속 트랜잭션이 응답을 돌려주지 못했어요." }
     }

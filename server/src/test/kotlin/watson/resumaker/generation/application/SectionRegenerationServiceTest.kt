@@ -51,7 +51,31 @@ class SectionRegenerationServiceTest {
 
     private val artifactRepository: ArtifactRepository = mock()
     private val experienceRepository: ExperienceRecordRepository = mock()
-    private val quotaGuard: GenerationQuotaGuard = AllowingGenerationQuotaGuard()
+
+    /**
+     * 차감·점검 호출을 기록하는 fake 가드. 기본은 항상 통과(기존 경로 그린 유지)하되, [blockCheck]를 켜면
+     * 점검 시 [QuotaExceededException]을 던져 상한 차단을 시뮬레이트한다. 차감이 정확한 지점에서 일어나는지 검증한다.
+     */
+    private class RecordingQuotaGuard : GenerationQuotaGuard {
+        var blockCheck = false
+        var regenerationChecked = 0
+        var regenerationRecorded = 0
+        override fun checkInitialGeneration(ownerId: UserId) {}
+        override fun recordInitialGeneration(ownerId: UserId) {}
+        override fun checkRegeneration(ownerId: UserId, sectionId: SectionId) {
+            regenerationChecked++
+            if (blockCheck) {
+                throw watson.resumaker.common.domain.QuotaExceededException(
+                    message = "한도 초과",
+                    code = "REGENERATION_QUOTA_EXCEEDED",
+                    action = "EDIT_MANUALLY",
+                )
+            }
+        }
+        override fun recordRegeneration(ownerId: UserId, sectionId: SectionId) { regenerationRecorded++ }
+    }
+
+    private val quotaGuard = RecordingQuotaGuard()
     private val locks = SectionRegenerationLocks()
     private val mapper = ArtifactReadServiceMapper()
     private val clock: Clock = Clock.fixed(Instant.parse("2026-06-16T00:00:00Z"), ZoneOffset.UTC)
@@ -480,6 +504,63 @@ class SectionRegenerationServiceTest {
         // 이전 버전 보존(수용 기준 19).
         assertThat(portfolio.versions).hasSize(2)
         assertThat(portfolio.activeVersion().id).isNotEqualTo(originalVersionId)
+    }
+
+    @Test
+    fun 재생성_최종_성공_시_항목당_한도를_정확히_1회_차감한다() {
+        // given (수용 기준 15, §397) — GENERATED 성공 → 항목당 1회 차감, 외부 호출 전 1회 점검.
+        val (artifact, summaryId, _) = resumeArtifact()
+        whenever(artifactRepository.findByIdAndOwnerId(artifact.id, ownerId)).thenReturn(artifact)
+        stubLoads()
+        val port = FakePort(GenerationOutput(listOf(generated("section-0-요약", SectionKind.SUMMARY, "다시 만든 요약"))))
+
+        // when
+        service(port).regenerateSection(ownerId, command(artifact.id, summaryId))
+
+        // then
+        assertThat(quotaGuard.regenerationChecked).isEqualTo(1)
+        assertThat(quotaGuard.regenerationRecorded).isEqualTo(1)
+    }
+
+    @Test
+    fun 재생성_점검이_상한이면_외부_호출_없이_차단되고_차감하지_않는다() {
+        // given (수용 기준 15) — 점검에서 QuotaExceededException → 포트 미호출·저장 미호출·차감 0.
+        val (artifact, summaryId, _) = resumeArtifact()
+        whenever(artifactRepository.findByIdAndOwnerId(artifact.id, ownerId)).thenReturn(artifact)
+        stubLoads()
+        quotaGuard.blockCheck = true
+        val port = FakePort(GenerationOutput(listOf(generated("section-0-요약", SectionKind.SUMMARY, "다시"))))
+
+        // when and then
+        assertThatThrownBy { service(port).regenerateSection(ownerId, command(artifact.id, summaryId)) }
+            .isInstanceOf(watson.resumaker.common.domain.QuotaExceededException::class.java)
+        assertThat(port.calls).isEmpty()
+        verify(artifactRepository, never()).save(any<Artifact>())
+        assertThat(quotaGuard.regenerationRecorded).isEqualTo(0)
+    }
+
+    @Test
+    fun 재생성_검증실패면_차감하지_않는다() {
+        // given (§397 — 검증실패는 차감 대상 아님) — 자동 재시도까지 재실패해 VALIDATION_FAILED로 보존 → 미차감.
+        val (artifact, summaryId, _) = resumeArtifact()
+        whenever(artifactRepository.findByIdAndOwnerId(artifact.id, ownerId)).thenReturn(artifact)
+        whenever(experienceRepository.findAllByIdInAndOwnerId(any(), any()))
+            .thenAnswer { invocation ->
+                @Suppress("UNCHECKED_CAST")
+                val ids = invocation.arguments[0] as Collection<UUID>
+                ids.map { experienceRecord(ExperienceRecordId(it), body = "응답 속도를 줄였다.") }
+            }
+        whenever(artifactRepository.save(any<Artifact>())).thenAnswer { it.arguments[0] }
+        val script = GenerationOutput(listOf(generated("section-0-요약", SectionKind.SUMMARY, "응답 속도를 40% 단축했다.")))
+        val port = ScriptedPort(listOf(script, script))
+
+        // when
+        service(port, DeterministicGroundingValidator())
+            .regenerateSection(ownerId, command(artifact.id, summaryId))
+
+        // then — 점검은 했지만(빠른 실패용) 최종 성공이 아니므로 차감은 0.
+        assertThat(quotaGuard.regenerationChecked).isEqualTo(1)
+        assertThat(quotaGuard.regenerationRecorded).isEqualTo(0)
     }
 
     @Test

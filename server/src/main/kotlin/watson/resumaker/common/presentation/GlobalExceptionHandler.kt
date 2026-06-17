@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice
 import watson.resumaker.common.domain.ConflictException
 import watson.resumaker.common.domain.DomainValidationException
 import watson.resumaker.common.domain.EmptyExperienceSelectionException
+import watson.resumaker.common.domain.QuotaExceededException
 import watson.resumaker.common.domain.ResourceNotFoundException
 import watson.resumaker.common.domain.UnauthorizedException
 
@@ -76,6 +77,23 @@ class GlobalExceptionHandler {
                 ErrorResponse(
                     code = "CONFLICT",
                     message = exception.message ?: "지금은 이 작업을 할 수 없어요. 잠시 후 다시 시도해 주세요.",
+                    action = exception.action,
+                ),
+            )
+
+    /**
+     * 비용 가드레일 상한 초과 → 429(Too Many Requests) + 회복 시점·대안 안내(수용 기준 15, 도메인 이해 §399).
+     * 사용량 한도 소진은 입력 오류(400)도 상태 충돌(409)도 아니므로, 의미상 정확한 429로 매핑한다.
+     * code는 어떤 한도인지(1차 생성/항목 재생성) 구분해 클라이언트 분기를 돕는다.
+     */
+    @ExceptionHandler(QuotaExceededException::class)
+    fun handleQuotaExceeded(exception: QuotaExceededException): ResponseEntity<ErrorResponse> =
+        ResponseEntity
+            .status(HttpStatus.TOO_MANY_REQUESTS)
+            .body(
+                ErrorResponse(
+                    code = exception.code,
+                    message = exception.message ?: "오늘 사용할 수 있는 횟수를 모두 썼어요. 내일 다시 시도해 주세요.",
                     action = exception.action,
                 ),
             )
