@@ -2,9 +2,11 @@ package watson.resumaker.network
 
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
+import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.plugins.ResponseException
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.plugins.defaultRequest
+import io.ktor.client.plugins.timeout
 import io.ktor.client.request.HttpRequestBuilder
 import io.ktor.client.request.header
 import io.ktor.client.statement.HttpResponse
@@ -37,6 +39,11 @@ class ApiClient(
         install(ContentNegotiation) {
             json(json)
         }
+        // 산출물 생성은 LLM 호출이라 수십 초가 걸릴 수 있다. 일반 요청은 짧게, 생성 요청만 호출부에서
+        // withLongTimeout()으로 길게 늘린다(JS 엔진은 requestTimeoutMillis만 적용된다).
+        install(HttpTimeout) {
+            requestTimeoutMillis = DEFAULT_REQUEST_TIMEOUT_MS
+        }
         defaultRequest {
             contentType(ContentType.Application.Json)
         }
@@ -46,6 +53,11 @@ class ApiClient(
     /** 보호된 요청에 현재 userId를 `X-User-Id`로 붙인다. userId가 없으면 붙이지 않는다. */
     fun HttpRequestBuilder.withUser() {
         session.currentUserId()?.let { header(HEADER_USER_ID, it) }
+    }
+
+    /** 산출물 생성처럼 장시간(LLM) 호출에 넉넉한 요청 타임아웃을 적용한다. */
+    fun HttpRequestBuilder.withLongTimeout() {
+        timeout { requestTimeoutMillis = GENERATION_REQUEST_TIMEOUT_MS }
     }
 
     fun url(path: String): String = baseUrl.trimEnd('/') + path
@@ -85,5 +97,11 @@ class ApiClient(
     companion object {
         const val DEFAULT_BASE_URL = "http://localhost:8082"
         const val HEADER_USER_ID = "X-User-Id"
+
+        /** 일반 요청 타임아웃(30초). */
+        const val DEFAULT_REQUEST_TIMEOUT_MS = 30_000L
+
+        /** 산출물 생성(LLM) 요청 타임아웃(서버 CLI 타임아웃 120s보다 넉넉히, 180초). */
+        const val GENERATION_REQUEST_TIMEOUT_MS = 180_000L
     }
 }

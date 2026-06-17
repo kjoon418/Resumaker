@@ -47,9 +47,19 @@ sealed interface Screen {
     data object TemplateInterpret : Screen
 
     /**
-     * 산출물 "준비 중". [hasExperiences]가 false면 빈 경험묶음 예방형 카피로 분기한다(수용기준 8).
+     * 산출물 생성 진입(종류·경험·목표·양식 선택 → 생성). [hasExperiences]는 더 이상 분기에 쓰지 않으나
+     * (생성 화면이 직접 빈 경험을 감지해 예방형 카피로 분기) 기존 진입점 호환을 위해 남긴다.
      */
     data class Artifact(val hasExperiences: Boolean = true) : Screen
+
+    /**
+     * 산출물 열람. [artifactId]로 활성 버전을 조회·표시한다.
+     * [initial]은 생성 직후 재조회를 피하기 위한 transient 생성 응답(URL 비참여, 딥링크 시 null).
+     */
+    data class ArtifactView(
+        val artifactId: String,
+        val initial: watson.resumaker.model.dto.GenerationResponse? = null,
+    ) : Screen
 
     /** 마이페이지. */
     data object MyPage : Screen

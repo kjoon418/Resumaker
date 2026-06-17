@@ -3,6 +3,8 @@ package watson.resumaker
 import watson.resumaker.network.AccountApi
 import watson.resumaker.network.AccountApiImpl
 import watson.resumaker.network.ApiClient
+import watson.resumaker.network.ArtifactApi
+import watson.resumaker.network.ArtifactApiImpl
 import watson.resumaker.network.ExperienceApi
 import watson.resumaker.network.ExperienceApiImpl
 import watson.resumaker.network.TargetApi
@@ -40,4 +42,5 @@ class AppContainer(
     val templateApi: TemplateApi = TemplateApiImpl(apiClient)
     val templatePresetApi: TemplatePresetApi = TemplatePresetApiImpl(apiClient)
     val templateInterpretApi: TemplateInterpretApi = TemplateInterpretApiImpl(apiClient)
+    val artifactApi: ArtifactApi = ArtifactApiImpl(apiClient)
 }

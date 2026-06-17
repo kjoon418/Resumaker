@@ -88,4 +88,11 @@ class RoutesTest {
         assertEquals(Screen.Artifact(hasExperiences = true), restored)
         // hasExperiences 복원 불가 — 진입 시 소스(ViewModel)가 값을 공급해야 한다.
     }
+
+    @Test
+    fun artifactViewEncodesIdAndRestoresWithoutInitial() {
+        // 열람: id 는 URL 에 담기고, transient initial 은 비참여라 딥링크 복원 시 null 이다.
+        assertEquals("/artifacts/a-1", Routes.pathOf(Screen.ArtifactView("a-1")))
+        assertEquals(Screen.ArtifactView("a-1"), Routes.screenOf("/artifacts/a-1"))
+    }
 }

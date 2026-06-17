@@ -188,28 +188,25 @@ fun HomeScreen(
                     }
                 }
 
-                // 이력서·포트폴리오 (준비 중).
+                // 이력서·포트폴리오.
                 val hasExperiences = state.experiences.isNotEmpty()
                 Column(verticalArrangement = Arrangement.spacedBy(RmSpacing.space3)) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(RmSpacing.space2)) {
-                        Text(text = "이력서·포트폴리오", style = RmTextStyles.headingM, color = colors.textPrimary)
-                        StatusBadge(text = "준비 중")
-                    }
+                    Text(text = "이력서·포트폴리오", style = RmTextStyles.headingM, color = colors.textPrimary)
                     InfoCard(
                         icon = RmIcons.Sparkles,
-                        title = if (hasExperiences) "곧 제공됩니다" else "먼저 경험을 기록해 주세요",
+                        title = if (hasExperiences) "이력서·포트폴리오 만들기" else "먼저 경험을 기록해 주세요",
                     ) {
                         Column(verticalArrangement = Arrangement.spacedBy(RmSpacing.space2)) {
                             Text(
                                 text = if (hasExperiences) {
-                                    "경험과 목표를 충실히 쌓아두면, 준비되는 대로 최적의 이력서·포트폴리오를 만들어 드려요."
+                                    "기록한 경험과 목표를 골라 최적화된 이력서·포트폴리오를 바로 만들 수 있어요."
                                 } else {
-                                    "이력서·포트폴리오는 기록한 경험을 재료로 만들어요. 먼저 한 가지라도 기록해 두면 준비가 빨라져요."
+                                    "이력서·포트폴리오는 기록한 경험을 재료로 만들어요. 먼저 한 가지라도 기록해 두면 바로 시작할 수 있어요."
                                 },
                                 style = RmTextStyles.bodyS,
                                 color = colors.onPrimaryContainer,
                             )
-                            TextLink(text = "준비 현황 보기", onClick = { onOpenArtifact(hasExperiences) })
+                            TextLink(text = if (hasExperiences) "만들기 시작" else "경험 기록하기", onClick = { onOpenArtifact(hasExperiences) })
                         }
                     }
                 }

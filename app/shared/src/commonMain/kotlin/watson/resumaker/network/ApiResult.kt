@@ -12,17 +12,19 @@ sealed interface ApiResult<out T> {
     /**
      * 실패. [message]는 사용자에게 그대로 보여줄 한국어 안내(서버 ErrorResponse.message 우선).
      * [field]는 폼 인라인 에러 매핑용(없으면 null). [code]는 분기용 식별자.
+     * [action]은 서버가 내려주는 "사용자가 해야 할 일" 힌트(예: ADD_EXPERIENCE). 없으면 null.
      */
     data class Failure(
         val message: String,
         val code: String? = null,
         val field: String? = null,
+        val action: String? = null,
     ) : ApiResult<Nothing>
 }
 
-/** 서버 에러 응답을 Failure로 변환. */
+/** 서버 에러 응답을 Failure로 변환. action 필드도 보존한다(ADD_EXPERIENCE 등 분기용). */
 internal fun ErrorResponse.toFailure(): ApiResult.Failure =
-    ApiResult.Failure(message = message, code = code, field = field)
+    ApiResult.Failure(message = message, code = code, field = field, action = action)
 
 /** 네트워크/직렬화 등 예기치 못한 실패의 기본 안내(막다른 길 금지 — 다시 시도 유도). */
 internal const val DEFAULT_NETWORK_ERROR =

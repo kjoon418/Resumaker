@@ -13,7 +13,8 @@ package watson.resumaker.navigation
  * - `/targets`           → TargetList
  * - `/targets/new`       → TargetEdit(null)
  * - `/targets/{id}`      → TargetEdit(id)
- * - `/artifact`          → Artifact (transient: hasExperiences 는 URL 비참여, 진입 시 소스에서 공급)
+ * - `/artifact`          → Artifact (생성 진입; hasExperiences 는 URL 비참여)
+ * - `/artifacts/{id}`    → ArtifactView(id) (열람; transient initial 은 URL 비참여, 딥링크 시 null→GET 조회)
  * - `/me`                → MyPage
  *
  * **Transient 화면 (CQ-4):** [Screen.Artifact.hasExperiences]는 URL에 저장하지 않는다.
@@ -39,6 +40,7 @@ object Routes {
         Screen.TemplatePreset -> "/resume-templates/presets"
         Screen.TemplateInterpret -> "/resume-templates/interpret"
         is Screen.Artifact -> "/artifact"
+        is Screen.ArtifactView -> "/artifacts/${screen.artifactId}"
         Screen.MyPage -> "/me"
     }
 
@@ -64,6 +66,8 @@ object Routes {
             segments.size == 2 && segments[0] == "resume-templates" ->
                 if (segments[1] == "new") Screen.TemplateEdit(null) else Screen.TemplateEdit(segments[1])
             segments == listOf("artifact") -> Screen.Artifact()
+            // 산출물 열람 딥링크: transient initial은 URL에 없으므로 null로 복원해 화면이 GET으로 조회한다.
+            segments.size == 2 && segments[0] == "artifacts" -> Screen.ArtifactView(segments[1])
             segments == listOf("me") -> Screen.MyPage
             else -> null
         }

@@ -1,8 +1,12 @@
 package watson.resumaker.fake
 
+import watson.resumaker.model.dto.ArtifactResponse
 import watson.resumaker.model.dto.CreateExperienceRequest
 import watson.resumaker.model.dto.CreateTargetRequest
 import watson.resumaker.model.dto.ExperienceResponse
+import watson.resumaker.model.dto.GenerationResponse
+import watson.resumaker.model.dto.PortfolioGenerationRequest
+import watson.resumaker.model.dto.ResumeGenerationRequest
 import watson.resumaker.model.dto.InterpretRequest
 import watson.resumaker.model.dto.InterpretResponse
 import watson.resumaker.model.dto.LoginRequest
@@ -18,6 +22,7 @@ import watson.resumaker.model.dto.UpdateTargetRequest
 import watson.resumaker.model.dto.UpdateTemplateRequest
 import watson.resumaker.network.AccountApi
 import watson.resumaker.network.ApiResult
+import watson.resumaker.network.ArtifactApi
 import watson.resumaker.network.ExperienceApi
 import watson.resumaker.network.TargetApi
 import watson.resumaker.network.TemplateApi
@@ -185,6 +190,32 @@ class FakeTemplateInterpretApi(
         interpretCount++
         lastInterpret = request
         return interpretResult
+    }
+}
+
+/** 결과를 미리 지정하는 fake ArtifactApi. 호출 인자를 기록해 검증한다. */
+class FakeArtifactApi(
+    var generateResumeResult: ApiResult<GenerationResponse>? = null,
+    var generatePortfolioResult: ApiResult<GenerationResponse>? = null,
+    var getArtifactResult: ApiResult<ArtifactResponse>? = null,
+) : ArtifactApi {
+    var lastResumeRequest: ResumeGenerationRequest? = null
+    var lastPortfolioRequest: PortfolioGenerationRequest? = null
+    var getArtifactId: String? = null
+
+    override suspend fun generateResume(request: ResumeGenerationRequest): ApiResult<GenerationResponse> {
+        lastResumeRequest = request
+        return generateResumeResult ?: ApiResult.Failure("no result")
+    }
+
+    override suspend fun generatePortfolio(request: PortfolioGenerationRequest): ApiResult<GenerationResponse> {
+        lastPortfolioRequest = request
+        return generatePortfolioResult ?: ApiResult.Failure("no result")
+    }
+
+    override suspend fun getArtifact(id: String): ApiResult<ArtifactResponse> {
+        getArtifactId = id
+        return getArtifactResult ?: ApiResult.Failure("no result")
     }
 }
 

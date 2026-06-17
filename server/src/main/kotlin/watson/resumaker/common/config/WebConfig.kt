@@ -18,9 +18,11 @@ class WebConfig(
 ) : WebMvcConfigurer {
 
     override fun addCorsMappings(registry: CorsRegistry) {
+        // 산출물 항목 직접 편집(PUT /artifacts/{id}/sections/{id}/content)을 포함해
+        // 브라우저 클라이언트가 쓰는 모든 메서드를 허용한다(프론트 통합 Slice).
         registry.addMapping("/**")
             .allowedOriginPatterns(*allowedOriginPatterns.toTypedArray())
-            .allowedMethods("GET", "POST", "PATCH", "DELETE", "OPTIONS")
+            .allowedMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
             .allowedHeaders("*")
             .allowCredentials(false)
     }

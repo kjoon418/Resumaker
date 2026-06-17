@@ -1,0 +1,106 @@
+package watson.resumaker.model.dto
+
+import kotlinx.serialization.Serializable
+import watson.resumaker.model.type.ArtifactKind
+import watson.resumaker.model.type.FactKind
+import watson.resumaker.model.type.SectionKind
+import watson.resumaker.model.type.SectionStatus
+
+/**
+ * 산출물 생성/열람 DTO. 서버 `generation.presentation.GenerationDtos`와 1:1.
+ *
+ * 부분 실패 버전도 정상 응답(생성 200, 모두 성공 201)으로 내려오며(도메인 이해 §306), 항목별 [SectionStatus]로
+ * 성공/실패를 구분한다. 클라이언트는 가짜 성공을 만들지 않고 항목 상태를 그대로 고지한다(신뢰성 가드레일).
+ *
+ * Slice 2/3(항목 재생성·직접 편집·버전 목록·복원) 요청/응답 DTO는 다음 슬라이스에서 추가한다.
+ */
+
+/**
+ * 이력서 1차 생성 요청(POST /artifacts/resume). 경험·목표·양식 모두 필수.
+ */
+@Serializable
+data class ResumeGenerationRequest(
+    val experienceIds: List<String>,
+    val targetId: String,
+    val templateId: String,
+)
+
+/**
+ * 포트폴리오 1차 생성 요청(POST /artifacts/portfolio). 양식 없음, 선택 경험당 서사 1개.
+ */
+@Serializable
+data class PortfolioGenerationRequest(
+    val experienceIds: List<String>,
+    val targetId: String,
+)
+
+/**
+ * 1차 생성 결과 응답(POST /artifacts/resume·portfolio). 방금 저장·활성화된 초기 버전 항목들을 담는다.
+ * [activeVersionId]가 곧 생성된 활성 버전이다.
+ */
+@Serializable
+data class GenerationResponse(
+    val artifactId: String,
+    val kind: ArtifactKind,
+    val activeVersionId: String,
+    val sections: List<GeneratedSectionResponse>,
+)
+
+/**
+ * 생성된 한 항목의 응답. status로 성공/실패(GENERATED | *_FAILED)를 구분한다.
+ */
+@Serializable
+data class GeneratedSectionResponse(
+    val sectionId: String,
+    val definitionKey: String,
+    val sectionKind: SectionKind,
+    val content: String,
+    val status: SectionStatus,
+    val sourceExperienceIds: List<String> = emptyList(),
+    val factGroundings: List<FactGroundingResponse> = emptyList(),
+)
+
+/**
+ * 생성 근거 층위2 응답(사용자 탐색·표시용).
+ */
+@Serializable
+data class FactGroundingResponse(
+    val token: String,
+    val kind: FactKind,
+    val sourceExperienceId: String,
+    val evidenceText: String,
+)
+
+/**
+ * 산출물 열람 응답(GET /artifacts/{id}). 활성 버전의 전체/항목 텍스트·상태·출처를 표시용으로 내려준다.
+ * 복사는 클라이언트가 이 텍스트로 수행한다(도메인 이해 §6).
+ */
+@Serializable
+data class ArtifactResponse(
+    val id: String,
+    val kind: ArtifactKind,
+    val activeVersion: ArtifactVersionResponse,
+    val prunedVersionCount: Int = 0,
+)
+
+/**
+ * 활성 버전 응답. 버전이 담은 항목 목록(순서 보존)을 표시용으로 내려준다.
+ */
+@Serializable
+data class ArtifactVersionResponse(
+    val versionId: String,
+    val sections: List<ArtifactSectionResponse>,
+)
+
+/**
+ * 열람용 항목 응답. 항목 출처(sourceExperienceIds)는 표시용이며, 상태로 부분 실패를 구분한다.
+ */
+@Serializable
+data class ArtifactSectionResponse(
+    val id: String,
+    val sectionKind: SectionKind,
+    val definitionKey: String,
+    val content: String,
+    val status: SectionStatus,
+    val sourceExperienceIds: List<String> = emptyList(),
+)

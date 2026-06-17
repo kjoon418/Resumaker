@@ -2,7 +2,10 @@ package watson.resumaker
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
-import watson.resumaker.feature.artifact.ArtifactComingSoonScreen
+import watson.resumaker.feature.artifact.ArtifactCreateScreen
+import watson.resumaker.feature.artifact.ArtifactCreateViewModel
+import watson.resumaker.feature.artifact.ArtifactScreen
+import watson.resumaker.feature.artifact.ArtifactViewModel
 import watson.resumaker.feature.auth.SessionScreen
 import watson.resumaker.feature.auth.SessionViewModel
 import watson.resumaker.feature.experience.ExperienceEditScreen
@@ -212,12 +215,42 @@ fun App(container: AppContainer = remember { AppContainer() }) {
                 )
             }
 
-            is Screen.Artifact -> ArtifactComingSoonScreen(
-                onBack = { navigator.pop() },
-                onRecordExperience = { navigator.switchRoot(Screen.ExperienceList) },
-                onAddTarget = { navigator.switchRoot(Screen.TargetList) },
-                hasExperiences = screen.hasExperiences,
-            )
+            is Screen.Artifact -> {
+                val vm = remember {
+                    ArtifactCreateViewModel(
+                        artifactApi = container.artifactApi,
+                        experienceApi = container.experienceApi,
+                        targetApi = container.targetApi,
+                        templateApi = container.templateApi,
+                    )
+                }
+                ArtifactCreateScreen(
+                    viewModel = vm,
+                    onBack = { navigator.pop() },
+                    onGenerated = { response ->
+                        // 생성 직후엔 재조회 없이 응답을 그대로 표시한다(initial). 생성 진입을 닫고 열람으로 전환.
+                        navigator.replaceTop(
+                            Screen.ArtifactView(artifactId = response.artifactId, initial = response),
+                        )
+                    },
+                    onRecordExperience = { navigator.switchRoot(Screen.ExperienceList) },
+                    onAddTarget = { navigator.switchRoot(Screen.TargetList) },
+                )
+            }
+
+            is Screen.ArtifactView -> {
+                val vm = remember(screen.artifactId) {
+                    ArtifactViewModel(
+                        artifactApi = container.artifactApi,
+                        artifactId = screen.artifactId,
+                        initial = screen.initial,
+                    )
+                }
+                ArtifactScreen(
+                    viewModel = vm,
+                    onBack = { navigator.pop() },
+                )
+            }
 
             Screen.MyPage -> {
                 val vm = remember { MyPageViewModel(container.accountApi, container.session) }

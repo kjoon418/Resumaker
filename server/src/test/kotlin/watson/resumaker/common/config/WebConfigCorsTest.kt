@@ -32,6 +32,17 @@ class WebConfigCorsTest {
     }
 
     @Test
+    fun 항목_직접_편집_PUT_프리플라이트를_허용한다() {
+        mockMvc.perform(
+            options("/artifacts/x/sections/y/content")
+                .header("Origin", "http://localhost:8081")
+                .header("Access-Control-Request-Method", "PUT"),
+        )
+            .andExpect(status().isOk)
+            .andExpect(header().string("Access-Control-Allow-Origin", "http://localhost:8081"))
+    }
+
+    @Test
     fun 허용되지_않은_오리진의_프리플라이트는_거부한다() {
         mockMvc.perform(
             options("/experiences")
