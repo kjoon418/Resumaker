@@ -434,6 +434,67 @@ class ArtifactViewModelTest {
         assertFalse(vm.state.value.isSectionInFlight("s-1"))
     }
 
+    // ── 후속: 재생성 한도 초과(429) → 직접 편집 유도 ──────────────────────────
+
+    @Test
+    fun regenerateQuotaExceededPromptsDirectEdit() = runTest(dispatcher) {
+        val api = FakeArtifactApi()
+        val vm = loadedViewModel(api)
+        testScheduler.advanceUntilIdle()
+
+        // 서버는 항목 재생성 한도 초과를 429(REGENERATION_QUOTA_EXCEEDED, action=EDIT_MANUALLY)로 거절한다.
+        api.regenerateResult = ApiResult.Failure(
+            message = "이 항목은 오늘 다시 만들 수 있는 횟수를 다 썼어요. 내일 이어가거나 직접 편집해 보세요.",
+            code = ArtifactViewModel.REGENERATION_QUOTA_EXCEEDED,
+            action = ArtifactViewModel.EDIT_MANUALLY_ACTION,
+        )
+        vm.regenerateSection("s-1", directive = null)
+        testScheduler.advanceUntilIdle()
+
+        // 안내를 일회성 메시지로 띄우고, 직접 편집기를 자동으로 열도록 해당 항목을 가리킨다(막다른 길 금지 — §399).
+        assertNotNull(vm.state.value.actionMessage)
+        assertEquals("s-1", vm.state.value.editPromptSectionId)
+        assertEquals("원본 내용", vm.state.value.sections.single().content)
+        assertFalse(vm.state.value.isSectionInFlight("s-1"))
+    }
+
+    @Test
+    fun regenerateNonEditActionDoesNotPromptEdit() = runTest(dispatcher) {
+        val api = FakeArtifactApi()
+        val vm = loadedViewModel(api)
+        testScheduler.advanceUntilIdle()
+
+        // 한도 초과가 아닌 실패(409 동시 재생성 등)는 편집기를 자동으로 열지 않는다.
+        api.regenerateResult = ApiResult.Failure(
+            message = "이 항목은 지금 다시 만드는 중이에요.",
+            code = "CONFLICT",
+            action = "RETRY_LATER",
+        )
+        vm.regenerateSection("s-1", directive = null)
+        testScheduler.advanceUntilIdle()
+
+        assertEquals(null, vm.state.value.editPromptSectionId)
+    }
+
+    @Test
+    fun consumeEditPromptClearsIt() = runTest(dispatcher) {
+        val api = FakeArtifactApi()
+        val vm = loadedViewModel(api)
+        testScheduler.advanceUntilIdle()
+
+        api.regenerateResult = ApiResult.Failure(
+            message = "한도 초과",
+            code = ArtifactViewModel.REGENERATION_QUOTA_EXCEEDED,
+            action = ArtifactViewModel.EDIT_MANUALLY_ACTION,
+        )
+        vm.regenerateSection("s-1", directive = null)
+        testScheduler.advanceUntilIdle()
+        assertEquals("s-1", vm.state.value.editPromptSectionId)
+
+        vm.consumeEditPrompt()
+        assertEquals(null, vm.state.value.editPromptSectionId)
+    }
+
     @Test
     fun consumeActionMessageClearsIt() = runTest(dispatcher) {
         val api = FakeArtifactApi()

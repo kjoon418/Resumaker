@@ -79,6 +79,15 @@ fun ArtifactScreen(
         }
     }
 
+    // 편집기를 여는 항목(화면 단일 상태). 재생성 한도 초과(EDIT_MANUALLY) 시 VM이 보내는 일회성 신호로 자동 연다.
+    var editingSectionId by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(state.editPromptSectionId) {
+        state.editPromptSectionId?.let {
+            editingSectionId = it
+            viewModel.consumeEditPrompt()
+        }
+    }
+
     AppScaffold(
         snackbarHostState = snackbarHostState,
         contentWidth = ContentWidth.NARROW,
@@ -138,6 +147,9 @@ fun ArtifactScreen(
                     SectionCard(
                         section = section,
                         inFlight = state.isSectionInFlight(section.id),
+                        editing = editingSectionId == section.id,
+                        onStartEdit = { editingSectionId = section.id },
+                        onStopEdit = { if (editingSectionId == section.id) editingSectionId = null },
                         onCopy = {
                             copyToClipboard(section.content)
                             copyMessage = "항목을 복사했어요."
@@ -155,15 +167,18 @@ fun ArtifactScreen(
 private fun SectionCard(
     section: ArtifactSectionUi,
     inFlight: Boolean,
+    editing: Boolean,
+    onStartEdit: () -> Unit,
+    onStopEdit: () -> Unit,
     onCopy: () -> Unit,
     onRegenerate: (directive: String?) -> Unit,
     onEdit: (content: String) -> Unit,
 ) {
     val colors = RmTheme.colors
-    // 편집 모드: 현재 content를 프리필해 인라인 편집. 진행 중이면 잠긴다.
-    var editing by remember(section.id) { mutableStateOf(false) }
-    // section.content도 키에 포함해 응답 갱신 후 프리필이 새 내용을 반영하게 한다(같은 id로 content 변경 시 재시드).
+    // 편집 텍스트: 현재 content를 프리필. section.content도 키에 포함해 응답 갱신 후 새 내용을 반영한다.
     var editText by remember(section.id, section.content) { mutableStateOf(section.content) }
+    // 편집기가 열릴 때(버튼·자동 유도 모두) 현재 content로 다시 시드해 직전 미저장 입력 잔재를 없앤다.
+    LaunchedEffect(editing) { if (editing) editText = section.content }
     var showRegenerateDialog by remember(section.id) { mutableStateOf(false) }
 
     RmCard {
@@ -190,12 +205,9 @@ private fun SectionCard(
                     inFlight = inFlight,
                     onSave = {
                         onEdit(editText)
-                        editing = false
+                        onStopEdit()
                     },
-                    onCancel = {
-                        editText = section.content
-                        editing = false
-                    },
+                    onCancel = onStopEdit,
                 )
 
                 section.failed -> {
@@ -211,10 +223,7 @@ private fun SectionCard(
                         showCopy = false,
                         onCopy = onCopy,
                         onRegenerate = { showRegenerateDialog = true },
-                        onEdit = {
-                            editText = section.content
-                            editing = true
-                        },
+                        onEdit = onStartEdit,
                     )
                 }
 
@@ -237,10 +246,7 @@ private fun SectionCard(
                         showCopy = section.content.isNotBlank(),
                         onCopy = onCopy,
                         onRegenerate = { showRegenerateDialog = true },
-                        onEdit = {
-                            editText = section.content
-                            editing = true
-                        },
+                        onEdit = onStartEdit,
                     )
                 }
             }

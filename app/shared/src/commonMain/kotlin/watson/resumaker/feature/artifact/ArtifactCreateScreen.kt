@@ -180,7 +180,11 @@ private fun CreateForm(
         }
 
         if (state.generationError != null) {
-            ErrorBanner(message = state.generationError, onRetry = onDismissError, title = "생성하지 못했어요")
+            ErrorBanner(
+                message = state.generationError,
+                onRetry = onDismissError,
+                title = if (state.isGenerationQuotaExceeded) "오늘은 더 만들 수 없어요" else "생성하지 못했어요",
+            )
         }
 
         PrimaryButton(

@@ -54,6 +54,12 @@ data class ArtifactCreateUiState(
     /** 재료가 비어 산출물을 만들 수 없는지(빈 경험묶음 예방형 분기 — 수용 기준 8). */
     val hasNoExperiences: Boolean get() = experiences.isEmpty()
 
+    /**
+     * 1차 생성 일일 한도 초과(429, 비용 가드레일 §396)인지. 배너 톤을 "실패"가 아니라 "오늘은 더 못 만듦"으로
+     * 분기한다. 1차 생성은 아직 산출물이 없어 직접 편집 대안이 없으므로, 안내는 "내일 다시"(서버 메시지)에 맡긴다.
+     */
+    val isGenerationQuotaExceeded: Boolean get() = generationErrorCode == ArtifactCreateViewModel.GENERATION_QUOTA_EXCEEDED
+
     /** 양식 필수 여부(이력서만). */
     val templateRequired: Boolean get() = kind == ArtifactKind.RESUME
 
@@ -167,5 +173,10 @@ class ArtifactCreateViewModel(
                 generationAction = result.action,
             )
         }
+    }
+
+    companion object {
+        /** 1차 생성 일일 한도 초과 에러 코드(서버 `CountingGenerationQuotaGuard`와 1:1, 429). */
+        const val GENERATION_QUOTA_EXCEEDED = "GENERATION_QUOTA_EXCEEDED"
     }
 }

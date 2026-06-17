@@ -187,4 +187,28 @@ class ArtifactCreateViewModelTest {
         assertNull(vm.state.value.generated)
         assertFalse(vm.state.value.generating)
     }
+
+    @Test
+    fun generationQuotaExceeded429SetsQuotaFlag() = runTest(dispatcher) {
+        // 서버: 1차 생성 일일 한도 초과 → 429 GENERATION_QUOTA_EXCEEDED. 배너 톤을 한도초과용으로 분기한다.
+        val api = FakeArtifactApi(
+            generateResumeResult = ApiResult.Failure(
+                message = "오늘 만들 수 있는 횟수를 다 썼어요. 내일 다시 시도하거나 기존 산출물을 다듬어 보세요.",
+                code = "GENERATION_QUOTA_EXCEEDED",
+            ),
+        )
+        val vm = vmWith(api)
+        testScheduler.advanceUntilIdle()
+
+        vm.toggleExperience("e-1")
+        vm.selectTarget("t-1")
+        vm.selectTemplate("tpl-1")
+        vm.generate()
+        testScheduler.advanceUntilIdle()
+
+        assertEquals("GENERATION_QUOTA_EXCEEDED", vm.state.value.generationErrorCode)
+        assertEquals(true, vm.state.value.isGenerationQuotaExceeded)
+        assertNotNull(vm.state.value.generationError)
+        assertNull(vm.state.value.generated)
+    }
 }

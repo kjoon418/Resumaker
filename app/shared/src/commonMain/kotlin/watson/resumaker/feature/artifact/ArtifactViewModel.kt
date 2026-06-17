@@ -47,6 +47,12 @@ data class ArtifactUiState(
      * 쓰인다. 화면이 표시 후 [consumeActionMessage]로 비운다(중복 표시 방지).
      */
     val actionMessage: String? = null,
+    /**
+     * 직접 편집을 유도할 항목 id(일회성). 재생성이 항목 한도 초과(429, action=EDIT_MANUALLY)로 막히면 설정되어,
+     * 화면이 해당 항목의 인라인 편집기를 자동으로 연다(한도 없는 직접 편집 경로로 안내 — §399 대안 제시).
+     * 화면이 [consumeEditPrompt]로 비운다.
+     */
+    val editPromptSectionId: String? = null,
 ) {
     /** 부분 실패 항목이 하나라도 있는지(상단 고지·재시도 안내용). */
     val hasFailedSections: Boolean get() = sections.any { it.failed }
@@ -126,7 +132,7 @@ class ArtifactViewModel(
                     clearedSectionId = sectionId,
                     message = prunedNotice(result.value.prunedVersionCount),
                 )
-                is ApiResult.Failure -> finishWithFailure(sectionId, result.message)
+                is ApiResult.Failure -> finishWithFailure(sectionId, result.message, result.action)
             }
         }
     }
@@ -147,7 +153,7 @@ class ArtifactViewModel(
                     clearedSectionId = sectionId,
                     message = prunedNotice(result.value.prunedVersionCount),
                 )
-                is ApiResult.Failure -> finishWithFailure(sectionId, result.message)
+                is ApiResult.Failure -> finishWithFailure(sectionId, result.message, result.action)
             }
         }
     }
@@ -155,6 +161,11 @@ class ArtifactViewModel(
     /** 스낵바에 표시한 일회성 안내를 비운다(중복 표시 방지). */
     fun consumeActionMessage() {
         _state.update { if (it.actionMessage == null) it else it.copy(actionMessage = null) }
+    }
+
+    /** 자동으로 편집기를 연 뒤 일회성 편집 유도 신호를 비운다(중복 열림 방지). */
+    fun consumeEditPrompt() {
+        _state.update { if (it.editPromptSectionId == null) it else it.copy(editPromptSectionId = null) }
     }
 
     private fun markInFlight(sectionId: String) {
@@ -175,11 +186,16 @@ class ArtifactViewModel(
         }
     }
 
-    private fun finishWithFailure(sectionId: String, message: String) {
+    /**
+     * 항목 액션 실패: in-flight 해제 + 일회성 안내. 서버가 직접 편집을 대안으로 권하면(action=EDIT_MANUALLY,
+     * 재생성 한도 초과 §397·§399) 해당 항목 편집기를 자동으로 열도록 [ArtifactUiState.editPromptSectionId]를 세운다.
+     */
+    private fun finishWithFailure(sectionId: String, message: String, action: String?) {
         _state.update {
             it.copy(
                 inFlightSectionIds = it.inFlightSectionIds - sectionId,
                 actionMessage = message,
+                editPromptSectionId = if (action == EDIT_MANUALLY_ACTION) sectionId else it.editPromptSectionId,
             )
         }
     }
@@ -219,4 +235,12 @@ class ArtifactViewModel(
             )
         },
     )
+
+    companion object {
+        /** 재생성 한도 초과 에러 코드(서버 `CountingGenerationQuotaGuard`와 1:1, 429). */
+        const val REGENERATION_QUOTA_EXCEEDED = "REGENERATION_QUOTA_EXCEEDED"
+
+        /** "직접 편집을 권한다" 액션 힌트(서버 가드레일과 1:1). 재생성 한도 초과 시 직접 편집기로 유도한다. */
+        const val EDIT_MANUALLY_ACTION = "EDIT_MANUALLY"
+    }
 }
