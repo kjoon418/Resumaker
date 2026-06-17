@@ -58,6 +58,7 @@ import watson.resumaker.ui.theme.pagePadding
 fun ArtifactScreen(
     viewModel: ArtifactViewModel,
     onBack: () -> Unit,
+    onViewVersions: () -> Unit = {},
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -125,6 +126,13 @@ fun ArtifactScreen(
                         },
                     )
                 }
+
+                // 버전 기록·비교 진입(§271~290·§363). 복귀 시 VM이 재생성돼 load()가 서버 최신(복원 결과 포함)을
+                // 가져오므로 별도 갱신 신호 없이도 갱신된 활성 버전이 자동 반영된다(load-after-initial — §287).
+                GhostButton(
+                    text = "버전 기록·비교 보기",
+                    onClick = onViewVersions,
+                )
 
                 state.sections.forEach { section ->
                     SectionCard(

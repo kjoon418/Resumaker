@@ -95,4 +95,13 @@ class RoutesTest {
         assertEquals("/artifacts/a-1", Routes.pathOf(Screen.ArtifactView("a-1")))
         assertEquals(Screen.ArtifactView("a-1"), Routes.screenOf("/artifacts/a-1"))
     }
+
+    @Test
+    fun artifactVersionsRoundTrips() {
+        // 버전 기록·비교: /artifacts/{id}/versions 왕복. 3세그먼트가 2세그먼트 열람보다 먼저 매칭돼야 한다.
+        assertEquals("/artifacts/a-1/versions", Routes.pathOf(Screen.ArtifactVersions("a-1")))
+        assertEquals(Screen.ArtifactVersions("a-1"), Routes.screenOf("/artifacts/a-1/versions"))
+        // 열람 경로(2세그먼트)는 여전히 열람으로 매칭(버전 경로에 가려지지 않음).
+        assertEquals(Screen.ArtifactView("a-1"), Routes.screenOf("/artifacts/a-1"))
+    }
 }

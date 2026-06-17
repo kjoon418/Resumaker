@@ -6,6 +6,7 @@ import io.ktor.client.request.post
 import io.ktor.client.request.put
 import io.ktor.client.request.setBody
 import watson.resumaker.model.dto.ArtifactResponse
+import watson.resumaker.model.dto.ArtifactVersionsResponse
 import watson.resumaker.model.dto.EditSectionContentRequest
 import watson.resumaker.model.dto.GenerationResponse
 import watson.resumaker.model.dto.PortfolioGenerationRequest
@@ -25,8 +26,9 @@ import watson.resumaker.model.dto.ResumeGenerationRequest
  * 응답을 받아 화면을 갱신한다. 동시 재생성(409 CONFLICT)·미존재/타인(404 NOT_FOUND)·빈 편집 내용(400
  * INVALID_REQUEST)은 [ApiResult.Failure]의 `code`로 분기한다.
  *
- * Slice 3(버전 목록 GET .../versions, 복원 POST .../versions/{id}/restore)는 이 인터페이스에 메서드를
- * 추가하는 형태로 깔끔히 올라탄다(이번 슬라이스 범위 밖 — 시그니처만 이 주석으로 시밍).
+ * Slice 3(버전 목록 GET .../versions, 복원 POST .../versions/{id}/restore)는 [getVersions]·[restoreVersion]으로
+ * 추가됐다. 둘 다 외부(LLM) 호출이 없는 빠른 동기 작업이라 일반 타임아웃을 쓴다. 미존재/타인 산출물·버전(404
+ * NOT_FOUND)은 [ApiResult.Failure]의 `code`로 분기한다.
  */
 interface ArtifactApi {
     suspend fun generateResume(request: ResumeGenerationRequest): ApiResult<GenerationResponse>
@@ -54,6 +56,20 @@ interface ArtifactApi {
         sectionId: String,
         content: String,
     ): ApiResult<ArtifactResponse>
+
+    /**
+     * 버전 목록 조회(GET .../versions). 한 산출물의 모든 버전을 생성 순서(오래된→최신)로, 각 버전의 항목·활성여부·
+     * 생성시각과 함께 돌려준다. 비교는 클라이언트가 definitionKey로 버전 간 항목을 맞춰 수행한다(§363). 외부 호출이
+     * 없는 빠른 동기 조회라 일반 타임아웃을 쓴다. 미존재/타인 산출물은 404(NOT_FOUND)로 [ApiResult.Failure]가 된다.
+     */
+    suspend fun getVersions(artifactId: String): ApiResult<ArtifactVersionsResponse>
+
+    /**
+     * 버전 복원(POST .../versions/{versionId}/restore). 고른 이전 버전을 활성으로 되돌린 갱신 산출물(활성 버전)을
+     * 돌려준다. 새 버전을 만들지 않고 activeVersionId만 재지정하므로(§287 "복원=활성 전환") 응답
+     * prunedVersionCount는 항상 0이다. 미존재/타인 산출물·버전은 404(NOT_FOUND)로 [ApiResult.Failure]가 된다.
+     */
+    suspend fun restoreVersion(artifactId: String, versionId: String): ApiResult<ArtifactResponse>
 }
 
 class ArtifactApiImpl(private val client: ApiClient) : ArtifactApi {
@@ -111,6 +127,20 @@ class ArtifactApiImpl(private val client: ApiClient) : ArtifactApi {
             client.http.put(client.url("/artifacts/$artifactId/sections/$sectionId/content")) {
                 with(client) { withUser() }
                 setBody(EditSectionContentRequest(content = content))
+            }
+        }
+
+    override suspend fun getVersions(artifactId: String): ApiResult<ArtifactVersionsResponse> =
+        client.safeRequest(decode = { it.body<ArtifactVersionsResponse>() }) {
+            client.http.get(client.url("/artifacts/$artifactId/versions")) {
+                with(client) { withUser() }
+            }
+        }
+
+    override suspend fun restoreVersion(artifactId: String, versionId: String): ApiResult<ArtifactResponse> =
+        client.safeRequest(decode = { it.body<ArtifactResponse>() }) {
+            client.http.post(client.url("/artifacts/$artifactId/versions/$versionId/restore")) {
+                with(client) { withUser() }
             }
         }
 }

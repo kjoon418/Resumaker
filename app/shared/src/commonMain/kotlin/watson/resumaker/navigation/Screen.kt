@@ -61,6 +61,12 @@ sealed interface Screen {
         val initial: watson.resumaker.model.dto.GenerationResponse? = null,
     ) : Screen
 
+    /**
+     * 산출물 버전 기록·비교. [artifactId]의 모든 버전을 생성순으로 보여주고, 두 버전을 골라 definitionKey로
+     * 같은 항목을 맞춰 비교하며, 한 버전을 골라 복원(활성 전환)한다(§271~290·§363).
+     */
+    data class ArtifactVersions(val artifactId: String) : Screen
+
     /** 마이페이지. */
     data object MyPage : Screen
 }

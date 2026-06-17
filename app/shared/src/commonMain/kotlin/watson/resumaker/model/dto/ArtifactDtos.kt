@@ -13,7 +13,8 @@ import watson.resumaker.model.type.SectionStatus
  * 성공/실패를 구분한다. 클라이언트는 가짜 성공을 만들지 않고 항목 상태를 그대로 고지한다(신뢰성 가드레일).
  *
  * Slice 2(항목 재생성·직접 편집) 요청 DTO는 아래에 추가한다(응답은 [ArtifactResponse] 재사용).
- * Slice 3(버전 목록·복원) 요청/응답 DTO는 다음 슬라이스에서 추가한다.
+ * Slice 3(버전 목록·복원)은 [ArtifactVersionsResponse]·[VersionHistoryResponse]를 추가한다(복원 응답은
+ * [ArtifactResponse] 재사용, 복원 요청은 경로 변수만이라 본문 DTO 없음).
  */
 
 /**
@@ -116,6 +117,32 @@ data class ArtifactResponse(
 @Serializable
 data class ArtifactVersionResponse(
     val versionId: String,
+    val sections: List<ArtifactSectionResponse>,
+)
+
+/**
+ * 버전 목록 조회 응답(GET /artifacts/{artifactId}/versions). 서버 ArtifactVersionsResponse와 1:1.
+ * 한 산출물의 **모든 버전**을 생성 순서(오래된→최신)로 내려준다. 별도 비교 엔드포인트가 없으므로 클라이언트가
+ * [VersionHistoryResponse.sections]의 definitionKey로 버전 간 '같은 항목'을 맞춰 비교한다(§363). 활성 버전은
+ * [activeVersionId]로 가린다.
+ */
+@Serializable
+data class ArtifactVersionsResponse(
+    val artifactId: String,
+    val kind: ArtifactKind,
+    val activeVersionId: String,
+    val versions: List<VersionHistoryResponse>,
+)
+
+/**
+ * 버전 목록의 한 버전 응답. 비교용으로 버전의 모든 항목·활성 여부·생성시각(ISO 문자열)을 담는다.
+ * 근거(factGroundings)는 비교·복원 가치에 비해 부차적이라 포함하지 않는다(서버와 동형 — §6).
+ */
+@Serializable
+data class VersionHistoryResponse(
+    val versionId: String,
+    val active: Boolean,
+    val createdAt: String,
     val sections: List<ArtifactSectionResponse>,
 )
 

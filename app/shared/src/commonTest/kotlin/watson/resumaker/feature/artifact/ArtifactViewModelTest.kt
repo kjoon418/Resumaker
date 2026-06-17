@@ -138,8 +138,22 @@ class ArtifactViewModelTest {
     }
 
     @Test
-    fun initialResponseAvoidsFetch() = runTest(dispatcher) {
-        val api = FakeArtifactApi() // getArtifact는 호출되면 실패(no result)지만 호출되지 않아야 한다.
+    fun initialSeedsImmediatelyThenLoadFetchesServerState() = runTest(dispatcher) {
+        // load-after-initial: initial로 즉시 시드하고, load()가 서버 최신 상태로 덮어쓴다.
+        // 이 방식으로 버전 화면 push/pop 후 VM이 재생성돼도 복원·재생성 결과가 반영된다(§287).
+        val serverSection = viewSection("s-1", SectionStatus.GENERATED, content = "서버 최신 내용")
+        val api = FakeArtifactApi(
+            getArtifactResult = ApiResult.Success(
+                ArtifactResponse(
+                    id = "a-1",
+                    kind = ArtifactKind.RESUME,
+                    activeVersion = ArtifactVersionResponse(
+                        versionId = "v-2",
+                        sections = listOf(serverSection),
+                    ),
+                ),
+            ),
+        )
         val initial = GenerationResponse(
             artifactId = "a-1",
             kind = ArtifactKind.PORTFOLIO,
@@ -149,7 +163,7 @@ class ArtifactViewModelTest {
                     sectionId = "s-1",
                     definitionKey = "narrative",
                     sectionKind = SectionKind.EXPERIENCE_NARRATIVE,
-                    content = "서사",
+                    content = "초기 생성 내용",
                     status = SectionStatus.GENERATED,
                     sourceExperienceIds = listOf("e-1"),
                     factGroundings = emptyList(),
@@ -159,12 +173,39 @@ class ArtifactViewModelTest {
         val vm = ArtifactViewModel(api, artifactId = "a-1", initial = initial)
         testScheduler.advanceUntilIdle()
 
+        // getArtifact가 호출돼 서버 상태가 반영된다(load-after-initial).
+        assertEquals("a-1", api.getArtifactId)
         assertFalse(vm.state.value.loading)
-        assertEquals(1, vm.state.value.sections.size)
-        assertEquals(ArtifactKind.PORTFOLIO, vm.state.value.kind)
-        // 재조회하지 않았으므로 getArtifact 미호출.
-        assertEquals(null, api.getArtifactId)
-        assertNotNull(vm.state.value.sections.firstOrNull())
+        // 서버 응답으로 덮어써져 initial 내용이 아닌 서버 최신 내용이 표시된다.
+        assertEquals("서버 최신 내용", vm.state.value.sections.single().content)
+        // kind도 서버 응답(RESUME)으로 갱신된다.
+        assertEquals(ArtifactKind.RESUME, vm.state.value.kind)
+    }
+
+    @Test
+    fun vmRecreationAfterRestoreAlwaysLoadsServerState() = runTest(dispatcher) {
+        // 버전 화면 push/pop 시 VM이 재생성(remember(artifactId) 키 유지이나 컴포지션 이탈→재진입)된다.
+        // 복원 후 새 VM은 initial=null로 생성돼 load()를 거쳐 갱신된 활성 버전(복원 결과)을 가져온다(§287).
+        val restoredSection = viewSection("s-1", SectionStatus.GENERATED, content = "복원된 v1 내용")
+        val api = FakeArtifactApi(
+            getArtifactResult = ApiResult.Success(
+                ArtifactResponse(
+                    id = "a-1",
+                    kind = ArtifactKind.RESUME,
+                    activeVersion = ArtifactVersionResponse(
+                        versionId = "v-1",  // 복원으로 v1이 활성
+                        sections = listOf(restoredSection),
+                    ),
+                ),
+            ),
+        )
+        // initial=null: 딥링크·pop 복귀처럼 생성 응답 없이 VM이 새로 만들어지는 상황.
+        val vm = ArtifactViewModel(api, artifactId = "a-1", initial = null)
+        testScheduler.advanceUntilIdle()
+
+        assertEquals("a-1", api.getArtifactId)
+        assertEquals("복원된 v1 내용", vm.state.value.sections.single().content)
+        assertFalse(vm.state.value.loading)
     }
 
     // ── Slice 2: 항목 재생성 ──────────────────────────────────────────────

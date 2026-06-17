@@ -1,6 +1,7 @@
 package watson.resumaker.fake
 
 import watson.resumaker.model.dto.ArtifactResponse
+import watson.resumaker.model.dto.ArtifactVersionsResponse
 import watson.resumaker.model.dto.CreateExperienceRequest
 import watson.resumaker.model.dto.CreateTargetRequest
 import watson.resumaker.model.dto.ExperienceResponse
@@ -200,10 +201,29 @@ class FakeArtifactApi(
     var getArtifactResult: ApiResult<ArtifactResponse>? = null,
     var regenerateResult: ApiResult<ArtifactResponse>? = null,
     var editResult: ApiResult<ArtifactResponse>? = null,
+    var getVersionsResult: ApiResult<ArtifactVersionsResponse>? = null,
+    var restoreResult: ApiResult<ArtifactResponse>? = null,
 ) : ArtifactApi {
     var lastResumeRequest: ResumeGenerationRequest? = null
     var lastPortfolioRequest: PortfolioGenerationRequest? = null
     var getArtifactId: String? = null
+
+    /** 버전 목록 조회에 들어온 artifactId 기록. */
+    var getVersionsId: String? = null
+
+    /** 복원 호출 인자(artifactId, versionId) 기록. */
+    var lastRestore: Pair<String, String>? = null
+
+    var getVersionsCount = 0
+        private set
+    var restoreCount = 0
+        private set
+
+    /**
+     * 복원 호출을 한 번 일시정지시키는 게이트. `gate.complete(Unit)`를 호출해야 응답이 반환된다. null이면 즉시
+     * 반환한다. 복원 in-flight(진행 중) 상태에서의 중복 복원 차단을 테스트할 때 진행 중을 유지하는 데 쓴다.
+     */
+    var restoreGate: kotlinx.coroutines.CompletableDeferred<Unit>? = null
 
     /** 재생성 호출 인자(artifactId, sectionId, directive) 기록. directive는 trim 후 빈 값이면 null로 들어온다. */
     var lastRegenerate: Triple<String, String, String?>? = null
@@ -265,6 +285,19 @@ class FakeArtifactApi(
         lastEdit = Triple(artifactId, sectionId, content)
         editGate?.await()
         return editResult ?: ApiResult.Failure("no result")
+    }
+
+    override suspend fun getVersions(artifactId: String): ApiResult<ArtifactVersionsResponse> {
+        getVersionsCount++
+        getVersionsId = artifactId
+        return getVersionsResult ?: ApiResult.Failure("no result")
+    }
+
+    override suspend fun restoreVersion(artifactId: String, versionId: String): ApiResult<ArtifactResponse> {
+        restoreCount++
+        lastRestore = artifactId to versionId
+        restoreGate?.await()
+        return restoreResult ?: ApiResult.Failure("no result")
     }
 }
 

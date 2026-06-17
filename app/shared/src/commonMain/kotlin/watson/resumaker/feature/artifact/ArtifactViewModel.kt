@@ -65,8 +65,12 @@ data class ArtifactUiState(
 /**
  * 산출물 열람 ViewModel. 활성 버전의 항목별 내용·상태·출처를 표시한다(수용 기준 12).
  *
- * 생성 직후에는 [initial] 생성 응답을 그대로 표시해 불필요한 재조회를 피하고, 그 외(딥링크·새로고침)에는
- * [artifactId]로 GET /artifacts/{id}를 호출한다. 복사는 클라이언트 책임이다(도메인 §6).
+ * [initial]이 있으면 즉시 시드해 첫 프레임부터 생성 결과를 보여주고(깜박임 없는 즉시 표시), 이어서 항상
+ * `load()`로 서버 권위 상태를 가져온다(load-after-initial). 이 방식은 버전 화면 push/pop 시 VM이 재생성돼도
+ * 복원·재생성·편집 결과가 항상 반영되는 정확성을 보장한다(§287 복원=활성 전환). `load()` 자체는 진행 중
+ * 중복 호출 가드가 있어 연타 시 경합이 없다.
+ *
+ * 복사는 클라이언트 책임이다(도메인 §6).
  */
 class ArtifactViewModel(
     private val artifactApi: ArtifactApi,
@@ -81,11 +85,12 @@ class ArtifactViewModel(
     private var loadJob: Job? = null
 
     init {
+        // initial이 있으면 즉시 시드해 첫 프레임부터 표시하고, 항상 load()로 서버 최신 상태를 덮어쓴다.
+        // 이렇게 해야 버전 화면 복원 후 VM이 재생성돼도 갱신된 활성 버전이 반영된다(§287).
         if (initial != null) {
             _state.value = initial.toUiState()
-        } else {
-            load()
         }
+        load()
     }
 
     fun load() {

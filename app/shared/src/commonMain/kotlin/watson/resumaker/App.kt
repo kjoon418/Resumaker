@@ -5,6 +5,8 @@ import androidx.compose.runtime.remember
 import watson.resumaker.feature.artifact.ArtifactCreateScreen
 import watson.resumaker.feature.artifact.ArtifactCreateViewModel
 import watson.resumaker.feature.artifact.ArtifactScreen
+import watson.resumaker.feature.artifact.ArtifactVersionsScreen
+import watson.resumaker.feature.artifact.ArtifactVersionsViewModel
 import watson.resumaker.feature.artifact.ArtifactViewModel
 import watson.resumaker.feature.auth.SessionScreen
 import watson.resumaker.feature.auth.SessionViewModel
@@ -247,6 +249,20 @@ fun App(container: AppContainer = remember { AppContainer() }) {
                     )
                 }
                 ArtifactScreen(
+                    viewModel = vm,
+                    onBack = { navigator.pop() },
+                    onViewVersions = { navigator.push(Screen.ArtifactVersions(screen.artifactId)) },
+                )
+            }
+
+            is Screen.ArtifactVersions -> {
+                val vm = remember(screen.artifactId) {
+                    ArtifactVersionsViewModel(
+                        artifactApi = container.artifactApi,
+                        artifactId = screen.artifactId,
+                    )
+                }
+                ArtifactVersionsScreen(
                     viewModel = vm,
                     onBack = { navigator.pop() },
                 )
