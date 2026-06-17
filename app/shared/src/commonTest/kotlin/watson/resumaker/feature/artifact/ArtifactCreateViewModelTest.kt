@@ -93,7 +93,7 @@ class ArtifactCreateViewModelTest {
     }
 
     @Test
-    fun portfolioDoesNotRequireTemplate() = runTest(dispatcher) {
+    fun portfolioDoesNotShowTemplateStep() = runTest(dispatcher) {
         val vm = vmWith(FakeArtifactApi())
         testScheduler.advanceUntilIdle()
 
@@ -101,8 +101,70 @@ class ArtifactCreateViewModelTest {
         vm.toggleExperience("e-1")
         vm.selectTarget("t-1")
 
-        assertFalse(vm.state.value.templateRequired)
+        assertFalse(vm.state.value.templateStepVisible)
         assertTrue(vm.state.value.canSubmit)
+    }
+
+    @Test
+    fun aiTemplateChoiceSatisfiesValidationWithoutConcreteTemplate() = runTest(dispatcher) {
+        // 양식 자동(AI에 맡기기)을 고르면 구체 양식 없이도 생성 가능(서버 §178 — 양식은 더 이상 필수 아님).
+        val vm = vmWith(FakeArtifactApi())
+        testScheduler.advanceUntilIdle()
+
+        vm.toggleExperience("e-1")
+        vm.selectTarget("t-1")
+        assertFalse(vm.state.value.canSubmit) // 양식 선택(구체/자동) 전.
+
+        vm.selectAiTemplate()
+        assertTrue(vm.state.value.useAiTemplate)
+        assertNull(vm.state.value.selectedTemplateId)
+        assertTrue(vm.state.value.canSubmit)
+    }
+
+    @Test
+    fun aiTemplateAndConcreteTemplateAreExclusive() = runTest(dispatcher) {
+        val vm = vmWith(FakeArtifactApi())
+        testScheduler.advanceUntilIdle()
+
+        vm.selectAiTemplate()
+        assertTrue(vm.state.value.useAiTemplate)
+
+        // 구체 양식을 고르면 자동 선택이 해제된다.
+        vm.selectTemplate("tpl-1")
+        assertFalse(vm.state.value.useAiTemplate)
+        assertEquals("tpl-1", vm.state.value.selectedTemplateId)
+
+        // 다시 자동을 고르면 구체 양식이 비워진다.
+        vm.selectAiTemplate()
+        assertTrue(vm.state.value.useAiTemplate)
+        assertNull(vm.state.value.selectedTemplateId)
+    }
+
+    @Test
+    fun generateWithAiTemplateSendsNullTemplateId() = runTest(dispatcher) {
+        // 양식 자동 생성 시 서버로 templateId=null이 전송된다(AI 생성 양식 경로).
+        val api = FakeArtifactApi(
+            generateResumeResult = ApiResult.Success(
+                GenerationResponse(
+                    artifactId = "a-3",
+                    kind = ArtifactKind.RESUME,
+                    activeVersionId = "v-3",
+                    sections = listOf(section("s-1", SectionStatus.GENERATED)),
+                ),
+            ),
+        )
+        val vm = vmWith(api)
+        testScheduler.advanceUntilIdle()
+
+        vm.toggleExperience("e-1")
+        vm.selectTarget("t-1")
+        vm.selectAiTemplate()
+        vm.generate()
+        testScheduler.advanceUntilIdle()
+
+        assertEquals("a-3", vm.state.value.generated?.artifactId)
+        assertNull(api.lastResumeRequest?.templateId)
+        assertEquals(listOf("e-1"), api.lastResumeRequest?.experienceIds)
     }
 
     @Test

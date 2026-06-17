@@ -31,7 +31,45 @@ class GenerationMapperTest {
         // then — value class는 .value로 대조한다(과거 함정).
         assertThat(command.experienceIds.map { it.value }).containsExactly(exp1, exp2)
         assertThat(command.targetId.value).isEqualTo(targetId)
-        assertThat(command.templateId.value).isEqualTo(templateId)
+        // 양식은 이제 선택이지만 지정 시 그대로 VO로 변환된다.
+        assertThat(command.templateId?.value).isEqualTo(templateId)
+    }
+
+    @Test
+    fun 양식이_없으면_command_templateId가_null이다() {
+        // given (도메인 이해 §178) — 양식 미지정(null/공백)이면 AI 생성 양식 경로로 진입(templateId null).
+        val exp1 = UUID.randomUUID()
+        val targetId = UUID.randomUUID()
+        val request = ResumeGenerationRequest(
+            experienceIds = listOf(exp1.toString()),
+            targetId = targetId.toString(),
+            templateId = null,
+        )
+
+        // when
+        val command = mapper.toResumeCommand(request)
+
+        // then
+        assertThat(command.templateId).isNull()
+    }
+
+    @Test
+    fun 공백_templateId는_AI_생성_양식_경로로_null_처리된다() {
+        // given (MEDIUM-2) — 공백/whitespace templateId도 null로 매핑돼야 한다.
+        // 이 가드가 없으면 UUID.fromString("")→IllegalArgumentException(500 회귀) 위험이 있다.
+        val exp1 = UUID.randomUUID()
+        val targetId = UUID.randomUUID()
+        val request = ResumeGenerationRequest(
+            experienceIds = listOf(exp1.toString()),
+            targetId = targetId.toString(),
+            templateId = "   ", // whitespace-only
+        )
+
+        // when
+        val command = mapper.toResumeCommand(request)
+
+        // then — isNotBlank() 가드가 공백을 null로 흡수한다(UUID.fromString 500 방지).
+        assertThat(command.templateId).isNull()
     }
 
     @Test

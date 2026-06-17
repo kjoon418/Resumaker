@@ -13,6 +13,7 @@ import watson.resumaker.model.dto.GenerationResponse
 import watson.resumaker.model.type.ArtifactKind
 import watson.resumaker.model.type.SectionKind
 import watson.resumaker.model.type.SectionStatus
+import watson.resumaker.model.type.TemplateOrigin
 import watson.resumaker.network.ApiResult
 import watson.resumaker.network.ArtifactApi
 
@@ -104,7 +105,14 @@ class ArtifactViewModel(
         _state.update { it.copy(loading = true, errorMessage = null) }
         loadJob = viewModelScope.launch {
             when (val result = artifactApi.getArtifact(artifactId)) {
-                is ApiResult.Success -> _state.value = result.value.toUiState()
+                is ApiResult.Success -> {
+                    // load-after-initial: actionMessage(폴백 고지 등)가 이미 세팅돼 있으면 보존한다.
+                    // load()가 initial 시드 직후 덮어써도 스낵바가 한 번 뜨도록 보장한다(§187).
+                    val pending = _state.value.actionMessage
+                    _state.value = result.value.toUiState().let {
+                        if (pending != null && it.actionMessage == null) it.copy(actionMessage = pending) else it
+                    }
+                }
                 is ApiResult.Failure -> _state.update { it.copy(loading = false, errorMessage = result.message) }
             }
         }
@@ -218,6 +226,9 @@ class ArtifactViewModel(
                 sourceExperienceIds = it.sourceExperienceIds,
             )
         },
+        // AI 양식 생성 실패 → 기본 구조 폴백 시 고지(§187 정직성, 가짜 성공 금지).
+        // 고지 후 load()가 덮어쓰지 않도록 load() 성공 분기에서 actionMessage를 보존한다.
+        actionMessage = if (templateOrigin == TemplateOrigin.AI_FALLBACK_DEFAULT) AI_FALLBACK_NOTICE else null,
     )
 
     private fun ArtifactResponse.toUiState() = ArtifactUiState(
@@ -242,5 +253,9 @@ class ArtifactViewModel(
 
         /** "직접 편집을 권한다" 액션 힌트(서버 가드레일과 1:1). 재생성 한도 초과 시 직접 편집기로 유도한다. */
         const val EDIT_MANUALLY_ACTION = "EDIT_MANUALLY"
+
+        /** AI 양식 생성 실패 → 기본 구조 폴백 고지 메시지(§187). 스낵바로 1회 표시 후 소비한다. */
+        const val AI_FALLBACK_NOTICE =
+            "AI가 양식을 만들지 못해 기본 구조로 만들었어요. 항목을 직접 편집하거나 다시 만들어 보세요."
     }
 }

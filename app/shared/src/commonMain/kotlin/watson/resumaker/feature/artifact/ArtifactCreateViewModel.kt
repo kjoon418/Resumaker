@@ -42,6 +42,11 @@ data class ArtifactCreateUiState(
     val selectedExperienceIds: Set<String> = emptySet(),
     val selectedTargetId: String? = null,
     val selectedTemplateId: String? = null,
+    /**
+     * "양식 자동(AI에 맡기기)" 선택 여부(서버 §178·§446). true면 양식을 지정하지 않고 생성해 AI가 경험·목표로
+     * 섹션 구조를 정한다(templateId=null 전송). 구체 양식을 고르면 false로 돌아간다.
+     */
+    val useAiTemplate: Boolean = false,
     val generating: Boolean = false,
     /** 생성 성공 시 채워지며, 화면이 열람 화면으로 이동하는 신호로 1회 소비한다(재조회 없이 그대로 표시). */
     val generated: GenerationResponse? = null,
@@ -60,15 +65,22 @@ data class ArtifactCreateUiState(
      */
     val isGenerationQuotaExceeded: Boolean get() = generationErrorCode == ArtifactCreateViewModel.GENERATION_QUOTA_EXCEEDED
 
-    /** 양식 필수 여부(이력서만). */
-    val templateRequired: Boolean get() = kind == ArtifactKind.RESUME
+    /**
+     * 양식 선택 단계 노출 여부(이력서만). 양식 자체는 더 이상 필수가 아니다 — "양식 자동"을 고르면 미지정으로
+     * 생성된다(서버 §178). 포트폴리오는 양식이 없으므로 단계를 숨긴다.
+     */
+    val templateStepVisible: Boolean get() = kind == ArtifactKind.RESUME
+
+    /** 양식 선택이 유효한지(이력서면 구체 양식 선택 또는 "양식 자동" 중 하나). 포트폴리오는 항상 충족. */
+    val templateChoiceSatisfied: Boolean
+        get() = kind != ArtifactKind.RESUME || useAiTemplate || selectedTemplateId != null
 
     /** 필수값이 모두 채워져 생성 가능한지(필수 미선택이면 생성 버튼 비활성). */
     val canSubmit: Boolean
         get() = !generating &&
             selectedExperienceIds.isNotEmpty() &&
             selectedTargetId != null &&
-            (!templateRequired || selectedTemplateId != null)
+            templateChoiceSatisfied
 }
 
 /**
@@ -120,8 +132,12 @@ class ArtifactCreateViewModel(
     }
 
     fun selectKind(kind: ArtifactKind) = _state.update {
-        // 포트폴리오로 바꾸면 양식 선택은 의미가 없어 비운다(양식 없음).
-        it.copy(kind = kind, selectedTemplateId = if (kind == ArtifactKind.RESUME) it.selectedTemplateId else null)
+        // 포트폴리오로 바꾸면 양식 선택은 의미가 없어 비운다(양식 없음, 자동 선택도 해제).
+        if (kind == ArtifactKind.RESUME) {
+            it.copy(kind = kind)
+        } else {
+            it.copy(kind = kind, selectedTemplateId = null, useAiTemplate = false)
+        }
     }
 
     fun toggleExperience(id: String) = _state.update {
@@ -131,7 +147,11 @@ class ArtifactCreateViewModel(
 
     fun selectTarget(id: String) = _state.update { it.copy(selectedTargetId = id) }
 
-    fun selectTemplate(id: String) = _state.update { it.copy(selectedTemplateId = id) }
+    /** 구체 양식 선택. "양식 자동"은 해제된다(둘은 배타적). */
+    fun selectTemplate(id: String) = _state.update { it.copy(selectedTemplateId = id, useAiTemplate = false) }
+
+    /** "양식 자동(AI에 맡기기)" 선택. 구체 양식 선택은 해제된다(둘은 배타적). */
+    fun selectAiTemplate() = _state.update { it.copy(useAiTemplate = true, selectedTemplateId = null) }
 
     fun consumeGenerated() = _state.update { it.copy(generated = null) }
 
@@ -148,7 +168,8 @@ class ArtifactCreateViewModel(
                     ResumeGenerationRequest(
                         experienceIds = current.selectedExperienceIds.toList(),
                         targetId = current.selectedTargetId!!,
-                        templateId = current.selectedTemplateId!!,
+                        // "양식 자동"이면 templateId를 생략해 AI 생성 양식 경로로 진입한다(서버 §178).
+                        templateId = if (current.useAiTemplate) null else current.selectedTemplateId,
                     ),
                 )
                 ArtifactKind.PORTFOLIO -> artifactApi.generatePortfolio(

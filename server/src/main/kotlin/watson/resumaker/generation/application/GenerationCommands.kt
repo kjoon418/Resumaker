@@ -11,12 +11,13 @@ import watson.resumaker.template.domain.ResumeTemplateId
  *
  * @param experienceIds 생성에 쓸 경험 묶음 식별자(빈 묶음 거부 — 수용 기준 8).
  * @param targetId      목표 정보 식별자(채용 방향 필수).
- * @param templateId    지정 양식 식별자. 이번 사이클은 '양식 필수'다(미지정 시 AI 생성 양식은 다음 사이클 범위).
+ * @param templateId    지정 양식 식별자(**선택**, 도메인 이해 §178·§446). null이면 AI 생성 양식 경로로 진입한다
+ *   (경험·목표로 섹션 구조를 생성해 산출물 스냅샷으로 보존 — 수용 기준 22).
  */
 data class GenerateResumeCommand(
     val experienceIds: List<ExperienceRecordId>,
     val targetId: watson.resumaker.target.domain.TargetBriefId,
-    val templateId: ResumeTemplateId,
+    val templateId: ResumeTemplateId?,
 )
 
 /**

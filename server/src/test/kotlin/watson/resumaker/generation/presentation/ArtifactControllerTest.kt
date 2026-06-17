@@ -189,18 +189,20 @@ class ArtifactControllerTest {
     }
 
     @Test
-    fun 이력서_요청에_양식이_누락되면_400을_반환한다() {
-        // given (필수 누락)
+    fun 이력서_요청에_양식이_없으면_AI_생성_양식_경로로_생성된다() {
+        // given (도메인 이해 §178·§446, 수용 기준 22) — 양식은 선택이다. null이면 400이 아니라 AI 생성 양식 경로.
         whenever(currentUserProvider.currentUserId()).thenReturn(UserId(UUID.randomUUID()))
+        whenever(generationService.generateResume(any(), any()))
+            .thenReturn(generationResponse(SectionStatus.GENERATED))
         val request = ResumeGenerationRequest(listOf(expId), targetId, templateId = null)
 
-        // when and then
+        // when and then — 양식 미지정도 정상 생성(모두 성공이면 201).
         mockMvc.post("/artifacts/resume") {
             contentType = MediaType.APPLICATION_JSON
             content = objectMapper.writeValueAsString(request)
         }.andExpect {
-            status { isBadRequest() }
-            jsonPath("$.field") { value("templateId") }
+            status { isCreated() }
+            jsonPath("$.artifactId") { value(artifactId) }
         }
     }
 

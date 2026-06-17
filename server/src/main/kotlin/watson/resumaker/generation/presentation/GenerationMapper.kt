@@ -27,7 +27,8 @@ class GenerationMapper {
         GenerateResumeCommand(
             experienceIds = request.experienceIds!!.map { ExperienceRecordId(UUID.fromString(it)) },
             targetId = TargetBriefId(UUID.fromString(request.targetId!!)),
-            templateId = ResumeTemplateId(UUID.fromString(request.templateId!!)),
+            // 양식은 선택이다(도메인 이해 §178). null/공백이면 AI 생성 양식 경로로 진입한다.
+            templateId = request.templateId?.takeIf { it.isNotBlank() }?.let { ResumeTemplateId(UUID.fromString(it)) },
         )
 
     fun toPortfolioCommand(request: PortfolioGenerationRequest): GeneratePortfolioCommand =

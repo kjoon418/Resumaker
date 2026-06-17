@@ -9,10 +9,30 @@ import watson.resumaker.artifact.domain.SectionKind
 import watson.resumaker.artifact.domain.SectionStatus
 
 /**
+ * 1차 생성 결과의 양식 출처 신호(정직성·고지 원칙 §187, 수용 기준 23).
+ *
+ * 클라이언트는 [AI_FALLBACK_DEFAULT]일 때 "AI가 양식을 만들지 못해 기본 구조로 만들었어요"를 고지하고,
+ * [AI_GENERATED]·[USER_SELECTED]는 조용히 처리한다(성공 경로는 고지 불필요). 포트폴리오는 양식이 없어 [NONE].
+ */
+enum class TemplateOrigin {
+    /** 사용자가 직접 양식을 골라 생성한 경로. */
+    USER_SELECTED,
+    /** AI가 경험·목표로 양식을 생성해 성공한 경로(수용 기준 22). */
+    AI_GENERATED,
+    /** AI 양식 생성 비가용 → 기본 구조(DEFAULT_TEMPLATE_SECTIONS) 폴백 경로. 고지 필요. */
+    AI_FALLBACK_DEFAULT,
+    /** 포트폴리오처럼 양식이 없는 경로. */
+    NONE,
+}
+
+/**
  * 1차 생성 결과 응답 DTO(구현 설계 §5 흐름 5 "Response DTO 변환을 트랜잭션 내부에서").
  *
  * 컨트롤러(Cycle D)가 이 DTO를 그대로 반환한다. 부분 실패 버전도 200으로 내려가며(도메인 이해 §306), 실패 항목의
  * 상태가 포함된다. activeVersionId가 곧 방금 저장·활성화된 초기 버전이다(수용 기준 7).
+ *
+ * [templateOrigin]은 양식 출처 신호다. [TemplateOrigin.AI_FALLBACK_DEFAULT]이면 클라이언트가 폴백 고지를
+ * 표시한다(§187 정직성·가짜 성공 금지). 기존 호출이 깨지지 않도록 기본값은 [TemplateOrigin.NONE].
  *
  * 요청 DTO(ResumeGenerationRequest 등)와 컨트롤러는 Cycle D에서 추가한다. 이 사이클은 응답 형태만 고정한다.
  */
@@ -21,6 +41,7 @@ data class GenerationResponse(
     val kind: ArtifactKind,
     val activeVersionId: String,
     val sections: List<GeneratedSectionResponse>,
+    val templateOrigin: TemplateOrigin = TemplateOrigin.NONE,
 )
 
 /**
@@ -49,20 +70,20 @@ data class FactGroundingResponse(
 // ── Cycle D: 생성 요청 DTO ──────────────────────────────────────────────────
 
 /**
- * 이력서 1차 생성 요청 DTO(POST /artifacts/resume). Bean Validation은 필수값(경험 선택·목표·지정 양식)만
+ * 이력서 1차 생성 요청 DTO(POST /artifacts/resume). Bean Validation은 필수값(경험 선택·목표)만
  * 검증한다(구현 설계 §9). 빈 경험 묶음은 형식상 누락(400)으로, 생성 단계의 "빈 묶음 거부"(409)와 구분된다.
  *
  * @param experienceIds 생성에 쓸 경험 식별자(하나 이상 필수).
  * @param targetId      목표 정보 식별자(채용 방향 필수).
- * @param templateId    지정 양식 식별자(이번 사이클은 양식 필수 — AI 생성 양식은 다음 사이클).
+ * @param templateId    지정 양식 식별자(**선택**, 도메인 이해 §178·§446). null/누락이면 AI가 경험·목표 기반으로
+ *   양식(섹션 구조)을 생성하는 경로로 진입하며, 결과 양식은 산출물 스냅샷으로 보존된다(수용 기준 22).
  */
 data class ResumeGenerationRequest(
     @field:NotEmpty(message = "이력서를 만들 경험을 하나 이상 골라 주세요.")
     val experienceIds: List<String>? = null,
     @field:NotNull(message = "목표 정보를 골라 주세요.")
     val targetId: String?,
-    @field:NotNull(message = "사용할 이력서 양식을 골라 주세요.")
-    val templateId: String?,
+    val templateId: String? = null,
 )
 
 /**

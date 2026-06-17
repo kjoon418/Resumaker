@@ -97,12 +97,32 @@ class ArtifactGenerationServiceTest {
         }
     }
 
-    private fun service(port: ArtifactGenerationPort) = ArtifactGenerationService(
+    /** 지정한 결과를 돌려주는 fake 양식 생성기. 입력도 캡처한다(CLI 미호출). */
+    private class FakeTemplateGenerator(
+        private val result: ResumeTemplateGeneration,
+    ) : ResumeTemplateGenerator {
+        var capturedInput: ResumeTemplateGenerationInput? = null
+        var callCount = 0
+        override fun generate(material: ResumeTemplateGenerationInput): ResumeTemplateGeneration {
+            capturedInput = material
+            callCount++
+            return result
+        }
+    }
+
+    /** 양식 생성기를 호출하면 실패하는 더블(지정 양식 경로는 생성기를 부르지 않아야 함을 회귀 고정). */
+    private val neverCalledTemplateGenerator = FakeTemplateGenerator(ResumeTemplateGeneration.Unavailable)
+
+    private fun service(
+        port: ArtifactGenerationPort,
+        templateGenerator: ResumeTemplateGenerator = neverCalledTemplateGenerator,
+    ) = ArtifactGenerationService(
         experienceRepository = experienceRepository,
         targetRepository = targetRepository,
         templateRepository = templateRepository,
         artifactRepository = artifactRepository,
         generationPort = port,
+        templateGenerator = templateGenerator,
         quotaGuard = quotaGuard,
         sectionRegenerationProcessor = SectionRegenerationProcessor(port, groundingValidator),
         mapper = mapper,
@@ -490,6 +510,140 @@ class ArtifactGenerationServiceTest {
         assertThatThrownBy { service(port).generateResume(ownerId, resumeCommand()) }
             .isInstanceOf(DomainValidationException::class.java)
         assertThat(quotaGuard.initialRecorded).isEqualTo(0)
+    }
+
+    // ── AI 생성 양식(양식 미지정) ─────────────────────────────────────────────
+
+    private fun aiResumeCommand(ids: List<ExperienceRecordId> = listOf(exp1)) =
+        GenerateResumeCommand(experienceIds = ids, targetId = targetId, templateId = null)
+
+    @Test
+    fun 양식_미지정이면_AI_생성_양식으로_섹션을_채워_생성한다() {
+        // given (수용 기준 22) — templateId=null이면 생성기가 섹션 구조를 만들고 그 키로 항목이 생성된다.
+        stubPortfolioMaterial() // 경험·목표만 stub(양식 레포는 호출되지 않아야 함).
+        val generator = FakeTemplateGenerator(
+            ResumeTemplateGeneration.Generated(
+                listOf(
+                    SectionDefinition.of("요약", SectionCharacter.SUMMARY, required = true),
+                    SectionDefinition.of("경력", SectionCharacter.CAREER, required = true),
+                ),
+            ),
+        )
+        val output = GenerationOutput(
+            listOf(
+                generated("section-0-요약", SectionKind.SUMMARY, "요약", succeeded = true, sources = listOf(exp1)),
+                generated("section-1-경력", SectionKind.CAREER, "경력", succeeded = true, sources = listOf(exp1)),
+            ),
+        )
+
+        // when
+        val response = service(FakePort(output), generator).generateResume(ownerId, aiResumeCommand())
+
+        // then — AI 양식 섹션 키로 항목이 1:1 대응되고, 생성기에 경험·목표가 넘어간다.
+        assertThat(response.kind).isEqualTo(ArtifactKind.RESUME)
+        assertThat(response.sections.map { it.definitionKey })
+            .containsExactly("section-0-요약", "section-1-경력")
+        assertThat(generator.callCount).isEqualTo(1)
+        assertThat(generator.capturedInput!!.experiences.map { it.id }).containsExactly(exp1)
+        assertThat(generator.capturedInput!!.target.recruitDirection).isEqualTo("백엔드 신입")
+        verify(templateRepository, never()).findByIdAndOwnerId(any(), any())
+    }
+
+    @Test
+    fun AI_생성_양식은_스냅샷으로_보존되어_재조회시_동일한_섹션정의와_순서를_가진다() {
+        // given (수용 기준 22) — AI 양식이 산출물 스냅샷(섹션 정의 집합·순서)으로 보존됨을 결정적으로 검증.
+        stubPortfolioMaterial()
+        val generator = FakeTemplateGenerator(
+            ResumeTemplateGeneration.Generated(
+                listOf(
+                    SectionDefinition.of("자기소개", SectionCharacter.SUMMARY, required = true),
+                    SectionDefinition.of("핵심 역량", SectionCharacter.SUMMARY, required = false),
+                    SectionDefinition.of("주요 경력", SectionCharacter.CAREER, required = true),
+                ),
+            ),
+        )
+        val output = GenerationOutput(
+            listOf(generated("section-0-자기소개", SectionKind.SUMMARY, "본문", succeeded = true, sources = listOf(exp1))),
+        )
+        val captured = mutableListOf<Artifact>()
+        whenever(artifactRepository.save(any<Artifact>())).thenAnswer { invocation ->
+            val a = invocation.arguments[0] as Artifact
+            captured += a
+            a
+        }
+
+        // when
+        service(FakePort(output), generator).generateResume(ownerId, aiResumeCommand())
+
+        // then — 저장된 산출물의 양식 스냅샷이 AI 생성 양식의 섹션 정의·순서와 1:1로 보존된다(모든 버전 공유).
+        assertThat(captured).hasSize(1)
+        val snapshot = captured.first().templateSnapshot
+        assertThat(snapshot).isNotNull
+        assertThat(snapshot!!.sections.map { it.name })
+            .containsExactly("자기소개", "핵심 역량", "주요 경력")
+        assertThat(snapshot.sections.map { it.sectionKind })
+            .containsExactly(SectionKind.SUMMARY, SectionKind.SUMMARY, SectionKind.CAREER)
+        assertThat(snapshot.sections.map { it.required }).containsExactly(true, false, true)
+    }
+
+    @Test
+    fun AI_생성_양식의_필수섹션_근거가_0이면_미실체화되고_근거있는_섹션만_남는다() {
+        // given (수용 기준 21·23) — 근거 0 필수 섹션은 항목 미생성(reconcile가 양식 키 집합으로 정합화).
+        //   생성 포트가 근거 있는 섹션만 돌려주는 상황(근거 0 섹션은 §23대로 항목 미생성)을 모사한다.
+        stubPortfolioMaterial()
+        val generator = FakeTemplateGenerator(
+            ResumeTemplateGeneration.Generated(
+                listOf(
+                    SectionDefinition.of("요약", SectionCharacter.SUMMARY, required = true),
+                    SectionDefinition.of("자격증", SectionCharacter.CAREER, required = true), // 근거 없는 필수 섹션
+                ),
+            ),
+        )
+        // 포트는 근거 있는 요약만 실체화(자격증은 근거 0이라 미생성 — §23).
+        val output = GenerationOutput(
+            listOf(generated("section-0-요약", SectionKind.SUMMARY, "요약", succeeded = true, sources = listOf(exp1))),
+        )
+
+        // when
+        val response = service(FakePort(output), generator).generateResume(ownerId, aiResumeCommand())
+
+        // then — 근거 있는 섹션만 항목으로 남고(날조 0건), 스냅샷에는 두 섹션 정의가 모두 보존된다(고지 근거).
+        assertThat(response.sections.map { it.definitionKey }).containsExactly("section-0-요약")
+    }
+
+    @Test
+    fun AI_양식_생성이_비가용이면_기본구조로_폴백해_생성을_진행한다() {
+        // given (§186 폴백) — 생성기가 Unavailable이어도 막다른 길 없이 기본 구조로 진행한다.
+        stubPortfolioMaterial()
+        val generator = FakeTemplateGenerator(ResumeTemplateGeneration.Unavailable)
+        // 기본 구조 첫 섹션 키("section-0-한 줄 자기소개")로 항목이 돌아온다고 가정.
+        val output = GenerationOutput(
+            listOf(generated("section-0-한 줄 자기소개", SectionKind.SUMMARY, "소개", succeeded = true, sources = listOf(exp1))),
+        )
+
+        // when
+        val response = service(FakePort(output), generator).generateResume(ownerId, aiResumeCommand())
+
+        // then — 폴백 기본 구조로 생성이 진행되어 산출물이 만들어진다.
+        assertThat(response.kind).isEqualTo(ArtifactKind.RESUME)
+        assertThat(response.sections.map { it.definitionKey }).containsExactly("section-0-한 줄 자기소개")
+    }
+
+    @Test
+    fun 양식_지정시에는_AI_양식_생성기를_호출하지_않는다() {
+        // given (회귀 안전) — templateId가 있으면 기존 경로 그대로(생성기 미호출).
+        stubResumeMaterial()
+        val generator = FakeTemplateGenerator(ResumeTemplateGeneration.Unavailable)
+        val output = GenerationOutput(
+            listOf(generated("section-0-요약", SectionKind.SUMMARY, "요약", succeeded = true, sources = listOf(exp1))),
+        )
+
+        // when
+        service(FakePort(output), generator).generateResume(ownerId, resumeCommand())
+
+        // then
+        assertThat(generator.callCount).isEqualTo(0)
+        verify(templateRepository).findByIdAndOwnerId(any(), any())
     }
 
     private fun generated(

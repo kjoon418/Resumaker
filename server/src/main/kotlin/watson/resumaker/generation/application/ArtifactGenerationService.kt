@@ -21,6 +21,7 @@ import watson.resumaker.experience.domain.ExperienceRecord
 import watson.resumaker.experience.domain.ExperienceRecordId
 import watson.resumaker.experience.infrastructure.ExperienceRecordRepository
 import watson.resumaker.generation.presentation.GenerationResponse
+import watson.resumaker.generation.presentation.TemplateOrigin
 import watson.resumaker.target.domain.TargetBrief
 import watson.resumaker.target.infrastructure.TargetBriefRepository
 import watson.resumaker.template.domain.SectionCharacter
@@ -52,6 +53,7 @@ class ArtifactGenerationService(
     private val templateRepository: ResumeTemplateRepository,
     private val artifactRepository: ArtifactRepository,
     private val generationPort: ArtifactGenerationPort,
+    private val templateGenerator: ResumeTemplateGenerator,
     private val quotaGuard: GenerationQuotaGuard,
     private val sectionRegenerationProcessor: SectionRegenerationProcessor,
     private val mapper: ArtifactGenerationServiceMapper,
@@ -61,19 +63,33 @@ class ArtifactGenerationService(
 
     fun generateResume(ownerId: UserId, command: GenerateResumeCommand): GenerationResponse {
         // 1. (tx) 재료 적재·검증 + 가드레일 점검
-        val prepared = requireNotNull(
+        // 양식 지정 시 양식 스냅샷을 tx1에서 적재한다. 미지정(AI 생성 양식)이면 섹션은 tx 밖에서 채운다.
+        val loaded = requireNotNull(
             transactionTemplate.execute {
                 // Cycle 6: 가드레일 차감은 tx2(영속 후, 최소 1항목 성공 시)에서 수행 — tx1은 사전 점검만.
                 quotaGuard.checkInitialGeneration(ownerId)
                 val experiences = loadExperiences(ownerId, command.experienceIds)
                 val target = loadTarget(ownerId, command.targetId)
-                val templateSections = loadTemplateSections(ownerId, command.templateId)
-                PreparedGeneration(
-                    material = buildResumeMaterial(experiences, target, templateSections),
+                val templateSections = command.templateId?.let { loadTemplateSections(ownerId, it) }
+                LoadedResumeMaterial(
+                    experiences = experiences.map { it.toSnapshot() },
+                    target = target.toSnapshot(),
                     targetSnapshot = target.toArtifactTargetSnapshot(),
+                    templateSections = templateSections,
                 )
             },
         ) { "이력서 재료 적재 트랜잭션이 결과를 돌려주지 못했어요." }
+
+        // 1.5. (tx 밖) 양식 미지정이면 AI 생성 양식 포트로 섹션 구조를 만든다(외부 LLM — tx 밖, §178).
+        //   생성 실패/비가용이면 막다른 길 금지: 기본 구조(프리셋류)로 폴백해 진행한다(§186).
+        val (templateSections, templateOrigin) = when {
+            loaded.templateSections != null ->
+                loaded.templateSections to TemplateOrigin.USER_SELECTED
+            else ->
+                generateTemplateSectionsWithOrigin(loaded.experiences, loaded.target)
+        }
+        val material = buildResumeMaterial(loaded.experiences, loaded.target, templateSections)
+        val prepared = PreparedGeneration(material = material, targetSnapshot = loaded.targetSnapshot)
 
         // 2·3. (tx 밖) 외부 생성 + 결정적 자동 검증 + 검증실패 자동 1회 재생성(Cycle C)
         val output = generationPort.generate(prepared.material)
@@ -84,7 +100,7 @@ class ArtifactGenerationService(
         return requireNotNull(
             transactionTemplate.execute {
                 val templateSnapshot = toTemplateSnapshot(prepared.material.templateSections)
-                val response = persistAndMap(ownerId, ArtifactKind.RESUME, prepared.targetSnapshot, templateSnapshot, resolved, prepared.material)
+                val response = persistAndMap(ownerId, ArtifactKind.RESUME, prepared.targetSnapshot, templateSnapshot, resolved, prepared.material, templateOrigin)
                 // persistAndMap이 빈 결과면 throw하므로 여기 도달 = 최소 1항목 영속 성공 → 1차 생성 1회 차감(§396).
                 quotaGuard.recordInitialGeneration(ownerId)
                 response
@@ -115,7 +131,7 @@ class ArtifactGenerationService(
         // 가드레일 차감은 tx2(영속 후, 최소 1항목 성공 시)에서 수행한다(tx1에 넣지 말 것).
         return requireNotNull(
             transactionTemplate.execute {
-                val response = persistAndMap(ownerId, ArtifactKind.PORTFOLIO, prepared.targetSnapshot, templateSnapshot = null, resolved = resolved, material = prepared.material)
+                val response = persistAndMap(ownerId, ArtifactKind.PORTFOLIO, prepared.targetSnapshot, templateSnapshot = null, resolved = resolved, material = prepared.material, templateOrigin = TemplateOrigin.NONE)
                 // persistAndMap이 빈 결과면 throw하므로 여기 도달 = 최소 1항목 영속 성공 → 1차 생성 1회 차감(§396).
                 quotaGuard.recordInitialGeneration(ownerId)
                 response
@@ -164,10 +180,39 @@ class ArtifactGenerationService(
         ownerId: UserId,
         templateId: watson.resumaker.template.domain.ResumeTemplateId,
     ): List<TemplateSectionSpec> {
-        // 이번 사이클은 '양식 필수'다. 미지정 시 AI 생성 양식은 다음 사이클 범위이며, 여기서는 지정 양식만 다룬다.
+        // 지정 양식 경로: 소유 격리로 양식을 적재해 섹션 사양으로 변환한다(미지정은 AI 생성 양식 경로).
         val template = templateRepository.findByIdAndOwnerId(templateId, ownerId)
             ?: throw ResourceNotFoundException("선택한 이력서 양식을 찾을 수 없어요.")
-        return template.sections.mapIndexed { index, definition ->
+        return template.sections.toSectionSpecs()
+    }
+
+    /**
+     * AI 생성 양식 경로(도메인 이해 §178·§446, 수용 기준 22): 양식 미지정 시 경험·목표로 섹션 구조를 만든다.
+     * 외부 LLM 호출이므로 tx 밖에서 수행한다([generationPort] 호출과 같은 tx 경계 규율).
+     *
+     * **폴백(§186 "막다른 길 금지", 트레이드오프 — 진행 우선):** 생성기가 [ResumeTemplateGeneration.Unavailable]을
+     * 돌려주면(LLM 미연결·실패·파싱 불가) 차단하지 않고 기본 구조([DEFAULT_TEMPLATE_SECTIONS], 프리셋류)로
+     * 진행한다. 무관한 목표·붙여넣기 폴백 정책과 일관되게, "사용 불가로 생성 자체를 막기"보다 "기본 구조로
+     * 초안을 주는" 쪽을 택한다(사용자는 생성 후 항목 편집·재생성으로 다듬을 수 있다).
+     *
+     * 출처 신호([TemplateOrigin])를 함께 돌려줘 응답 DTO에 폴백 여부를 실어 보낸다(§187 고지 원칙).
+     */
+    private fun generateTemplateSectionsWithOrigin(
+        experiences: List<ExperienceSnapshot>,
+        target: TargetSnapshot,
+    ): Pair<List<TemplateSectionSpec>, TemplateOrigin> {
+        return when (val result = templateGenerator.generate(
+            ResumeTemplateGenerationInput(experiences = experiences, target = target),
+        )) {
+            is ResumeTemplateGeneration.Generated ->
+                result.sections.toSectionSpecs() to TemplateOrigin.AI_GENERATED
+            ResumeTemplateGeneration.Unavailable ->
+                DEFAULT_TEMPLATE_SECTIONS.toSectionSpecs() to TemplateOrigin.AI_FALLBACK_DEFAULT
+        }
+    }
+
+    private fun List<SectionDefinition>.toSectionSpecs(): List<TemplateSectionSpec> =
+        mapIndexed { index, definition ->
             TemplateSectionSpec(
                 definitionKey = definitionKeyOf(index, definition),
                 name = definition.name,
@@ -175,16 +220,15 @@ class ArtifactGenerationService(
                 required = definition.required,
             )
         }
-    }
 
     private fun buildResumeMaterial(
-        experiences: List<ExperienceRecord>,
-        target: TargetBrief,
+        experiences: List<ExperienceSnapshot>,
+        target: TargetSnapshot,
         templateSections: List<TemplateSectionSpec>,
     ): GenerationMaterial = GenerationMaterial(
         kind = GenerationKind.RESUME,
-        experiences = experiences.map { it.toSnapshot() },
-        target = target.toSnapshot(),
+        experiences = experiences,
+        target = target,
         templateSections = templateSections,
         selectedExperienceIds = emptyList(),
     )
@@ -209,6 +253,7 @@ class ArtifactGenerationService(
         templateSnapshot: TemplateSnapshot?,
         resolved: List<ResolvedSection>,
         material: GenerationMaterial,
+        templateOrigin: TemplateOrigin = TemplateOrigin.NONE,
     ): GenerationResponse {
         // 결정적 정합화(Cycle B 책임): 양식/구조 불변식에 어긋나는 고아·중복·종류 불일치 항목을 사전 드롭해
         // 도메인 init의 전체 hard-throw로 유료 생성이 통째 손실되지 않게 한다(§357·§371, 수용 기준 21/22).
@@ -229,7 +274,7 @@ class ArtifactGenerationService(
             createdAt = now,
         )
         val saved = artifactRepository.save(artifact)
-        return mapper.toResponse(saved)
+        return mapper.toResponse(saved, templateOrigin)
     }
 
     /**
@@ -331,6 +376,17 @@ class ArtifactGenerationService(
         val targetSnapshot: ArtifactTargetSnapshot,
     )
 
+    /**
+     * tx1에서 적재한 이력서 재료(스냅샷). [templateSections]가 null이면 양식 미지정 = AI 생성 양식 경로다
+     * (섹션 구조를 tx 밖에서 채운다). 지연 로딩 경계를 넘지 않도록 엔티티가 아닌 스냅샷만 담아 tx 밖으로 나간다.
+     */
+    private data class LoadedResumeMaterial(
+        val experiences: List<ExperienceSnapshot>,
+        val target: TargetSnapshot,
+        val targetSnapshot: ArtifactTargetSnapshot,
+        val templateSections: List<TemplateSectionSpec>?,
+    )
+
     private fun definitionKeyOf(index: Int, definition: SectionDefinition): String {
         // 양식은 definitionKey를 따로 갖지 않으므로(이번 사이클) 순서+이름으로 안정 키를 만든다.
         // 버전 간 항목 대응은 같은 산출물의 같은 스냅샷 키로 이뤄지므로 산출물 내 유일하면 충분하다.
@@ -350,5 +406,15 @@ class ArtifactGenerationService(
     companion object {
         /** definitionKey 길이 상한(영속 컬럼 [ArtifactSection.MAX_KEY_LENGTH]·[SnapshotSection.MAX_KEY_LENGTH]와 일치). */
         private const val MAX_DEFINITION_KEY_LENGTH = ArtifactSection.MAX_KEY_LENGTH
+
+        /**
+         * AI 생성 양식이 사용 불가일 때의 기본 구조(폴백, §186). 신입 개발자 표준 프리셋과 동형의 최소 섹션 집합으로,
+         * 막다른 길 없이 생성을 진행하게 한다(이름·성격·필수여부만 — §166 구조만).
+         */
+        private val DEFAULT_TEMPLATE_SECTIONS: List<SectionDefinition> = listOf(
+            SectionDefinition.of("한 줄 자기소개", SectionCharacter.SUMMARY, required = true),
+            SectionDefinition.of("핵심 역량", SectionCharacter.SUMMARY, required = false),
+            SectionDefinition.of("주요 경력", SectionCharacter.CAREER, required = true),
+        )
     }
 }

@@ -5,6 +5,7 @@ import watson.resumaker.model.type.ArtifactKind
 import watson.resumaker.model.type.FactKind
 import watson.resumaker.model.type.SectionKind
 import watson.resumaker.model.type.SectionStatus
+import watson.resumaker.model.type.TemplateOrigin
 
 /**
  * 산출물 생성/열람 DTO. 서버 `generation.presentation.GenerationDtos`와 1:1.
@@ -18,13 +19,14 @@ import watson.resumaker.model.type.SectionStatus
  */
 
 /**
- * 이력서 1차 생성 요청(POST /artifacts/resume). 경험·목표·양식 모두 필수.
+ * 이력서 1차 생성 요청(POST /artifacts/resume). 경험·목표는 필수, 양식은 **선택**(서버 §178·§446).
+ * [templateId]가 null이면 AI가 경험·목표 기반으로 양식(섹션 구조)을 생성해 산출물 스냅샷으로 보존한다.
  */
 @Serializable
 data class ResumeGenerationRequest(
     val experienceIds: List<String>,
     val targetId: String,
-    val templateId: String,
+    val templateId: String? = null,
 )
 
 /**
@@ -65,6 +67,9 @@ data class EditSectionContentRequest(
 /**
  * 1차 생성 결과 응답(POST /artifacts/resume·portfolio). 방금 저장·활성화된 초기 버전 항목들을 담는다.
  * [activeVersionId]가 곧 생성된 활성 버전이다.
+ *
+ * [templateOrigin]은 양식 출처 신호(서버 §187). [TemplateOrigin.AI_FALLBACK_DEFAULT]이면 화면이 폴백 고지를
+ * 표시한다("AI가 양식을 만들지 못해 기본 구조로 만들었어요"). 기본값 [TemplateOrigin.NONE].
  */
 @Serializable
 data class GenerationResponse(
@@ -72,6 +77,7 @@ data class GenerationResponse(
     val kind: ArtifactKind,
     val activeVersionId: String,
     val sections: List<GeneratedSectionResponse>,
+    val templateOrigin: TemplateOrigin = TemplateOrigin.NONE,
 )
 
 /**

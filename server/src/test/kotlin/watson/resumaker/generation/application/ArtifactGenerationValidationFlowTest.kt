@@ -99,6 +99,10 @@ class ArtifactGenerationValidationFlowTest {
         templateRepository = templateRepository,
         artifactRepository = artifactRepository,
         generationPort = port,
+        // 이 테스트는 모두 지정 양식(templateId 있음) 경로라 AI 양식 생성기는 호출되지 않는다.
+        templateGenerator = object : ResumeTemplateGenerator {
+            override fun generate(material: ResumeTemplateGenerationInput) = ResumeTemplateGeneration.Unavailable
+        },
         quotaGuard = quotaGuard,
         sectionRegenerationProcessor = SectionRegenerationProcessor(port, validator),
         mapper = mapper,

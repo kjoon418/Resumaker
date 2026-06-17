@@ -54,3 +54,15 @@ enum class FactKind {
     NUMERIC,
     PROPER_NOUN,
 }
+
+/**
+ * 1차 생성 결과의 양식 출처 신호(서버 `generation.presentation.TemplateOrigin`와 1:1).
+ * [AI_FALLBACK_DEFAULT]이면 화면이 폴백 고지를 표시한다(§187 정직성·가짜 성공 금지).
+ */
+@Serializable
+enum class TemplateOrigin {
+    USER_SELECTED,
+    AI_GENERATED,
+    AI_FALLBACK_DEFAULT,
+    NONE,
+}

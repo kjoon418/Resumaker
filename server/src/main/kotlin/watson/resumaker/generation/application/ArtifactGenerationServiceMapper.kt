@@ -7,6 +7,7 @@ import watson.resumaker.artifact.domain.FactGrounding
 import watson.resumaker.generation.presentation.FactGroundingResponse
 import watson.resumaker.generation.presentation.GeneratedSectionResponse
 import watson.resumaker.generation.presentation.GenerationResponse
+import watson.resumaker.generation.presentation.TemplateOrigin
 
 /**
  * 생성 결과 Service Mapper(구현 설계 §8 "Response DTO 변환은 Service Mapper", §5 흐름 5 "트랜잭션 내부 변환").
@@ -17,13 +18,14 @@ import watson.resumaker.generation.presentation.GenerationResponse
 @Component
 class ArtifactGenerationServiceMapper {
 
-    fun toResponse(artifact: Artifact): GenerationResponse {
+    fun toResponse(artifact: Artifact, templateOrigin: TemplateOrigin = TemplateOrigin.NONE): GenerationResponse {
         val active = artifact.activeVersion()
         return GenerationResponse(
             artifactId = artifact.id.value.toString(),
             kind = artifact.kind,
             activeVersionId = active.id.value.toString(),
             sections = active.sections.map { toSectionResponse(it) },
+            templateOrigin = templateOrigin,
         )
     }
 

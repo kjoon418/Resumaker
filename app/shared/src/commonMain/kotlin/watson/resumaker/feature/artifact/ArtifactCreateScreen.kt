@@ -102,6 +102,7 @@ fun ArtifactCreateScreen(
                 onToggleExperience = viewModel::toggleExperience,
                 onSelectTarget = viewModel::selectTarget,
                 onSelectTemplate = viewModel::selectTemplate,
+                onSelectAiTemplate = viewModel::selectAiTemplate,
                 onGenerate = viewModel::generate,
                 onDismissError = viewModel::dismissGenerationError,
             )
@@ -118,6 +119,7 @@ private fun CreateForm(
     onToggleExperience: (String) -> Unit,
     onSelectTarget: (String) -> Unit,
     onSelectTemplate: (String) -> Unit,
+    onSelectAiTemplate: () -> Unit,
     onGenerate: () -> Unit,
     onDismissError: () -> Unit,
 ) {
@@ -162,12 +164,17 @@ private fun CreateForm(
             }
         }
 
-        if (state.templateRequired) {
+        if (state.templateStepVisible) {
             SectionLabel("어떤 양식을 쓸까요?")
-            if (state.templates.isEmpty()) {
-                EmptyHint("아직 양식이 없어요. 먼저 이력서 양식을 만들어 주세요.")
-            } else {
-                Column(verticalArrangement = Arrangement.spacedBy(RmSpacing.space2)) {
+            Column(verticalArrangement = Arrangement.spacedBy(RmSpacing.space2)) {
+                // "양식 자동" — 양식을 고르지 않아도 AI가 경험·목표로 구조를 정한다(서버 §178). 항상 첫 선택지로 노출.
+                AiTemplateSelectRow(
+                    selected = state.useAiTemplate,
+                    onSelect = onSelectAiTemplate,
+                )
+                if (state.templates.isEmpty()) {
+                    EmptyHint("저장한 양식이 없어요. 위 '양식 자동'으로 만들거나, 먼저 이력서 양식을 만들어 주세요.")
+                } else {
                     state.templates.forEach { template ->
                         TemplateSelectRow(
                             template = template,
@@ -266,6 +273,35 @@ private fun TargetSelectRow(
                     modifier = Modifier.padding(top = RmSpacing.space1),
                 )
             }
+        }
+    }
+}
+
+/**
+ * "양식 자동(AI에 맡기기)" 선택 행. 고르면 양식을 지정하지 않고 생성해 AI가 경험·목표로 섹션 구조를 정한다.
+ */
+@Composable
+private fun AiTemplateSelectRow(
+    selected: Boolean,
+    onSelect: () -> Unit,
+) {
+    SelectableRow(selected = selected, onClick = onSelect) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = "양식 자동 (AI에 맡기기)",
+                style = RmTextStyles.bodyM,
+                color = RmTheme.colors.textPrimary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = "경험과 목표에 맞는 섹션 구조를 AI가 정해요.",
+                style = RmTextStyles.caption,
+                color = RmTheme.colors.textTertiary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(top = RmSpacing.space1),
+            )
         }
     }
 }
