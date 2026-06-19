@@ -15,6 +15,7 @@ import watson.resumaker.network.TemplateInterpretApi
 import watson.resumaker.network.TemplateInterpretApiImpl
 import watson.resumaker.network.TemplatePresetApi
 import watson.resumaker.network.TemplatePresetApiImpl
+import watson.resumaker.network.configuredApiBaseUrl
 import watson.resumaker.network.createPlatformHttpClient
 import watson.resumaker.session.SessionStore
 import watson.resumaker.session.createSessionStore
@@ -23,10 +24,10 @@ import watson.resumaker.session.createSessionStore
  * 앱 의존성 컨테이너(수동 DI). 세션·HttpClient·API들을 한 곳에서 조립한다.
  * ViewModel은 여기서 만든 API/Session만 의존한다(프레임워크 DI 없이 단순·예측 가능).
  *
- * @param baseUrl 백엔드 기본 URL(기본 localhost:8082).
+ * @param baseUrl 백엔드 기본 URL. 배포 시 주입된 런타임 구성([configuredApiBaseUrl])을 우선 쓰고, 없으면 기본값(localhost:8082).
  */
 class AppContainer(
-    baseUrl: String = ApiClient.DEFAULT_BASE_URL,
+    baseUrl: String = configuredApiBaseUrl() ?: ApiClient.DEFAULT_BASE_URL,
 ) {
     val session: SessionStore = createSessionStore()
 

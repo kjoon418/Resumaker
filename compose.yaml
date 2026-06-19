@@ -67,5 +67,19 @@ services:
     ports:
       - '${SERVER_PORT:-8082}:8082'
 
+  frontend:
+    # Compose Wasm 웹앱을 빌드해 nginx로 정적 서빙(SPA 폴백·wasm MIME). 8081로 노출.
+    build:
+      context: .
+      dockerfile: app/webApp/Dockerfile
+    image: ${FRONTEND_IMAGE:-resumaker-frontend:local}
+    depends_on:
+      - backend
+    environment:
+      # 브라우저가 호출할 백엔드 주소. 다른 도메인 배포 시 실제 API 도메인으로 지정한다(런타임 config.js로 주입).
+      API_BASE: ${API_BASE:-http://localhost:8082}
+    ports:
+      - '${FRONTEND_PORT:-8081}:80'
+
 volumes:
   resumaker-postgres-data:

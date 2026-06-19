@@ -31,15 +31,13 @@ cp .env.example .env
 
 ## 로컬 실행
 
-### 방법 1 — `docker compose up` (가장 간단, 백엔드+DB 한 번에)
-
-백엔드를 직접 띄워 테스트할 때 권장합니다.
+### 방법 1 — `docker compose up` (전체 스택: 프런트+백엔드+DB+Redis)
 
 ```bash
-docker compose up            # PostgreSQL + 백엔드(8082)가 함께 뜬다 (-d 로 백그라운드)
+docker compose up            # 프런트(8081)+백엔드(8082)+PostgreSQL+Redis가 함께 뜬다 (-d 로 백그라운드)
 ```
 
-확인:
+브라우저에서 <http://localhost:8081> 접속. 확인:
 
 ```bash
 curl http://localhost:8082/   # 백엔드 응답 확인
@@ -47,26 +45,20 @@ docker compose logs -f backend
 docker compose down           # 종료(데이터 유지) / down -v 는 데이터까지 삭제
 ```
 
-> 백엔드 코드를 고치면 `docker compose up --build` 로 다시 빌드해 반영합니다.
+> 코드를 고치면 `docker compose up --build` 로 다시 빌드해 반영합니다.
 
-### 방법 2 — 호스트에서 `bootRun` (백엔드 빠른 개발 루프)
+### 방법 2 — 호스트 개발 루프 (코드 자주 고칠 때, hot reload)
 
-백엔드 코드를 자주 고칠 때는 DB만 컨테이너로 띄우고 서버는 Gradle로 돌리는 편이 빠릅니다.
+인프라만 컨테이너로 띄우고 서버·프런트는 Gradle로 돌리는 편이 빠릅니다.
 
 ```bash
-docker compose up -d postgres          # DB만 먼저 기동
+docker compose up -d postgres redis    # DB·Redis만 먼저 기동
 ./gradlew :server:bootRun              # 백엔드 8082 (코드 변경 시 재시작)
+# 별도 터미널 — 백엔드 완전 기동 후:
+./gradlew :app:webApp:wasmJsBrowserDevelopmentRun --continuous   # 프런트 8081(hot reload)
 ```
 
-### 프런트엔드(웹앱)
-
-위 두 방법 중 하나로 백엔드를 띄운 뒤, 별도 터미널에서:
-
-```bash
-./gradlew :app:webApp:wasmJsBrowserDevelopmentRun --continuous   # http://localhost:8081
-```
-
-브라우저에서 <http://localhost:8081> 접속. 웹앱은 `http://localhost:8082`(백엔드)를 호출합니다.
+브라우저 <http://localhost:8081> → 웹앱이 `http://localhost:8082`(백엔드)를 호출합니다.
 
 > **두 Gradle 작업을 연달아 띄울 때 주의:** daemon 경합으로 먼저 뜬 프로세스가 죽을 수 있습니다.
 > 백엔드가 완전히 기동된 뒤 프런트를 띄우세요.
@@ -75,9 +67,10 @@ docker compose up -d postgres          # DB만 먼저 기동
 
 | 구성요소 | 포트 | 띄우는 법 |
 |---|---|---|
-| 프런트(웹앱) | 8081 | `:app:webApp:wasmJsBrowserDevelopmentRun` |
+| 프런트(웹앱) | 8081 | `docker compose up`(nginx) 또는 `:app:webApp:wasmJsBrowserDevelopmentRun`(dev) |
 | 백엔드 API | 8082 | `docker compose up` 또는 `:server:bootRun` |
 | PostgreSQL | 5432 | `docker compose up`(자동) 또는 `docker compose up -d postgres` |
+| Redis(세션 토큰) | 6379 | `docker compose up`(자동) 또는 `docker compose up -d redis` |
 
 ---
 
@@ -92,19 +85,26 @@ docker compose up -d --build      # 서버에서 직접 빌드해 기동
 레지스트리에 올린 이미지를 쓰면 빌드 없이 더 가볍게 띄울 수 있습니다:
 
 ```bash
-# 한 번 빌드해 푸시
-docker build -f server/Dockerfile -t registry.example.com/resumaker-backend:1.0.0 .
+# 한 번 빌드해 푸시(백엔드·프런트)
+docker build -f server/Dockerfile     -t registry.example.com/resumaker-backend:1.0.0 .
+docker build -f app/webApp/Dockerfile -t registry.example.com/resumaker-frontend:1.0.0 .
 docker push registry.example.com/resumaker-backend:1.0.0
+docker push registry.example.com/resumaker-frontend:1.0.0
 
-# 배포 서버 .env: BACKEND_IMAGE=registry.example.com/resumaker-backend:1.0.0
+# 배포 서버 .env: BACKEND_IMAGE / FRONTEND_IMAGE 지정
 docker compose pull && docker compose up -d
 ```
 
 배포 시 최소한 다음 값을 운영용으로 덮어쓰세요(`.env.example` 참고):
 
 - `DB_PASSWORD`, (외부 DB면) `DB_URL`
-- `CORS_ALLOWED_ORIGINS` → 실제 프런트 도메인으로 좁힘
+- `API_BASE` → 브라우저가 호출할 **실제 백엔드 도메인**(예: `https://api.example.com`). 프런트 nginx가 기동 시 `config.js`로 주입한다.
+- `CORS_ALLOWED_ORIGINS` → 실제 프런트 도메인으로 좁힘(예: `https://app.example.com`)
 - AI 기능을 쓰면 `ANTHROPIC_API_KEY`
+
+> **쿠키 인증 주의(중요):** 인증 쿠키는 `Secure`+`SameSite=None`이라 **운영은 HTTPS 필수**입니다(프런트·백엔드 모두).
+> 프런트와 백엔드가 다른 도메인이면 위 `API_BASE`·`CORS_ALLOWED_ORIGINS`를 반드시 실제 도메인으로 지정하세요.
+> 스키마는 Flyway가 관리하므로(`ddl-auto: validate`) 운영 DB는 기동 시 마이그레이션이 자동 적용됩니다.
 
 ---
 
