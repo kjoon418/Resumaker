@@ -13,6 +13,11 @@ spring:
     username: ${DB_USERNAME:resumaker}
     password: ${DB_PASSWORD:resumaker}
     driver-class-name: org.postgresql.Driver
+  data:
+    # 인증 토큰(access/refresh) 저장소. 로컬 bootRun은 localhost, 컨테이너는 'redis' 서비스명을 주입받는다.
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
   jpa:
     hibernate:
       # MVP 편의를 위해 ddl-auto: update 사용.
@@ -43,3 +48,8 @@ resumaker:
   quota:
     daily-initial-generation-limit: ${DAILY_INITIAL_GENERATION_LIMIT:10}
     daily-regeneration-limit-per-section: ${DAILY_REGENERATION_LIMIT_PER_SECTION:5}
+  # 인증 토큰 수명(불투명 access/refresh). access는 짧게(요청 인증), refresh는 길게(재발급) 둔다.
+  # refresh는 사용 시 회전(rotation)되고, 로그아웃·계정삭제 시 Redis에서 즉시 폐기된다.
+  auth:
+    access-ttl: ${AUTH_ACCESS_TTL:PT30M}
+    refresh-ttl: ${AUTH_REFRESH_TTL:P14D}

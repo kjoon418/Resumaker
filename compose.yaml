@@ -26,6 +26,19 @@ services:
       timeout: 5s
       retries: 12
 
+  redis:
+    # 인증 토큰(access/refresh) 저장소. 네이티브 TTL로 만료·자동 로그아웃을 처리하고, DEL로 즉시 폐기한다.
+    # 세션 토큰은 휘발성이어도 무방하므로 영속(저장/AOF)을 끈다(재시작 시 재로그인).
+    image: 'redis:7-alpine'
+    command: ['redis-server', '--save', '', '--appendonly', 'no']
+    ports:
+      - '${REDIS_PORT:-6379}:6379'
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
   backend:
     # 로컬: build로 즉석 빌드. 배포: BACKEND_IMAGE로 레지스트리 이미지를 받아 쓰면 build 없이 가볍게 띄울 수 있다.
     build:
@@ -35,9 +48,14 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     environment:
       # 컨테이너 네트워크 안에서는 호스트가 'postgres'(서비스명). 외부 관리형 DB면 DB_URL로 덮어쓴다.
       DB_URL: ${DB_URL:-jdbc:postgresql://postgres:5432/resumaker}
+      # 인증 토큰 저장소(Redis). 컨테이너 네트워크에서는 'redis'(서비스명).
+      REDIS_HOST: ${REDIS_HOST:-redis}
+      REDIS_PORT: ${REDIS_PORT:-6379}
       DB_USERNAME: ${DB_USERNAME:-resumaker}
       DB_PASSWORD: ${DB_PASSWORD:-resumaker}
       # 프런트(브라우저) 오리진 허용. 배포 시 실제 도메인으로 좁힌다.

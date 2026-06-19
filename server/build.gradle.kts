@@ -13,6 +13,8 @@ dependencies {
     implementation(libs.spring.boot.starter.web)
     implementation(libs.spring.boot.starter.data.jpa)
     implementation(libs.spring.boot.starter.validation)
+    // 인증 토큰(access/refresh) 저장소. 불투명 토큰 해시→사용자 매핑을 네이티브 TTL과 함께 보관한다.
+    implementation(libs.spring.boot.starter.data.redis)
     implementation(libs.jackson.module.kotlin)
     implementation(libs.kotlin.reflect)
     runtimeOnly(libs.postgresql)
