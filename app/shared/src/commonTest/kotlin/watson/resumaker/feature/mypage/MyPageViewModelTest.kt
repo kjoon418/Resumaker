@@ -61,6 +61,23 @@ class MyPageViewModelTest {
     }
 
     @Test
+    fun confirmLogoutClearsLocallyAndCallsServerLogout() = runTest(dispatcher) {
+        val session = FakeSessionStore(userId = "u-1", email = "me@example.com")
+        val api = FakeAccountApi()
+        val vm = MyPageViewModel(api, session)
+
+        vm.requestLogout()
+        vm.confirmLogout()
+        // 로컬은 즉시 로그아웃된다.
+        assertTrue(session.cleared)
+        assertTrue(vm.state.value.signedOut)
+
+        // 서버 로그아웃은 best-effort로 뒤이어 호출된다(쿠키·토큰 폐기).
+        testScheduler.advanceUntilIdle()
+        assertTrue(api.logoutCalled)
+    }
+
+    @Test
     fun deleteSuccessClearsSessionAndSignsOut() = runTest(dispatcher) {
         val session = FakeSessionStore(userId = "u-1", email = "me@example.com")
         val api = FakeAccountApi(deleteResult = ApiResult.Success(Unit))

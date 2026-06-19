@@ -24,6 +24,8 @@ class WebConfig(
             .allowedOriginPatterns(*allowedOriginPatterns.toTypedArray())
             .allowedMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
             .allowedHeaders("*")
-            .allowCredentials(false)
+            // 쿠키 기반 인증: 브라우저가 자격증명(HttpOnly 쿠키)을 교차 오리진으로 보내려면 credentials 허용 필요.
+            // allowedOriginPatterns는 credentials와 함께 써도 ACAO를 구체 오리진으로 반사하므로 와일드카드 금지에 위배되지 않는다.
+            .allowCredentials(true)
     }
 }

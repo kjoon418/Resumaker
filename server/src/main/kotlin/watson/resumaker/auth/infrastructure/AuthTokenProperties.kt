@@ -15,4 +15,8 @@ import java.time.Duration
 data class AuthTokenProperties(
     val accessTtl: Duration = Duration.ofMinutes(30),
     val refreshTtl: Duration = Duration.ofDays(14),
+    // 쿠키 보안 속성. 다른 도메인(cross-site) 배포 전제로 기본 Secure + SameSite=None.
+    // 로컬 http(localhost)도 브라우저가 Secure 쿠키 저장을 허용한다. 운영은 HTTPS 필수.
+    val cookieSecure: Boolean = true,
+    val cookieSameSite: String = "None",
 )

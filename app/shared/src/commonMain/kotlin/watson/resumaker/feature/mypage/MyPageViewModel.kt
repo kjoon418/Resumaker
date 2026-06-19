@@ -44,10 +44,14 @@ class MyPageViewModel(
     fun requestLogout() = _state.update { it.copy(confirmingLogout = true) }
     fun cancelLogout() = _state.update { it.copy(confirmingLogout = false) }
 
-    /** 로그아웃 확정: 세션 클리어(서버 호출 없음). 확인 다이얼로그 이후에만 호출된다. */
+    /**
+     * 로그아웃 확정: 로컬 세션을 즉시 비워 곧장 진입 화면으로 보내고(즉각 UX), 서버에는 best-effort로 로그아웃을
+     * 요청해 쿠키·토큰을 폐기한다(실패해도 로컬은 이미 로그아웃). 확인 다이얼로그 이후에만 호출된다.
+     */
     fun confirmLogout() {
         session.clear()
         _state.update { it.copy(confirmingLogout = false, signedOut = true) }
+        viewModelScope.launch { accountApi.logout() }
     }
 
     /** 회원 탈퇴: DELETE /me 성공 시 세션 클리어 후 진입 화면으로. */

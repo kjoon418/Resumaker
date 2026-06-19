@@ -57,10 +57,12 @@ class FakeAccountApi(
     var signUpResult: ApiResult<SignUpResponse> = ApiResult.Success(SignUpResponse("u-1")),
     var loginResult: ApiResult<LoginResponse> = ApiResult.Success(LoginResponse("u-1")),
     var deleteResult: ApiResult<Unit> = ApiResult.Success(Unit),
+    var logoutResult: ApiResult<Unit> = ApiResult.Success(Unit),
 ) : AccountApi {
     var lastSignUp: SignUpRequest? = null
     var lastLogin: LoginRequest? = null
     var deleteCalled = false
+    var logoutCalled = false
 
     override suspend fun signUp(request: SignUpRequest): ApiResult<SignUpResponse> {
         lastSignUp = request
@@ -69,6 +71,10 @@ class FakeAccountApi(
     override suspend fun login(request: LoginRequest): ApiResult<LoginResponse> {
         lastLogin = request
         return loginResult
+    }
+    override suspend fun logout(): ApiResult<Unit> {
+        logoutCalled = true
+        return logoutResult
     }
     override suspend fun deleteAccount(): ApiResult<Unit> {
         deleteCalled = true

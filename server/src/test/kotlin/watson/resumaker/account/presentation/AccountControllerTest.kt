@@ -12,6 +12,10 @@ import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.post
 import watson.resumaker.account.application.AccountService
 import watson.resumaker.account.application.CurrentUserProvider
+import watson.resumaker.auth.application.IssuedTokens
+import watson.resumaker.auth.application.TokenService
+import watson.resumaker.auth.presentation.AuthCookieService
+import java.time.Duration
 
 @WebMvcTest(AccountController::class)
 class AccountControllerTest {
@@ -31,10 +35,19 @@ class AccountControllerTest {
     @MockitoBean
     private lateinit var currentUserProvider: CurrentUserProvider
 
+    @MockitoBean
+    private lateinit var tokenService: TokenService
+
+    @MockitoBean
+    private lateinit var cookieService: AuthCookieService
+
     @Test
     fun 로그인_요청이_성공하면_200과_userId를_반환한다() {
         // given
         whenever(accountService.login(any(), any())).thenReturn(LoginResponse(USER_ID))
+        whenever(tokenService.issue(any())).thenReturn(
+            IssuedTokens("access", "refresh", Duration.ofMinutes(30), Duration.ofDays(14)),
+        )
         val request = LoginRequest(email = EMAIL, password = PASSWORD)
 
         // when and then

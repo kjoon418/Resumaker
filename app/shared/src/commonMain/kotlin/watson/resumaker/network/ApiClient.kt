@@ -9,11 +9,14 @@ import io.ktor.client.plugins.defaultRequest
 import io.ktor.client.plugins.timeout
 import io.ktor.client.request.HttpRequestBuilder
 import io.ktor.client.request.header
+import io.ktor.client.request.post
 import io.ktor.client.statement.HttpResponse
 import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
 import io.ktor.serialization.kotlinx.json.json
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.Json
 import watson.resumaker.model.dto.ErrorResponse
 import watson.resumaker.session.SessionStore
@@ -46,9 +49,16 @@ class ApiClient(
         }
         defaultRequest {
             contentType(ContentType.Application.Json)
+            // CSRF 방어: 모든 요청에 커스텀 헤더를 실어 보낸다. 서버 CsrfFilter는 상태 변경 요청에 이 헤더를 요구하며,
+            // 브라우저는 교차 오리진 요청에 커스텀 헤더를 붙이려면 CORS 프리플라이트 승인을 받아야 하므로(허용 오리진만
+            // 통과) 악성 사이트의 위조 요청을 막는다(쿠키 자동 첨부와 무관하게).
+            header(REQUESTED_WITH_HEADER, REQUESTED_WITH_VALUE)
         }
         expectSuccess = false
     }
+
+    /** 동시 401들이 동시에 refresh를 호출해 토큰을 과도하게 회전시키지 않도록 직렬화한다. */
+    private val refreshMutex = Mutex()
 
     /** 보호된 요청에 현재 userId를 `X-User-Id`로 붙인다. userId가 없으면 붙이지 않는다. */
     fun HttpRequestBuilder.withUser() {
@@ -69,10 +79,16 @@ class ApiClient(
      */
     suspend fun <T> safeRequest(
         decode: suspend (HttpResponse) -> T,
+        authRetry: Boolean = true,
         request: suspend () -> HttpResponse,
     ): ApiResult<T> {
         return try {
-            val response = request()
+            var response = request()
+            // access 토큰 만료(401) → refresh 쿠키로 1회 재발급 후 원요청을 한 번만 재시도한다.
+            // 인증 엔드포인트(로그인/가입/로그아웃)는 authRetry=false로 이 경로를 타지 않는다(무한 루프·무의미 방지).
+            if (response.status == HttpStatusCode.Unauthorized && authRetry && refreshSession()) {
+                response = request()
+            }
             if (response.status.isSuccess()) {
                 ApiResult.Success(decode(response))
             } else {
@@ -83,6 +99,20 @@ class ApiClient(
         } catch (e: Throwable) {
             ApiResult.Failure(message = DEFAULT_NETWORK_ERROR)
         }
+    }
+
+    /**
+     * access 만료 시 refresh 쿠키로 세션을 재발급한다(POST /auth/refresh, 204면 성공). 동시 401을 [refreshMutex]로
+     * 직렬화한다. 실패하면(refresh도 만료/무효) 로컬 로그인 표시를 비워 다음 진입에서 로그인 화면으로 가게 한다.
+     */
+    private suspend fun refreshSession(): Boolean = refreshMutex.withLock {
+        val refreshed = try {
+            http.post(url("/auth/refresh")).status.isSuccess()
+        } catch (e: Throwable) {
+            false
+        }
+        if (!refreshed) session.clear()
+        refreshed
     }
 
     private suspend fun HttpResponse.toFailureResult(): ApiResult.Failure =
@@ -97,6 +127,10 @@ class ApiClient(
     companion object {
         const val DEFAULT_BASE_URL = "http://localhost:8082"
         const val HEADER_USER_ID = "X-User-Id"
+
+        /** CSRF 방어용 커스텀 헤더(서버 CsrfFilter가 상태 변경 요청에 요구). 값은 관례값이며 존재 자체가 핵심이다. */
+        const val REQUESTED_WITH_HEADER = "X-Requested-With"
+        const val REQUESTED_WITH_VALUE = "XMLHttpRequest"
 
         /** 일반 요청 타임아웃(30초). */
         const val DEFAULT_REQUEST_TIMEOUT_MS = 30_000L
