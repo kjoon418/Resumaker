@@ -18,3 +18,5 @@ captures
 **/xcshareddata/WorkspaceSettings.xcsettings
 node_modules/
 .omc/
+# Docker Compose 로컬/배포 환경변수(시크릿 포함) — 커밋 금지. 템플릿은 .env.example.
+.env

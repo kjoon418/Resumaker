@@ -1,0 +1,12 @@
+# Docker 빌드 컨텍스트에서 제외(빌드 산출물·캐시·시크릿·IDE·KMP JS 잔여물).
+# 빌드에는 소스 + gradle 래퍼(gradle/) + *.gradle.kts + gradle.properties 만 있으면 된다.
+.git
+.gradle
+.kotlin
+**/build/
+.idea
+.omc
+node_modules/
+kotlin-js-store/
+*.log
+.env
