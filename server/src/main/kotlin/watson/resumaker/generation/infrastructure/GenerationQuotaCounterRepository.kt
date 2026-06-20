@@ -32,11 +32,16 @@ interface GenerationQuotaCounterRepository : JpaRepository<GenerationQuotaCounte
      * 당일 카운터를 원자적으로 1 증가시킨다. 갱신된 행 수를 돌려준다(행이 없으면 0 → 호출자가 최초 사용 행을 삽입).
      * DB가 `count = count + 1`을 단일 문으로 처리하므로 같은 행에 대한 동시 증가도 분실 없이 합산된다.
      *
+     * `flushAutomatically = true`: UPDATE 실행 **전에** 영속성 컨텍스트를 flush한다. 이 increment는 1차 생성·
+     * 재생성 유스케이스에서 **같은 TX 안에 아직 flush되지 않은 산출물(Artifact/Version) 영속 직후** 호출되므로,
+     * flush를 강제하지 않으면 뒤따르는 `clearAutomatically`가 그 보류 중인 INSERT를 폐기해 산출물이 저장되지
+     * 않는다(가드레일 도입 시 회귀). flush를 먼저 해 보류 변경을 DB에 반영한 뒤 clear한다.
+     *
      * `clearAutomatically = true`: UPDATE 후 영속성 컨텍스트를 자동 clear해 같은 TX 안에서 이 행을 재read할 때
      * stale 캐시를 보지 않게 방어한다(현재 구현은 UPDATE 후 같은 TX에서 이 행을 재read하지 않지만, 호출 패턴이
      * 바뀌어도 stale read가 발생하지 않도록 방어적으로 설정한다).
      */
-    @Modifying(clearAutomatically = true)
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query(
         "update GenerationQuotaCounter c set c.count = c.count + 1 " +
             "where c.scopeKey = :scopeKey and c.quotaDate = :quotaDate",
