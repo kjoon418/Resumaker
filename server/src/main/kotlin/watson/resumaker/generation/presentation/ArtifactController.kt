@@ -17,6 +17,7 @@ import watson.resumaker.generation.application.ArtifactGenerationService
 import watson.resumaker.generation.application.ArtifactReadService
 import watson.resumaker.generation.application.SectionEditService
 import watson.resumaker.generation.application.SectionRegenerationService
+import watson.resumaker.common.domain.DomainValidationException
 import watson.resumaker.generation.application.VersionRestoreService
 import java.util.UUID
 
@@ -147,5 +148,9 @@ class ArtifactController(
         return ResponseEntity.status(status).body(response)
     }
 
-    private fun toId(id: String): ArtifactId = ArtifactId(UUID.fromString(id))
+    private fun toId(id: String): ArtifactId = try {
+        ArtifactId(UUID.fromString(id))
+    } catch (e: IllegalArgumentException) {
+        throw DomainValidationException("입력 형식을 다시 확인해 주세요.")
+    }
 }

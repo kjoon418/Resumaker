@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
 import watson.resumaker.account.application.CurrentUserProvider
+import watson.resumaker.common.domain.DomainValidationException
 import watson.resumaker.target.application.TargetService
 import watson.resumaker.target.domain.TargetBriefId
 import java.util.UUID
@@ -56,5 +57,9 @@ class TargetController(
         return ResponseEntity.noContent().build()
     }
 
-    private fun toId(id: String): TargetBriefId = TargetBriefId(UUID.fromString(id))
+    private fun toId(id: String): TargetBriefId = try {
+        TargetBriefId(UUID.fromString(id))
+    } catch (e: IllegalArgumentException) {
+        throw DomainValidationException("입력 형식을 다시 확인해 주세요.")
+    }
 }

@@ -99,17 +99,15 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
-    fun 잘못된_형식의_경로_식별자는_400_친화_envelope로_매핑된다() {
-        // given (D1) — UUID.fromString이 던지는 형식 오류.
-        val invalidIdentifier = "not-a-uuid"
-
-        // when
-        val response = handler.handleIllegalArgument(IllegalArgumentException("Invalid UUID string: $invalidIdentifier"))
+    fun 잘못된_형식의_경로_식별자는_DomainValidationException을_통해_400으로_매핑된다() {
+        // given (D1) — 컨트롤러 toId()가 UUID 파싱 실패 시 DomainValidationException으로 감싸 던진다.
+        // 서비스 계층 requireNotNull(IllegalArgumentException)과 달리 클라이언트 입력 오류(400)로 분류된다.
+        val response = handler.handleDomainValidation(DomainValidationException("입력 형식을 다시 확인해 주세요."))
 
         // then
         assertThat(response.statusCode).isEqualTo(HttpStatus.BAD_REQUEST)
         assertThat(response.body!!.code).isEqualTo("INVALID_REQUEST")
-        assertThat(response.body!!.message).doesNotContain(invalidIdentifier)
+        assertThat(response.body!!.message).isEqualTo("입력 형식을 다시 확인해 주세요.")
     }
 
     @Test
@@ -123,6 +121,7 @@ class GlobalExceptionHandlerTest {
         // then
         assertThat(response.statusCode).isEqualTo(HttpStatus.BAD_REQUEST)
         assertThat(response.body!!.code).isEqualTo("INVALID_REQUEST")
+        assertThat(response.body!!.message).isEqualTo("입력 형식을 다시 확인해 주세요.")
     }
 
     @Test

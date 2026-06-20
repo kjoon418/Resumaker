@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
 import watson.resumaker.account.application.CurrentUserProvider
+import watson.resumaker.common.domain.DomainValidationException
 import watson.resumaker.template.application.TemplateInterpretService
 import watson.resumaker.template.application.TemplatePresetService
 import watson.resumaker.template.application.TemplateService
@@ -79,5 +80,9 @@ class TemplateController(
         return ResponseEntity.noContent().build()
     }
 
-    private fun toId(id: String): ResumeTemplateId = ResumeTemplateId(UUID.fromString(id))
+    private fun toId(id: String): ResumeTemplateId = try {
+        ResumeTemplateId(UUID.fromString(id))
+    } catch (e: IllegalArgumentException) {
+        throw DomainValidationException("입력 형식을 다시 확인해 주세요.")
+    }
 }

@@ -110,24 +110,15 @@ class GlobalExceptionHandler {
             .body(ErrorResponse(code = "UNAUTHORIZED", message = exception.message ?: "로그인 정보가 필요해요. 다시 로그인해 주세요."))
 
     /**
-     * 경로 변수 타입 불일치(예: 잘못된 형식의 UUID 식별자) → 400(D1).
-     * 클라이언트의 잘못된 링크·식별자 입력을 서버 오류(500)가 아닌 입력 오류로 안내한다.
+     * 경로 변수 타입 불일치(@PathVariable이 기대하는 타입과 다른 값) → 400(D1).
+     * 클라이언트의 잘못된 입력 형식을 서버 오류(500)가 아닌 입력 오류로 안내한다.
+     * 내부 서버 장애(requireNotNull 등)는 이 핸들러가 아닌 최후 Exception 폴백(500)이 처리한다.
      */
     @ExceptionHandler(MethodArgumentTypeMismatchException::class)
     fun handleTypeMismatch(exception: MethodArgumentTypeMismatchException): ResponseEntity<ErrorResponse> =
         ResponseEntity
             .status(HttpStatus.BAD_REQUEST)
-            .body(ErrorResponse(code = "INVALID_REQUEST", message = "요청하신 정보를 찾을 수 없어요. 주소나 링크를 다시 확인해 주세요."))
-
-    /**
-     * 식별자 파싱 등에서 던지는 잘못된 인자(IllegalArgumentException) → 400(D1).
-     * 컨트롤러가 [java.util.UUID.fromString]으로 경로 변수를 파싱할 때 형식이 틀리면 발생한다.
-     */
-    @ExceptionHandler(IllegalArgumentException::class)
-    fun handleIllegalArgument(exception: IllegalArgumentException): ResponseEntity<ErrorResponse> =
-        ResponseEntity
-            .status(HttpStatus.BAD_REQUEST)
-            .body(ErrorResponse(code = "INVALID_REQUEST", message = "요청하신 정보를 찾을 수 없어요. 주소나 링크를 다시 확인해 주세요."))
+            .body(ErrorResponse(code = "INVALID_REQUEST", message = "입력 형식을 다시 확인해 주세요."))
 
     /**
      * 요청 본문 역직렬화 실패(malformed JSON·잘못된 enum 값) → 400(D2).
