@@ -2,13 +2,19 @@ package watson.resumaker.common.presentation
 
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
+import org.mockito.kotlin.mock
+import org.springframework.core.MethodParameter
 import org.springframework.http.HttpStatus
+import org.springframework.http.converter.HttpMessageNotReadableException
+import org.springframework.mock.http.MockHttpInputMessage
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException
 import watson.resumaker.common.domain.ConflictException
 import watson.resumaker.common.domain.DomainValidationException
 import watson.resumaker.common.domain.EmptyExperienceSelectionException
 import watson.resumaker.common.domain.QuotaExceededException
 import watson.resumaker.common.domain.ResourceNotFoundException
 import watson.resumaker.common.domain.UnauthorizedException
+import java.util.UUID
 
 /**
  * [GlobalExceptionHandler] 단위 테스트. 도메인 예외 → HTTP 상태·응답 코드·action 매핑을 검증한다.
@@ -90,5 +96,60 @@ class GlobalExceptionHandlerTest {
         val response = handler.handleUnauthorized(UnauthorizedException("로그인 필요"))
         assertThat(response.statusCode).isEqualTo(HttpStatus.UNAUTHORIZED)
         assertThat(response.body!!.code).isEqualTo("UNAUTHORIZED")
+    }
+
+    @Test
+    fun 잘못된_형식의_경로_식별자는_400_친화_envelope로_매핑된다() {
+        // given (D1) — UUID.fromString이 던지는 형식 오류.
+        val invalidIdentifier = "not-a-uuid"
+
+        // when
+        val response = handler.handleIllegalArgument(IllegalArgumentException("Invalid UUID string: $invalidIdentifier"))
+
+        // then
+        assertThat(response.statusCode).isEqualTo(HttpStatus.BAD_REQUEST)
+        assertThat(response.body!!.code).isEqualTo("INVALID_REQUEST")
+        assertThat(response.body!!.message).doesNotContain(invalidIdentifier)
+    }
+
+    @Test
+    fun 경로_변수_타입_불일치는_400_친화_envelope로_매핑된다() {
+        // given (D1) — @PathVariable UUID 바인딩 실패.
+        val exception = MethodArgumentTypeMismatchException("not-a-uuid", UUID::class.java, "id", mock<MethodParameter>(), null)
+
+        // when
+        val response = handler.handleTypeMismatch(exception)
+
+        // then
+        assertThat(response.statusCode).isEqualTo(HttpStatus.BAD_REQUEST)
+        assertThat(response.body!!.code).isEqualTo("INVALID_REQUEST")
+    }
+
+    @Test
+    fun 역직렬화_실패는_400_친화_envelope로_매핑된다() {
+        // given (D2) — malformed JSON·잘못된 enum 값.
+        val exception = HttpMessageNotReadableException("malformed", MockHttpInputMessage(ByteArray(0)))
+
+        // when
+        val response = handler.handleNotReadable(exception)
+
+        // then
+        assertThat(response.statusCode).isEqualTo(HttpStatus.BAD_REQUEST)
+        assertThat(response.body!!.code).isEqualTo("INVALID_REQUEST")
+        assertThat(response.body!!.message).isNotBlank()
+    }
+
+    @Test
+    fun 미처리_예외는_500_INTERNAL_ERROR_envelope로_매핑되고_내부정보를_노출하지_않는다() {
+        // given (D2) — 폴백으로 잡혀야 하는 임의의 미처리 예외.
+        val internalDetail = "NullPointerException at SomeService.kt:42"
+
+        // when
+        val response = handler.handleUnexpected(RuntimeException(internalDetail))
+
+        // then
+        assertThat(response.statusCode).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR)
+        assertThat(response.body!!.code).isEqualTo("INTERNAL_ERROR")
+        assertThat(response.body!!.message).doesNotContain(internalDetail)
     }
 }
