@@ -13,6 +13,7 @@ import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.test.context.TestConfiguration
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Import
+import org.springframework.context.annotation.Primary
 import org.springframework.http.MediaType
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.MvcResult
@@ -20,6 +21,7 @@ import org.springframework.test.web.servlet.ResultActionsDsl
 import org.springframework.test.web.servlet.delete
 import org.springframework.test.web.servlet.get
 import org.springframework.test.web.servlet.post
+import org.springframework.test.web.servlet.put
 import watson.resumaker.account.presentation.LoginRequest
 import watson.resumaker.account.presentation.SignUpRequest
 import watson.resumaker.artifact.domain.SectionKind
@@ -36,10 +38,18 @@ import watson.resumaker.generation.application.GenerationOutput
 import watson.resumaker.generation.application.ResumeTemplateGeneration
 import watson.resumaker.generation.application.ResumeTemplateGenerationInput
 import watson.resumaker.generation.application.ResumeTemplateGenerator
+import watson.resumaker.generation.presentation.EditSectionContentRequest
 import watson.resumaker.generation.presentation.PortfolioGenerationRequest
 import watson.resumaker.generation.presentation.RegenerateSectionRequest
 import watson.resumaker.generation.presentation.ResumeGenerationRequest
 import watson.resumaker.target.presentation.CreateTargetRequest
+import watson.resumaker.template.application.ResumeTemplateInterpreter
+import watson.resumaker.template.application.TemplateInterpretation
+import watson.resumaker.template.domain.SectionCharacter
+import watson.resumaker.template.domain.SectionDefinition
+import watson.resumaker.template.presentation.CreateTemplateRequest
+import watson.resumaker.template.presentation.InterpretRequest
+import watson.resumaker.template.presentation.SectionRequest
 import java.util.UUID
 
 /**
@@ -188,6 +198,88 @@ class CoreValueFlowE2ETest {
             .andExpect { status { is4xxClientError() } }
     }
 
+    @Test
+    fun 직접_편집은_자동검증_없이_새_버전으로_저장된다() {
+        // 도메인 이해 §267·§428, 수용 기준 10·19: 직접 편집은 후보 단계 없이 즉시 새 버전을 만들고(채택=1콜),
+        // AI 생성과 달리 자동 신뢰성 검증을 적용하지 않는다(최종 책임은 사용자).
+        val cookies = signUp(uniqueEmail())
+        val experienceId = createExperience(cookies)
+        val targetId = createTarget(cookies)
+        val generated = generateResume(cookies, experienceId, targetId)
+        val artifactId = generated["artifactId"].asText()
+        val firstVersionId = generated["activeVersionId"].asText()
+        val sectionId = generated["sections"][0]["sectionId"].asText()
+        val definitionKey = generated["sections"][0]["definitionKey"].asText()
+
+        // 근거 없는 수치("40%")를 포함해도 직접 편집은 검증되지 않으므로 그대로 GENERATED로 저장된다(§428).
+        val editedContent = "응답 속도를 40% 개선한 경험을 제가 직접 풀어 썼어요."
+        val edited = putAuth(
+            "/artifacts/$artifactId/sections/$sectionId/content",
+            cookies,
+            EditSectionContentRequest(content = editedContent),
+        ).andExpect { status { isOk() } }.andReturn().body()
+
+        // 새 버전이 활성으로 전환된다(편집=즉시 채택).
+        val newVersionId = edited["activeVersion"]["versionId"].asText()
+        assertNotEquals(firstVersionId, newVersionId, "직접 편집은 새 버전을 만들어 활성으로 전환한다.")
+
+        // 같은 섹션 정의(definitionKey)로 편집 내용이 그대로 반영되고 상태는 GENERATED다(편집 결과는 사용자 확정).
+        val editedSection = edited["activeVersion"]["sections"].first { it["definitionKey"].asText() == definitionKey }
+        assertEquals(editedContent, editedSection["content"].asText())
+        assertEquals("GENERATED", editedSection["status"].asText())
+
+        // 직전 버전이 보존되어 비교·복원이 가능하다(수용 기준 11).
+        val versions = getAuth("/artifacts/$artifactId/versions", cookies)
+            .andExpect { status { isOk() } }.andReturn().body()
+        assertEquals(2, versions["versions"].size())
+    }
+
+    @Test
+    fun 붙여넣기_양식은_해석_후_사용자_확정을_거쳐야_생성에_적용된다() {
+        // 도메인 이해 §2.5, 수용 기준 24: 붙여넣기로 만든 양식은 AI 해석 결과를 사용자가 확정한 뒤에만 생성에 적용된다.
+        val cookies = signUp(uniqueEmail())
+        val experienceId = createExperience(cookies)
+        val targetId = createTarget(cookies)
+
+        // 1. 붙여넣기 해석 — 후보 섹션을 받는다. 이 단계는 영속하지 않는다(게이트 앞단).
+        val interpreted = postAuth(
+            "/resume-templates/interpret",
+            cookies,
+            InterpretRequest(text = "지원 동기와 주요 프로젝트를 적어 제출해 주세요."),
+        ).andExpect { status { isOk() } }.andReturn().body()
+        assertEquals("interpreted", interpreted["status"].asText())
+        assertTrue(interpreted["sections"].size() > 0, "해석 후보 섹션이 있어야 한다.")
+
+        // 게이트 검증: 해석만으로는 양식이 저장되지 않는다(확정 전엔 사용자 양식 목록이 비어 있다).
+        val beforeConfirm = getAuth("/resume-templates", cookies)
+            .andExpect { status { isOk() } }.andReturn().body()
+        assertEquals(0, beforeConfirm.size(), "해석 결과는 사용자가 확정하기 전까지 양식으로 저장되지 않는다.")
+
+        // 2. 사용자 확정 — 해석 후보를 그대로 양식으로 생성한다(POST /resume-templates).
+        val sectionRequests = interpreted["sections"].map {
+            SectionRequest(
+                name = it["name"].asText(),
+                character = SectionCharacter.valueOf(it["character"].asText()),
+                required = it["required"].asBoolean(),
+            )
+        }
+        val created = postAuth(
+            "/resume-templates",
+            cookies,
+            CreateTemplateRequest(name = "확정한 회사 양식", sections = sectionRequests),
+        ).andExpect { status { isCreated() } }.andReturn().body()
+        val templateId = created["id"].asText()
+
+        // 3. 확정한 양식으로 생성하면 사용자 지정 양식 경로(USER_SELECTED)로 적용되고, 양식 섹션 수만큼 항목이 만들어진다.
+        val generated = postAuth(
+            "/artifacts/resume",
+            cookies,
+            ResumeGenerationRequest(experienceIds = listOf(experienceId), targetId = targetId, templateId = templateId),
+        ).andExpect { status { isCreated() } }.andReturn().body()
+        assertEquals("USER_SELECTED", generated["templateOrigin"].asText())
+        assertEquals(sectionRequests.size, generated["sections"].size())
+    }
+
     // ----- 흐름 헬퍼(실제 엔드포인트를 거친다) -----
 
     private fun signUp(email: String): Array<Cookie> =
@@ -237,6 +329,17 @@ class CoreValueFlowE2ETest {
     /** 상태 변경 요청: 인증 쿠키와 CSRF 커스텀 헤더([CsrfFilter.REQUIRED_HEADER])를 함께 싣는다. */
     private fun postAuth(path: String, cookies: Array<Cookie>, body: Any?): ResultActionsDsl =
         mockMvc.post(path) {
+            header(CsrfFilter.REQUIRED_HEADER, "e2e")
+            if (cookies.isNotEmpty()) cookie(*cookies)
+            if (body != null) {
+                contentType = MediaType.APPLICATION_JSON
+                content = objectMapper.writeValueAsString(body)
+            }
+        }
+
+    /** 상태 변경(PUT) 요청: 쿠키와 CSRF 헤더를 함께 싣는다(직접 편집 등). */
+    private fun putAuth(path: String, cookies: Array<Cookie>, body: Any?): ResultActionsDsl =
+        mockMvc.put(path) {
             header(CsrfFilter.REQUIRED_HEADER, "e2e")
             if (cookies.isNotEmpty()) cookie(*cookies)
             if (body != null) {
@@ -314,6 +417,22 @@ class CoreValueFlowE2ETest {
         /** Redis 없이 토큰 저장소를 인메모리로 대체한다(TokenService 로직은 실제 그대로 동작). */
         @Bean("redisAuthTokenStore")
         fun inMemoryAuthTokenStore(): AuthTokenStore = InMemoryAuthTokenStore()
+
+        /**
+         * 붙여넣기 양식 해석을 결정적으로 만든다(운영은 ClaudeCliResumeTemplateInterpreter). 운영 빈이 @Primary이고
+         * UnavailableResumeTemplateInterpreter도 공존하므로, 이름 오버라이드 + @Primary로 모호성 없이 교체한다.
+         */
+        @Bean("claudeCliResumeTemplateInterpreter")
+        @Primary
+        fun fakeTemplateInterpreter(): ResumeTemplateInterpreter = object : ResumeTemplateInterpreter {
+            override fun interpret(pastedText: String): TemplateInterpretation =
+                TemplateInterpretation.Interpreted(
+                    listOf(
+                        SectionDefinition.of("지원 동기", SectionCharacter.SUMMARY, required = true),
+                        SectionDefinition.of("주요 프로젝트", SectionCharacter.CAREER, required = true),
+                    ),
+                )
+        }
     }
 
     companion object {
