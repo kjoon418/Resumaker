@@ -88,9 +88,24 @@ class AccountControllerTest {
         }
     }
 
+    @Test
+    fun 가입시_비밀번호가_8자_미만이면_4XX를_반환한다() {
+        // given (D3) — 최소 길이 정책 위반.
+        val request = SignUpRequest(email = EMAIL, password = SHORT_PASSWORD)
+
+        // when and then
+        mockMvc.post("/auth/signup") {
+            contentType = MediaType.APPLICATION_JSON
+            content = objectMapper.writeValueAsString(request)
+        }.andExpect {
+            status { is4xxClientError() }
+        }
+    }
+
     companion object {
         private const val EMAIL = "user@example.com"
         private const val PASSWORD = "password1"
+        private const val SHORT_PASSWORD = "1"
         private const val USER_ID = "123e4567-e89b-12d3-a456-426614174000"
     }
 }
