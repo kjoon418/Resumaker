@@ -14,6 +14,7 @@ import watson.resumaker.common.domain.EmptyExperienceSelectionException
 import watson.resumaker.common.domain.QuotaExceededException
 import watson.resumaker.common.domain.ResourceNotFoundException
 import watson.resumaker.common.domain.UnauthorizedException
+import watson.resumaker.generation.infrastructure.ClaudeCliException
 import java.util.UUID
 
 /**
@@ -136,6 +137,23 @@ class GlobalExceptionHandlerTest {
         assertThat(response.statusCode).isEqualTo(HttpStatus.BAD_REQUEST)
         assertThat(response.body!!.code).isEqualTo("INVALID_REQUEST")
         assertThat(response.body!!.message).isNotBlank()
+    }
+
+    @Test
+    fun ClaudeCliException은_503_AI_GENERATION_UNAVAILABLE로_매핑되고_재시도_action이_포함된다() {
+        // given (#3 생성 실패 에러 UX) — API 키 없음·CLI 비정상 종료 등 AI 생성 불가 상황.
+        val exception = ClaudeCliException("Claude CLI가 비정상 종료했어요(코드 1). stderr: API key not set")
+
+        // when
+        val response = handler.handleClaudeCliException(exception)
+
+        // then
+        assertThat(response.statusCode).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE)
+        assertThat(response.body!!.code).isEqualTo("AI_GENERATION_UNAVAILABLE")
+        assertThat(response.body!!.action).isEqualTo("RETRY_LATER")
+        assertThat(response.body!!.message).contains("AI 생성")
+        // 내부 진단 메시지(stderr 등)는 응답 본문에 노출되지 않는다.
+        assertThat(response.body!!.message).doesNotContain("API key")
     }
 
     @Test

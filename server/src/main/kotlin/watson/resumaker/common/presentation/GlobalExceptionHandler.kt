@@ -13,6 +13,7 @@ import watson.resumaker.common.domain.EmptyExperienceSelectionException
 import watson.resumaker.common.domain.QuotaExceededException
 import watson.resumaker.common.domain.ResourceNotFoundException
 import watson.resumaker.common.domain.UnauthorizedException
+import watson.resumaker.generation.infrastructure.ClaudeCliException
 
 /**
  * 도메인 예외와 Bean Validation 실패를 사용자 친화적 에러 응답으로 변환한다(구현 설계 §9, UX 에러 가이드).
@@ -129,6 +130,23 @@ class GlobalExceptionHandler {
         ResponseEntity
             .status(HttpStatus.BAD_REQUEST)
             .body(ErrorResponse(code = "INVALID_REQUEST", message = "입력 형식을 다시 확인해 주세요."))
+
+    /**
+     * Claude CLI 호출·파싱 실패(API 키 없음·CLI 비정상 종료·응답 파싱 오류 등) → 503.
+     * 외부 AI 서비스 일시 불가를 500(내부 서버 오류)과 구분해 클라이언트가 재시도 여부를 판단할 수 있게 한다.
+     * (구현 설계 §12, UX 에러 가이드 — 회복 경로 제시)
+     */
+    @ExceptionHandler(ClaudeCliException::class)
+    fun handleClaudeCliException(exception: ClaudeCliException): ResponseEntity<ErrorResponse> =
+        ResponseEntity
+            .status(HttpStatus.SERVICE_UNAVAILABLE)
+            .body(
+                ErrorResponse(
+                    code = "AI_GENERATION_UNAVAILABLE",
+                    message = "지금은 AI 생성을 사용할 수 없어요. 잠시 후 다시 시도해 주세요.",
+                    action = "RETRY_LATER",
+                ),
+            )
 
     /**
      * 미처리 예외 최후 폴백 → 500(D2). 내부 정보(스택·메시지)를 노출하지 않고 공통 envelope로 안내한다.
