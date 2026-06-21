@@ -16,6 +16,7 @@ import watson.resumaker.artifact.domain.SectionKind
 import watson.resumaker.artifact.domain.SectionStatus
 import watson.resumaker.artifact.domain.ArtifactTargetSnapshot
 import watson.resumaker.artifact.domain.SnapshotSection
+import watson.resumaker.target.domain.RecruitDirection
 import watson.resumaker.artifact.domain.TemplateSnapshot
 import watson.resumaker.experience.domain.ExperienceRecordId
 import java.time.Instant
@@ -63,7 +64,7 @@ class ArtifactRepositoryTest {
         return Artifact.create(
             ownerId = owner,
             kind = ArtifactKind.RESUME,
-            targetSnapshot = ArtifactTargetSnapshot.of("백엔드 신입", null, null),
+            targetSnapshot = ArtifactTargetSnapshot.of(RecruitDirection("백엔드 신입"), null, null),
             templateSnapshot = snapshot(),
             initialSections = listOf(summary, career),
             createdAt = baseTime,
@@ -228,7 +229,7 @@ class ArtifactRepositoryTest {
             ownerId = ownerId,
             kind = ArtifactKind.RESUME,
             targetSnapshot = ArtifactTargetSnapshot.of(
-                recruitDirection = "프론트엔드 시니어",
+                recruitDirection = RecruitDirection("프론트엔드 시니어"),
                 company = "카카오",
                 job = "웹 개발자",
             ),

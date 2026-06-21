@@ -365,7 +365,7 @@ class ArtifactGenerationService(
     )
 
     private fun TargetBrief.toArtifactTargetSnapshot(): ArtifactTargetSnapshot = ArtifactTargetSnapshot.of(
-        recruitDirection = recruitDirection.value,
+        recruitDirection = recruitDirection,
         company = company?.value,
         job = job?.value,
     )

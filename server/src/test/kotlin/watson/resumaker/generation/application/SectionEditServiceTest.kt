@@ -13,6 +13,7 @@ import watson.resumaker.artifact.domain.ArtifactKind
 import watson.resumaker.artifact.domain.ArtifactSection
 import watson.resumaker.artifact.domain.ArtifactTargetSnapshot
 import watson.resumaker.artifact.domain.FactGrounding
+import watson.resumaker.target.domain.RecruitDirection
 import watson.resumaker.artifact.domain.FactKind
 import watson.resumaker.artifact.domain.FactToken
 import watson.resumaker.artifact.domain.SectionContent
@@ -56,7 +57,7 @@ class SectionEditServiceTest {
     )
 
     private fun targetSnapshot(): ArtifactTargetSnapshot =
-        ArtifactTargetSnapshot.of(recruitDirection = "백엔드 신입", company = null, job = null)
+        ArtifactTargetSnapshot.of(recruitDirection = RecruitDirection("백엔드 신입"), company = null, job = null)
 
     /**
      * 두 항목(요약·경력)을 가진 이력서 산출물을 만들어, (산출물, 요약항목Id, 경력항목Id)를 돌려준다.

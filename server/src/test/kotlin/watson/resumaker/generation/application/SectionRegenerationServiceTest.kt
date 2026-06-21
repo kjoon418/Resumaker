@@ -19,6 +19,7 @@ import watson.resumaker.artifact.domain.ArtifactKind
 import watson.resumaker.artifact.domain.ArtifactSection
 import watson.resumaker.artifact.domain.ArtifactTargetSnapshot
 import watson.resumaker.artifact.domain.SectionContent
+import watson.resumaker.target.domain.RecruitDirection
 import watson.resumaker.artifact.domain.SectionId
 import watson.resumaker.artifact.domain.SectionKind
 import watson.resumaker.artifact.domain.SectionStatus
@@ -142,7 +143,7 @@ class SectionRegenerationServiceTest {
         )
 
     private fun targetSnapshot(): ArtifactTargetSnapshot =
-        ArtifactTargetSnapshot.of(recruitDirection = "백엔드 신입", company = null, job = null)
+        ArtifactTargetSnapshot.of(recruitDirection = RecruitDirection("백엔드 신입"), company = null, job = null)
 
     /** 두 항목(요약·경력)을 가진 이력서 산출물을 만들어, (산출물, 요약항목Id, 경력항목Id)를 돌려준다. */
     private fun resumeArtifact(): Triple<Artifact, SectionId, SectionId> {
@@ -362,7 +363,7 @@ class SectionRegenerationServiceTest {
     @Test
     fun 재생성_포트_재료에_산출물_목표_스냅샷이_사용된다() {
         // given (§347·§364) — 산출물에 저장된 목표 스냅샷(채용방향·회사·직무)이 프롬프트 재료의 target으로 전달돼야 한다.
-        val targetSnap = ArtifactTargetSnapshot.of("프론트엔드 시니어", "카카오", "웹 개발자")
+        val targetSnap = ArtifactTargetSnapshot.of(RecruitDirection("프론트엔드 시니어"), "카카오", "웹 개발자")
         val snapshot = TemplateSnapshot.of(
             listOf(SnapshotSection.of("section-0-요약", "요약", SectionKind.SUMMARY, required = true)),
         )
@@ -400,10 +401,10 @@ class SectionRegenerationServiceTest {
     fun 목표_스냅샷은_원본_target_변경과_무관하게_불변이다() {
         // given (§347 불변 보장) — 산출물 생성 시점 목표를 스냅샷으로 복제하므로 원본이 변경돼도 영향 없음.
         // ArtifactTargetSnapshot은 생성 후 변경 수단이 없는 순수 VO다.
-        val snap = ArtifactTargetSnapshot.of("백엔드 신입", "네이버", "서버 개발자")
+        val snap = ArtifactTargetSnapshot.of(RecruitDirection("백엔드 신입"), "네이버", "서버 개발자")
 
         // when — 같은 값의 다른 스냅샷을 만들어 동등성 확인(불변 VO 동형).
-        val snap2 = ArtifactTargetSnapshot.of("백엔드 신입", "네이버", "서버 개발자")
+        val snap2 = ArtifactTargetSnapshot.of(RecruitDirection("백엔드 신입"), "네이버", "서버 개발자")
 
         // then
         assertThat(snap).isEqualTo(snap2)
@@ -411,7 +412,7 @@ class SectionRegenerationServiceTest {
         assertThat(snap.company).isEqualTo("네이버")
         assertThat(snap.job).isEqualTo("서버 개발자")
         // 빈 채용방향은 불변식 위반 — VO 자체가 불법 상태를 거부한다.
-        assertThatThrownBy { ArtifactTargetSnapshot.of("", null, null) }
+        assertThatThrownBy { ArtifactTargetSnapshot.of(RecruitDirection(""), null, null) }
             .isInstanceOf(watson.resumaker.common.domain.DomainValidationException::class.java)
     }
 

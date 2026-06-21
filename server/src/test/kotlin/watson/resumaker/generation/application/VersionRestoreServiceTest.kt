@@ -13,6 +13,7 @@ import watson.resumaker.artifact.domain.ArtifactKind
 import watson.resumaker.artifact.domain.ArtifactSection
 import watson.resumaker.artifact.domain.ArtifactTargetSnapshot
 import watson.resumaker.artifact.domain.SectionContent
+import watson.resumaker.target.domain.RecruitDirection
 import watson.resumaker.artifact.domain.SectionKind
 import watson.resumaker.artifact.domain.SectionStatus
 import watson.resumaker.artifact.domain.SnapshotSection
@@ -44,7 +45,7 @@ class VersionRestoreServiceTest {
     )
 
     private fun targetSnapshot(): ArtifactTargetSnapshot =
-        ArtifactTargetSnapshot.of(recruitDirection = "백엔드 신입", company = null, job = null)
+        ArtifactTargetSnapshot.of(recruitDirection = RecruitDirection("백엔드 신입"), company = null, job = null)
 
     /** 요약 항목을 가진 이력서를 만들고, 편집으로 두 번째 버전을 추가해 (산출물, v1Id, v2Id)를 돌려준다. */
     private fun twoVersionResume(): Triple<Artifact, VersionId, VersionId> {

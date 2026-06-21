@@ -7,6 +7,7 @@ import watson.resumaker.account.domain.UserId
 import watson.resumaker.common.domain.DomainValidationException
 import watson.resumaker.experience.domain.ExperienceRecordId
 import watson.resumaker.artifact.domain.FactGrounding
+import watson.resumaker.target.domain.RecruitDirection
 import watson.resumaker.artifact.domain.FactKind
 import watson.resumaker.artifact.domain.FactToken
 import java.time.Instant
@@ -41,7 +42,7 @@ class ArtifactTest {
     )
 
     private fun targetSnapshot(): ArtifactTargetSnapshot =
-        ArtifactTargetSnapshot.of(recruitDirection = "백엔드 신입", company = null, job = null)
+        ArtifactTargetSnapshot.of(recruitDirection = RecruitDirection("백엔드 신입"), company = null, job = null)
 
     private fun resume(sections: List<ArtifactSection>, createdAt: Instant = baseTime): Artifact =
         Artifact.create(
