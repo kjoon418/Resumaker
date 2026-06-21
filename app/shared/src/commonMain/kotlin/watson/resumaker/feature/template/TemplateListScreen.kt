@@ -34,6 +34,7 @@ import watson.resumaker.ui.component.EmptyState
 import watson.resumaker.ui.component.ErrorBanner
 import watson.resumaker.ui.component.HeaderTab
 import watson.resumaker.ui.component.GhostButton
+import watson.resumaker.ui.component.InfoCard
 import watson.resumaker.ui.component.InlineAddButton
 import watson.resumaker.ui.component.ListItemCard
 import watson.resumaker.ui.component.LocalContentMaxWidth
@@ -170,7 +171,7 @@ fun TemplateListScreen(
     }
 }
 
-/** 페이지 제목 + 우측 인라인 추가·프리셋·붙여넣기 진입점(WX-6, FU-B/C). */
+/** 페이지 제목 + 우측 인라인 추가·프리셋·붙여넣기 진입점(WX-6, FU-B/C). #10 양식 선택사항 안내 포함. */
 @Composable
 private fun PageHeaderRow(
     onCreate: () -> Unit,
@@ -179,7 +180,7 @@ private fun PageHeaderRow(
 ) {
     androidx.compose.foundation.layout.Column(
         modifier = Modifier.fillMaxWidth().padding(bottom = RmSpacing.space4),
-        verticalArrangement = Arrangement.spacedBy(RmSpacing.space2),
+        verticalArrangement = Arrangement.spacedBy(RmSpacing.space3),
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -193,8 +194,15 @@ private fun PageHeaderRow(
             )
             InlineAddButton(text = "양식 만들기", onClick = onCreate)
         }
+        // #10 양식은 선택사항임을 리스트 진입부에서도 안내한다.
+        InfoCard(icon = RmIcons.Info) {
+            Text(
+                text = "양식은 선택이에요. AI가 자동으로 만들어 주니 없어도 이력서를 바로 생성할 수 있어요.",
+                style = RmTextStyles.bodyS,
+                color = RmTheme.colors.onPrimaryContainer,
+            )
+        }
         // FU-B/C 진입점: 프리셋에서 시작 · 회사 양식 붙여넣기.
-        // IA 검토 필요: 진입점 배치·버튼 레이블은 최종 디자이너 리뷰 대상이다.
         Row(
             horizontalArrangement = Arrangement.spacedBy(RmSpacing.space2),
         ) {

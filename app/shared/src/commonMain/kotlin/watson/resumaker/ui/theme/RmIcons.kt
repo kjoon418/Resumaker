@@ -502,6 +502,43 @@ object RmIcons {
         }
     }
 
+    /** 온보딩 완료 항목 — 채워진 체크 원. */
+    val CheckCircle: ImageVector = icon("RmCheckCircle") {
+        fill {
+            moveTo(12f, 2f)
+            curveTo(6.5f, 2f, 2f, 6.5f, 2f, 12f)
+            curveTo(2f, 17.5f, 6.5f, 22f, 12f, 22f)
+            curveTo(17.5f, 22f, 22f, 17.5f, 22f, 12f)
+            curveTo(22f, 6.5f, 17.5f, 2f, 12f, 2f)
+            close()
+            moveTo(9.3f, 16.3f)
+            lineTo(5.7f, 12.7f)
+            lineTo(7.1f, 11.3f)
+            lineTo(9.3f, 13.5f)
+            lineTo(16.9f, 5.9f)
+            lineTo(18.3f, 7.3f)
+            close()
+        }
+    }
+
+    /** 온보딩 미완료 항목 — 빈 원(outline). */
+    val Circle: ImageVector = icon("RmCircle") {
+        fill {
+            moveTo(12f, 2f)
+            curveTo(6.5f, 2f, 2f, 6.5f, 2f, 12f)
+            curveTo(2f, 17.5f, 6.5f, 22f, 12f, 22f)
+            curveTo(17.5f, 22f, 22f, 17.5f, 22f, 12f)
+            curveTo(22f, 6.5f, 17.5f, 2f, 12f, 2f)
+            close()
+            moveTo(12f, 20f)
+            curveTo(7.6f, 20f, 4f, 16.4f, 4f, 12f)
+            curveTo(4f, 7.6f, 7.6f, 4f, 12f, 4f)
+            curveTo(16.4f, 4f, 20f, 7.6f, 20f, 12f)
+            curveTo(20f, 16.4f, 16.4f, 20f, 12f, 20f)
+            close()
+        }
+    }
+
     /** LEARNING — 학사모 (fa-graduation-cap 대체). */
     val School: ImageVector = icon("RmSchool") {
         fill {
