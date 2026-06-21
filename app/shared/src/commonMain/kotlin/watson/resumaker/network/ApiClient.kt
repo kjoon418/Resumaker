@@ -15,6 +15,9 @@ import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
 import io.ktor.serialization.kotlinx.json.json
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.Json
@@ -59,6 +62,14 @@ class ApiClient(
 
     /** 동시 401들이 동시에 refresh를 호출해 토큰을 과도하게 회전시키지 않도록 직렬화한다. */
     private val refreshMutex = Mutex()
+
+    /**
+     * 세션 만료(비자발적) 신호. access 401 후 refresh도 실패해 세션을 비운 경우 1회 방출한다.
+     * 상위(App)가 관찰해 로그인 화면으로 리다이렉트한다. 자발적 로그아웃·탈퇴는 해당 화면이 직접 내비하므로
+     * 여기서 방출하지 않는다. replay=0 + 버퍼 1로 수집자가 없어도 emit이 막히지 않게 한다(tryEmit).
+     */
+    private val _sessionExpirations = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    val sessionExpirations: SharedFlow<Unit> = _sessionExpirations.asSharedFlow()
 
     /** 보호된 요청에 현재 userId를 `X-User-Id`로 붙인다. userId가 없으면 붙이지 않는다. */
     fun HttpRequestBuilder.withUser() {
@@ -111,7 +122,11 @@ class ApiClient(
         } catch (e: Throwable) {
             false
         }
-        if (!refreshed) session.clear()
+        if (!refreshed) {
+            session.clear()
+            // 비자발적 만료: 상위가 로그인 화면으로 보낼 수 있게 신호한다.
+            _sessionExpirations.tryEmit(Unit)
+        }
         refreshed
     }
 

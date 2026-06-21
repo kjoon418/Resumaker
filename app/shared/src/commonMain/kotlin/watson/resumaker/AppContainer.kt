@@ -17,6 +17,7 @@ import watson.resumaker.network.TemplatePresetApi
 import watson.resumaker.network.TemplatePresetApiImpl
 import watson.resumaker.network.configuredApiBaseUrl
 import watson.resumaker.network.createPlatformHttpClient
+import kotlinx.coroutines.flow.SharedFlow
 import watson.resumaker.session.SessionStore
 import watson.resumaker.session.createSessionStore
 
@@ -44,4 +45,7 @@ class AppContainer(
     val templatePresetApi: TemplatePresetApi = TemplatePresetApiImpl(apiClient)
     val templateInterpretApi: TemplateInterpretApi = TemplateInterpretApiImpl(apiClient)
     val artifactApi: ArtifactApi = ArtifactApiImpl(apiClient)
+
+    /** 세션 만료(비자발적 401) 신호. App이 관찰해 로그인 화면으로 리다이렉트한다. */
+    val sessionExpirations: SharedFlow<Unit> get() = apiClient.sessionExpirations
 }

@@ -1,6 +1,7 @@
 package watson.resumaker
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import watson.resumaker.feature.artifact.ArtifactCreateScreen
 import watson.resumaker.feature.artifact.ArtifactCreateViewModel
@@ -54,6 +55,15 @@ fun App(container: AppContainer = remember { AppContainer() }) {
                 Screen.Session
             }
             AppNavigator(start = start, history = history)
+        }
+
+        // 세션 만료(비자발적 401 → refresh 실패): 어느 화면에 있든 로그인 화면으로 리다이렉트한다.
+        LaunchedEffect(container, navigator) {
+            container.sessionExpirations.collect {
+                if (navigator.current != Screen.Session) {
+                    navigator.resetToSession()
+                }
+            }
         }
 
         when (val screen = navigator.current) {
