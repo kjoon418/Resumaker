@@ -67,6 +67,26 @@ services:
     ports:
       - '${SERVER_PORT:-8082}:8082'
 
+  seed:
+    # 자동 시드(일회성). 백엔드(Flyway)가 스키마를 만든 뒤, DB가 비어 있을 때만 scripts/seed/seed.sql을 적용한다(멱등).
+    # 데이터가 이미 있으면 건너뛰므로, 새 볼륨(`docker compose down -v` 후 up)에서만 실제로 시드된다.
+    image: 'postgres:16'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      backend:
+        condition: service_started
+    environment:
+      DB_NAME: ${DB_NAME:-resumaker}
+      DB_USERNAME: ${DB_USERNAME:-resumaker}
+      DB_PASSWORD: ${DB_PASSWORD:-resumaker}
+    volumes:
+      - './scripts/seed:/seed:ro'
+    # CRLF(윈도우 체크아웃) 대비: 실행 전 CR 제거 후 bash로 실행한다.
+    entrypoint: ['bash', '-c']
+    command: ["sed -e 's/\\r$//' /seed/seed-entrypoint.sh | bash"]
+    restart: 'no'
+
   frontend:
     # Compose Wasm 웹앱을 빌드해 nginx로 정적 서빙(SPA 폴백·wasm MIME). 8081로 노출.
     build:

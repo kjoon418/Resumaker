@@ -20,3 +20,6 @@ node_modules/
 .omc/
 # Docker Compose 로컬/배포 환경변수(시크릿 포함) — 커밋 금지. 템플릿은 .env.example.
 .env
+# 자동 시드 데이터(로컬 테스트 데이터 덤프 — 이메일/비밀번호 해시 포함) — 커밋 금지.
+# 스크립트(seed-entrypoint.sh)와 compose 배선만 커밋하고, 데이터는 각자 로컬에서 생성한다.
+scripts/seed/seed.sql
