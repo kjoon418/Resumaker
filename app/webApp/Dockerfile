@@ -4,6 +4,11 @@
 # 빌드 컨텍스트는 저장소 루트. KMP/Wasm 툴체인 + yarn 의존성 다운로드에 네트워크가 필요하다.
 FROM eclipse-temurin:21-jdk-jammy AS build
 WORKDIR /workspace
+# Kotlin/Wasm 툴체인이 내려받는 Node.js 바이너리는 libatomic.so.1에 동적 링크되어 있으나
+# jammy 베이스 이미지에는 libatomic1이 없어 Node 실행이 실패한다. 명시적으로 설치한다.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends libatomic1 \
+ && rm -rf /var/lib/apt/lists/*
 COPY . .
 RUN sed -i 's/\r$//' gradlew && chmod +x gradlew \
  && ./gradlew :app:webApp:wasmJsBrowserDistribution --no-daemon
