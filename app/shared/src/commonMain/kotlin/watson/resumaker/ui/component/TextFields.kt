@@ -121,6 +121,14 @@ fun RmTextField(
                 .fillMaxWidth()
                 .heightIn(min = minHeight)
                 .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)
+                // #7 한글 IME 알려진 한계(미해결): Wasm/Canvas 환경에서 멀티라인 입력 시 한글 조합 중
+                // 첫 Enter가 개행이 아닌 글자 완성(IME commit)으로 소비된다. onPreviewKeyEvent로 Enter를
+                // 가로채 직접 개행을 넣는 우회는 (a) value가 plain String이라 커서 위치를 알 수 없어 항상
+                // 문자열 끝에 개행이 붙고 커서가 끝으로 점프하며, (b) 정상 동작하던 입력기·비-IME 경로의
+                // 기본 개행까지 깨뜨려, 멀티라인 8개 필드(경험 본문/채용방향/양식·산출물 편집 등) 중간
+                // 편집 UX를 오히려 악화시킨다. 따라서 우회를 적용하지 않고 표준 BasicTextField 동작을
+                // 유지한다. 근본 해결은 Compose 런타임의 Wasm IME 이벤트 처리 개선이 필요하다
+                // (참고: KT-65566 / compose-multiplatform#4220).
                 .background(boxBg, RoundedCornerShape(RmRadius.card))
                 .border(RmSize.hairline, borderColor, RoundedCornerShape(RmRadius.card)),
             decorationBox = { inner ->

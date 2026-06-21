@@ -214,6 +214,10 @@ class FakeArtifactApi(
     var lastPortfolioRequest: PortfolioGenerationRequest? = null
     var getArtifactId: String? = null
 
+    /** generateResume 호출 횟수(재시도 검증용). */
+    var generateResumeCallCount = 0
+        private set
+
     /** 버전 목록 조회에 들어온 artifactId 기록. */
     var getVersionsId: String? = null
 
@@ -257,6 +261,7 @@ class FakeArtifactApi(
     var editGate: kotlinx.coroutines.CompletableDeferred<Unit>? = null
 
     override suspend fun generateResume(request: ResumeGenerationRequest): ApiResult<GenerationResponse> {
+        generateResumeCallCount++
         lastResumeRequest = request
         return generateResumeResult ?: ApiResult.Failure("no result")
     }

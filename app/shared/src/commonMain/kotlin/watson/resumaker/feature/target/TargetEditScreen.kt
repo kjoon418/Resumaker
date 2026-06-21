@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -24,8 +23,6 @@ import watson.resumaker.ui.component.PrimaryButton
 import watson.resumaker.ui.component.RmTextField
 import watson.resumaker.ui.theme.RmSize
 import watson.resumaker.ui.theme.RmSpacing
-import watson.resumaker.ui.theme.RmTextStyles
-import watson.resumaker.ui.theme.RmTheme
 import watson.resumaker.ui.theme.pagePadding
 
 /**
@@ -39,7 +36,6 @@ fun TargetEditScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
-    val colors = RmTheme.colors
     val jobFocusRequester = remember { FocusRequester() }
     val directionFocusRequester = remember { FocusRequester() }
 
@@ -97,15 +93,11 @@ fun TargetEditScreen(
                     onValueChange = viewModel::onRecruitDirectionChange,
                     label = "채용 방향 *",
                     placeholder = "이 회사가 원하는 인재상·요구 역량을 적어 주세요.",
+                    helper = "채용공고를 그대로 붙여넣어도 됩니다. (${state.recruitDirection.length}/5000)",
                     error = state.recruitDirectionError,
                     singleLine = false,
                     minHeight = RmSize.targetBodyMinHeight,
                     focusRequester = directionFocusRequester,
-                )
-                Text(
-                    text = "※ 채용공고를 그대로 붙여넣어도 됩니다.",
-                    style = RmTextStyles.caption,
-                    color = colors.textTertiary,
                 )
 
                 // WX-6: 폼 하단 인라인 저장(데스크톱 floating CTA 폐기).

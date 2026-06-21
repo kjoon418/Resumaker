@@ -71,21 +71,62 @@ class AppNavigator(
     }
 
     /**
-     * 뒤로가기(스택 pop). 루트면 무시.
+     * 뒤로가기(스택 pop). 루트면 논리적 상위([parentOf])로 이동한다(#6 fallback).
      *
      * CQ-1: history가 있을 때는 window.history.back()에 위임한다. 브라우저가 비동기로 popstate를
      * 발화하면 [syncFromPath]가 스택을 갱신하므로 여기서 직접 pop 하지 않는다(이중 갱신 방지).
-     * history가 없을 때(테스트·인메모리)는 직접 스택 pop.
+     * 단, 브라우저 히스토리에 이전 항목이 없는 경우(직접 진입·새로고침)에도 back()을 위임하면
+     * 앱 밖으로 나가거나 아무 반응이 없다. 이를 막기 위해 스택이 1개(루트)일 때는 직접 fallback 처리한다.
+     * history가 없을 때(테스트·인메모리)도 직접 스택 pop 또는 fallback.
      */
     fun pop() {
         if (history != null) {
-            if (backStack.size > 1) history.back()
-            // 스택 갱신은 popstate → syncFromPath 경로에서 처리.
+            if (backStack.size > 1) {
+                history.back()
+                // 스택 갱신은 popstate → syncFromPath 경로에서 처리.
+            } else {
+                // 브라우저 히스토리 없음(직접 진입): 화면별 논리적 상위로 이동(#6).
+                navigateToParent()
+            }
         } else {
             if (backStack.size > 1) {
                 backStack.removeLast()
                 current = backStack.last()
+            } else {
+                navigateToParent()
             }
+        }
+    }
+
+    /**
+     * 히스토리가 없어 뒤로가기가 불가한 경우, 화면별 논리적 상위로 이동한다(#6 fallback).
+     * 상위가 없는 루트 화면(Home, Session 등)은 무시한다.
+     */
+    private fun navigateToParent() {
+        val parent = parentOf(current) ?: return
+        backStack.clear()
+        backStack.addLast(parent)
+        current = parent
+        history?.replace(Routes.pathOf(parent))
+    }
+
+    companion object {
+        /**
+         * 화면별 논리적 상위 화면 매핑(#6). 주소 직접 진입·새로고침 후 뒤로가기 fallback에 사용한다.
+         * - 편집 화면 → 해당 목록
+         * - 산출물 열람/버전 → 홈(목록이 없는 경우)
+         * - 루트 화면(Home, Session, 목록 등) → null(뒤로가기 없음)
+         */
+        fun parentOf(screen: Screen): Screen? = when (screen) {
+            is Screen.ExperienceEdit -> Screen.ExperienceList
+            is Screen.TargetEdit -> Screen.TargetList
+            is Screen.TemplateEdit -> Screen.TemplateList
+            Screen.TemplatePreset -> Screen.TemplateList
+            Screen.TemplateInterpret -> Screen.TemplateList
+            is Screen.Artifact -> Screen.Home
+            is Screen.ArtifactView -> Screen.Home
+            is Screen.ArtifactVersions -> Screen.ArtifactView(screen.artifactId)
+            else -> null
         }
     }
 

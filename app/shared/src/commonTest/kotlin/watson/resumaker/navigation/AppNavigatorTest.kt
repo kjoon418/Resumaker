@@ -130,6 +130,69 @@ class AppNavigatorTest {
         assertFalse(nav.canGoBack)
     }
 
+    // ── #6 뒤로가기 fallback(히스토리 없음 직접 진입) ──────────────────────────
+
+    @Test
+    fun popOnRootNavigatesToLogicalParent() {
+        // #6: 직접 진입(history=null, backStack 크기 1)에서 pop()은 논리적 상위로 이동한다.
+        val nav = AppNavigator(Screen.TargetEdit(targetId = "t-1"))
+        assertFalse(nav.canGoBack)
+
+        nav.pop()
+
+        assertEquals(Screen.TargetList, nav.current)
+        // 상위가 루트가 되므로 더 이상 back 불가.
+        assertFalse(nav.canGoBack)
+    }
+
+    @Test
+    fun popOnRootExperienceEditGoesToExperienceList() {
+        val nav = AppNavigator(Screen.ExperienceEdit(experienceId = "e-1"))
+        nav.pop()
+        assertEquals(Screen.ExperienceList, nav.current)
+    }
+
+    @Test
+    fun popOnRootArtifactViewGoesToHome() {
+        val nav = AppNavigator(Screen.ArtifactView(artifactId = "a-1"))
+        nav.pop()
+        assertEquals(Screen.Home, nav.current)
+    }
+
+    @Test
+    fun popOnRootArtifactVersionsGoesToArtifactView() {
+        val nav = AppNavigator(Screen.ArtifactVersions(artifactId = "a-1"))
+        nav.pop()
+        assertEquals(Screen.ArtifactView("a-1"), nav.current)
+    }
+
+    @Test
+    fun popOnRootHomeIsNoOp() {
+        // 루트 화면(Home)은 논리적 상위가 없으므로 뒤로가기가 아무것도 안 한다.
+        val nav = AppNavigator(Screen.Home)
+        nav.pop()
+        assertEquals(Screen.Home, nav.current)
+        assertFalse(nav.canGoBack)
+    }
+
+    @Test
+    fun parentOfMapsScreensCorrectly() {
+        // parentOf 매핑이 화면별로 올바른 상위를 반환한다.
+        assertEquals(Screen.ExperienceList, AppNavigator.parentOf(Screen.ExperienceEdit(null)))
+        assertEquals(Screen.TargetList, AppNavigator.parentOf(Screen.TargetEdit(null)))
+        assertEquals(Screen.TemplateList, AppNavigator.parentOf(Screen.TemplateEdit(null)))
+        assertEquals(Screen.TemplateList, AppNavigator.parentOf(Screen.TemplatePreset))
+        assertEquals(Screen.TemplateList, AppNavigator.parentOf(Screen.TemplateInterpret))
+        assertEquals(Screen.Home, AppNavigator.parentOf(Screen.Artifact()))
+        assertEquals(Screen.Home, AppNavigator.parentOf(Screen.ArtifactView("a-1")))
+        assertEquals(Screen.ArtifactView("a-1"), AppNavigator.parentOf(Screen.ArtifactVersions("a-1")))
+        // 루트 화면은 null.
+        assertNull(AppNavigator.parentOf(Screen.Home))
+        assertNull(AppNavigator.parentOf(Screen.Session))
+        assertNull(AppNavigator.parentOf(Screen.ExperienceList))
+        assertNull(AppNavigator.parentOf(Screen.TargetList))
+    }
+
     @Test
     fun popWithHistoryDelegatesToBackAndLetsSyncFromPathUpdateStack() {
         // CQ-1: history 가 있을 때 pop() 은 직접 스택을 줄이지 않고

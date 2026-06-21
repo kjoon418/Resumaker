@@ -105,6 +105,7 @@ fun ArtifactCreateScreen(
                 onSelectAiTemplate = viewModel::selectAiTemplate,
                 onGenerate = viewModel::generate,
                 onDismissError = viewModel::dismissGenerationError,
+                onRetryGenerate = viewModel::retryGenerate,
             )
         }
     }
@@ -122,6 +123,8 @@ private fun CreateForm(
     onSelectAiTemplate: () -> Unit,
     onGenerate: () -> Unit,
     onDismissError: () -> Unit,
+    /** 생성 실패 후 직전 선택 그대로 API를 재호출한다(#4). 한도 초과가 아닌 실패에만 배선. */
+    onRetryGenerate: () -> Unit,
 ) {
     val scroll = rememberScrollState()
     Column(
@@ -187,9 +190,11 @@ private fun CreateForm(
         }
 
         if (state.generationError != null) {
+            // 한도 초과(429)는 재시도해도 같은 오류가 나므로 닫기만 제공하고 재요청하지 않는다.
+            // 그 외 실패(AI_GENERATION_UNAVAILABLE 등)는 onRetry로 직전 생성을 실제 재요청한다(#4).
             ErrorBanner(
                 message = state.generationError,
-                onRetry = onDismissError,
+                onRetry = if (state.isGenerationQuotaExceeded) onDismissError else onRetryGenerate,
                 title = if (state.isGenerationQuotaExceeded) "오늘은 더 만들 수 없어요" else "생성하지 못했어요",
             )
         }

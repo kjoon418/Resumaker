@@ -157,6 +157,16 @@ class ArtifactCreateViewModel(
 
     fun dismissGenerationError() = _state.update { it.copy(generationError = null, generationErrorCode = null, generationAction = null) }
 
+    /**
+     * 생성 실패 후 "다시 시도" — 직전 실패한 생성을 동일 선택 그대로 재요청한다(#4).
+     * 오류를 닫기만 하는 dismissGenerationError 와 달리 실제 API 재호출이 이뤄진다.
+     * 선택값이 이미 유효하므로 generate() 진입 조건(canSubmit)을 그대로 재사용한다.
+     */
+    fun retryGenerate() {
+        dismissGenerationError()
+        generate()
+    }
+
     /** 생성 요청. 필수 미선택이면 호출하지 않는다(버튼이 이미 비활성). */
     fun generate() {
         val current = _state.value

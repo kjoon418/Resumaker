@@ -273,4 +273,67 @@ class ArtifactCreateViewModelTest {
         assertNotNull(vm.state.value.generationError)
         assertNull(vm.state.value.generated)
     }
+
+    @Test
+    fun retryGenerateReissuesApiCallAfterFailure() = runTest(dispatcher) {
+        // #4: 생성 실패 후 retryGenerate()는 오류를 닫는 데 그치지 않고 API를 실제로 재호출한다.
+        val successResponse = GenerationResponse(
+            artifactId = "a-retry",
+            kind = ArtifactKind.RESUME,
+            activeVersionId = "v-retry",
+            sections = listOf(section("s-1", SectionStatus.GENERATED)),
+        )
+        val api = FakeArtifactApi(
+            generateResumeResult = ApiResult.Failure(
+                message = "AI 생성 서비스를 일시적으로 사용할 수 없어요. 잠시 후 다시 시도해 주세요.",
+                code = "AI_GENERATION_UNAVAILABLE",
+            ),
+        )
+        val vm = vmWith(api)
+        testScheduler.advanceUntilIdle()
+
+        vm.toggleExperience("e-1")
+        vm.selectTarget("t-1")
+        vm.selectTemplate("tpl-1")
+        vm.generate()
+        testScheduler.advanceUntilIdle()
+
+        // 첫 시도 실패 확인.
+        assertNotNull(vm.state.value.generationError)
+        assertEquals(1, api.generateResumeCallCount)
+
+        // 재시도: 이번엔 성공 응답으로 교체.
+        api.generateResumeResult = ApiResult.Success(successResponse)
+        vm.retryGenerate()
+        testScheduler.advanceUntilIdle()
+
+        // API가 실제로 재호출됐고 성공 응답이 반영된다.
+        assertEquals(2, api.generateResumeCallCount)
+        assertNull(vm.state.value.generationError)
+        assertEquals("a-retry", vm.state.value.generated?.artifactId)
+    }
+
+    @Test
+    fun retryGenerateClearsErrorBeforeReissuing() = runTest(dispatcher) {
+        // #4: retryGenerate()는 API 재호출 전에 이전 오류 상태를 먼저 지운다(UI가 중간에 오류+로딩을 동시에 보이지 않음).
+        val api = FakeArtifactApi(
+            generateResumeResult = ApiResult.Failure(
+                message = "서버 오류가 발생했어요.",
+                code = "INTERNAL_ERROR",
+            ),
+        )
+        val vm = vmWith(api)
+        testScheduler.advanceUntilIdle()
+
+        vm.toggleExperience("e-1")
+        vm.selectTarget("t-1")
+        vm.selectTemplate("tpl-1")
+        vm.generate()
+        testScheduler.advanceUntilIdle()
+        assertNotNull(vm.state.value.generationError)
+
+        // retryGenerate 직후(코루틴 실행 전) 오류가 지워져야 한다.
+        vm.retryGenerate()
+        assertNull(vm.state.value.generationError)
+    }
 }
