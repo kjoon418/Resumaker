@@ -107,6 +107,7 @@ class ArtifactGenerationValidationFlowTest {
         sectionRegenerationProcessor = SectionRegenerationProcessor(port, validator),
         mapper = mapper,
         transactionTemplate = transactionTemplate,
+        objectMapper = com.fasterxml.jackson.databind.ObjectMapper().registerModule(com.fasterxml.jackson.module.kotlin.KotlinModule.Builder().build()),
         clock = clock,
     )
 

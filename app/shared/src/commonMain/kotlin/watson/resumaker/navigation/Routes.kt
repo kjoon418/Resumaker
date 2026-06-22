@@ -12,7 +12,8 @@ package watson.resumaker.navigation
  * - `/experiences/{id}`  → ExperienceEdit(id)
  * - `/targets`           → TargetList
  * - `/targets/new`       → TargetEdit(null)
- * - `/targets/{id}`      → TargetEdit(id)
+ * - `/targets/{id}`      → TargetDetail(id)
+ * - `/targets/{id}/edit` → TargetEdit(id)
  * - `/artifact`          → Artifact (생성 진입; hasExperiences 는 URL 비참여)
  * - `/artifacts`         → ArtifactList (내 산출물 목록; 진행 중/완성 카드 + 폴링)
  * - `/artifacts/{id}`    → ArtifactView(id) (열람; transient initial 은 URL 비참여, 딥링크 시 null→GET 조회)
@@ -36,7 +37,8 @@ object Routes {
         Screen.ExperienceList -> "/experiences"
         is Screen.ExperienceEdit -> if (screen.experienceId == null) "/experiences/new" else "/experiences/${screen.experienceId}"
         Screen.TargetList -> "/targets"
-        is Screen.TargetEdit -> if (screen.targetId == null) "/targets/new" else "/targets/${screen.targetId}"
+        is Screen.TargetDetail -> "/targets/${screen.targetId}"
+        is Screen.TargetEdit -> if (screen.targetId == null) "/targets/new" else "/targets/${screen.targetId}/edit"
         Screen.TemplateList -> "/resume-templates"
         is Screen.TemplateEdit -> if (screen.templateId == null) "/resume-templates/new" else "/resume-templates/${screen.templateId}"
         Screen.TemplatePreset -> "/resume-templates/presets"
@@ -62,8 +64,11 @@ object Routes {
             segments.size == 2 && segments[0] == "experiences" ->
                 if (segments[1] == "new") Screen.ExperienceEdit(null) else Screen.ExperienceEdit(segments[1])
             segments == listOf("targets") -> Screen.TargetList
+            // 수정 딥링크: /targets/{id}/edit. 2세그먼트 상세보다 먼저 매칭(더 구체적인 경로 우선).
+            segments.size == 3 && segments[0] == "targets" && segments[2] == "edit" ->
+                Screen.TargetEdit(segments[1])
             segments.size == 2 && segments[0] == "targets" ->
-                if (segments[1] == "new") Screen.TargetEdit(null) else Screen.TargetEdit(segments[1])
+                if (segments[1] == "new") Screen.TargetEdit(null) else Screen.TargetDetail(segments[1])
             segments == listOf("resume-templates") -> Screen.TemplateList
             segments == listOf("resume-templates", "presets") -> Screen.TemplatePreset
             segments == listOf("resume-templates", "interpret") -> Screen.TemplateInterpret

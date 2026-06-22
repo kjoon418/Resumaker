@@ -11,6 +11,7 @@ import watson.resumaker.generation.application.GenerationKind
 import watson.resumaker.generation.application.GenerationMaterial
 import watson.resumaker.generation.application.TargetSnapshot
 import watson.resumaker.generation.application.TemplateSectionSpec
+import watson.resumaker.target.domain.WritingStrategy
 import java.time.Duration
 import java.util.UUID
 
@@ -210,6 +211,61 @@ class ClaudeCliArtifactGenerationAdapterTest {
         // then — succeeded 필드가 없으면 false로 매핑된다.
         assertThat(output.sections).hasSize(1)
         assertThat(output.sections.first().succeeded).isFalse()
+    }
+
+    @Test
+    fun 작성_전략이_있으면_프롬프트에_전략을_싣고_원문_채용방향은_빼고_쓴다() {
+        // given — 전략이 실린 목표(생성 시점 READY). 원문 대신 전략 블록으로 작성하게 한다.
+        val (adapter, runner) = adapter("""{"sections":[]}""")
+        val strategyTarget = TargetSnapshot(
+            recruitDirection = "원문 채용 방향 전체 텍스트(복리후생 등 포함)",
+            company = "토스",
+            job = "서버 개발자",
+            writingStrategy = WritingStrategy(
+                keywords = listOf("대용량 트래픽"),
+                tone = "담백하고 성과 중심",
+                emphasize = listOf("백엔드 설계"),
+                avoid = listOf("과장"),
+                summary = "백엔드 신입 — 처리 역량 강조",
+            ),
+        )
+        val material = GenerationMaterial(
+            kind = GenerationKind.RESUME,
+            experiences = listOf(experienceSnapshot(exp1, "경험A")),
+            target = strategyTarget,
+            templateSections = listOf(TemplateSectionSpec("section-0-요약", "요약", SectionKind.SUMMARY, required = true)),
+            selectedExperienceIds = emptyList(),
+        )
+
+        // when
+        adapter.generate(material)
+
+        // then — 전략 블록 주입, 원문은 미포함.
+        assertThat(runner.capturedStdin).contains("## 작성 전략(이 방향으로 작성)")
+        assertThat(runner.capturedStdin).contains("백엔드 신입 — 처리 역량 강조")
+        assertThat(runner.capturedStdin).contains("대용량 트래픽")
+        assertThat(runner.capturedStdin).doesNotContain("원문 채용 방향 전체 텍스트")
+    }
+
+    @Test
+    fun 작성_전략이_없으면_원문_채용방향을_그대로_쓴다() {
+        // given — 전략 없음(추출 전·실패·진행 중) → 원문 폴백.
+        val (adapter, runner) = adapter("""{"sections":[]}""")
+        val material = GenerationMaterial(
+            kind = GenerationKind.RESUME,
+            experiences = listOf(experienceSnapshot(exp1, "경험A")),
+            target = target, // writingStrategy = null
+            templateSections = listOf(TemplateSectionSpec("section-0-요약", "요약", SectionKind.SUMMARY, required = true)),
+            selectedExperienceIds = emptyList(),
+        )
+
+        // when
+        adapter.generate(material)
+
+        // then — 원문 블록 사용, 전략 블록은 미포함.
+        assertThat(runner.capturedStdin).contains("## 목표 정보(채용 방향)")
+        assertThat(runner.capturedStdin).contains("백엔드 신입")
+        assertThat(runner.capturedStdin).doesNotContain("## 작성 전략(이 방향으로 작성)")
     }
 
     @Test

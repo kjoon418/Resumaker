@@ -119,12 +119,29 @@ class FakeTargetApi(
     var createResult: ApiResult<TargetResponse>? = null,
     var updateResult: ApiResult<TargetResponse>? = null,
     var deleteResult: ApiResult<Unit> = ApiResult.Success(Unit),
+    var retryStrategyResult: ApiResult<Unit> = ApiResult.Success(Unit),
+    /**
+     * 호출마다 다른 getOne 결과를 돌려주기 위한 큐(전략 폴링 전환 테스트용). 비어 있지 않으면 매 호출 앞에서
+     * 하나씩 꺼내 [getOneResult]를 갱신한 뒤 반환한다. 비면 마지막 [getOneResult]를 계속 반환한다.
+     */
+    var getOneSequence: ArrayDeque<ApiResult<TargetResponse>> = ArrayDeque(),
 ) : TargetApi {
     var lastCreate: CreateTargetRequest? = null
     var deletedId: String? = null
+    var retryStrategyId: String? = null
+    var retryStrategyCount = 0
+        private set
+    var getOneCount = 0
+        private set
 
     override suspend fun getAll() = getAllResult
-    override suspend fun getOne(id: String) = getOneResult ?: ApiResult.Failure("not found")
+    override suspend fun getOne(id: String): ApiResult<TargetResponse> {
+        getOneCount++
+        if (getOneSequence.isNotEmpty()) {
+            getOneResult = getOneSequence.removeFirst()
+        }
+        return getOneResult ?: ApiResult.Failure("not found")
+    }
     override suspend fun create(request: CreateTargetRequest): ApiResult<TargetResponse> {
         lastCreate = request
         return createResult ?: ApiResult.Success(
@@ -138,6 +155,11 @@ class FakeTargetApi(
     override suspend fun delete(id: String): ApiResult<Unit> {
         deletedId = id
         return deleteResult
+    }
+    override suspend fun retryStrategy(id: String): ApiResult<Unit> {
+        retryStrategyCount++
+        retryStrategyId = id
+        return retryStrategyResult
     }
 }
 

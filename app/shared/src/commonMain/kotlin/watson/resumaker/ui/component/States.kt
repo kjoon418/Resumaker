@@ -202,6 +202,8 @@ fun ErrorBanner(
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
     title: String = "문제가 생겼어요",
+    /** 재시도 버튼 라벨. 맥락에 맞는 동사로 바꿀 수 있다(예: "다시 분석하기"). */
+    retryText: String = "다시 시도",
 ) {
     val colors = RmTheme.colors
     Column(
@@ -231,7 +233,7 @@ fun ErrorBanner(
                 )
             }
         }
-        GhostButton(text = "다시 시도", onClick = onRetry)
+        GhostButton(text = retryText, onClick = onRetry)
     }
 }
 

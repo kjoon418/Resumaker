@@ -21,6 +21,8 @@ import watson.resumaker.feature.home.HomeScreen
 import watson.resumaker.feature.home.HomeViewModel
 import watson.resumaker.feature.mypage.MyPageScreen
 import watson.resumaker.feature.mypage.MyPageViewModel
+import watson.resumaker.feature.target.TargetDetailScreen
+import watson.resumaker.feature.target.TargetDetailViewModel
 import watson.resumaker.feature.target.TargetEditScreen
 import watson.resumaker.feature.target.TargetEditViewModel
 import watson.resumaker.feature.target.TargetListScreen
@@ -87,7 +89,7 @@ fun App(container: AppContainer = remember { AppContainer() }) {
                     onOpenTargets = { navigator.switchRoot(Screen.TargetList) },
                     onOpenTemplates = { navigator.switchRoot(Screen.TemplateList) },
                     onOpenExperience = { navigator.push(Screen.ExperienceEdit(it)) },
-                    onOpenTarget = { navigator.push(Screen.TargetEdit(it)) },
+                    onOpenTarget = { navigator.push(Screen.TargetDetail(it)) },
                     onOpenTemplate = { navigator.push(Screen.TemplateEdit(it)) },
                     onCreateExperience = { navigator.push(Screen.ExperienceEdit(null)) },
                     onOpenArtifact = { hasExperiences -> navigator.push(Screen.Artifact(hasExperiences)) },
@@ -130,9 +132,21 @@ fun App(container: AppContainer = remember { AppContainer() }) {
                     selectedTab = HeaderTab.TARGET,
                     pendingMessage = navigator.consumePendingMessage(),
                     onCreate = { navigator.push(Screen.TargetEdit(null)) },
-                    onOpen = { navigator.push(Screen.TargetEdit(it)) },
+                    onOpen = { navigator.push(Screen.TargetDetail(it)) },
                     onSelectTab = { navigator.onHeaderTab(it) },
                     onOpenMyPage = { navigator.switchRoot(Screen.MyPage) },
+                )
+            }
+
+            is Screen.TargetDetail -> {
+                val vm = remember(screen.targetId) {
+                    TargetDetailViewModel(container.targetApi, screen.targetId)
+                }
+                TargetDetailScreen(
+                    viewModel = vm,
+                    onBack = { navigator.pop() },
+                    onEdit = { navigator.push(Screen.TargetEdit(screen.targetId)) },
+                    onCreateArtifact = { navigator.push(Screen.Artifact()) },
                 )
             }
 
@@ -143,8 +157,8 @@ fun App(container: AppContainer = remember { AppContainer() }) {
                 TargetEditScreen(
                     viewModel = vm,
                     onBack = { navigator.pop() },
-                    // WX-4: 저장 후 항상 목표 목록으로 + 성공 스낵바 1회.
-                    onSaved = { navigator.returnToList(Screen.TargetList, "목표를 저장했어요") },
+                    // WX-4: 저장 후 항상 목표 목록으로 + 성공 스낵바 1회(생성/수정·전략 유무로 분기한 문구).
+                    onSaved = { message -> navigator.returnToList(Screen.TargetList, message) },
                 )
             }
 

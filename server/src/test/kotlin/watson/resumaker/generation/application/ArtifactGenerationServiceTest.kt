@@ -127,6 +127,7 @@ class ArtifactGenerationServiceTest {
         sectionRegenerationProcessor = SectionRegenerationProcessor(port, groundingValidator),
         mapper = mapper,
         transactionTemplate = transactionTemplate,
+        objectMapper = com.fasterxml.jackson.databind.ObjectMapper().registerModule(com.fasterxml.jackson.module.kotlin.KotlinModule.Builder().build()),
         clock = clock,
     )
 
@@ -644,6 +645,70 @@ class ArtifactGenerationServiceTest {
         // then
         assertThat(generator.callCount).isEqualTo(0)
         verify(templateRepository).findByIdAndOwnerId(any(), any())
+    }
+
+    @Test
+    fun 전략이_READY면_재료_target에_전략을_싣고_산출물_스냅샷에_JSON을_보존한다() {
+        // given (전략 통합) — READY 상태의 목표(전략 JSON 보유).
+        val strategyJson = """{"keywords":["대용량"],"tone":"성과 중심","emphasize":["백엔드"],"avoid":[],"summary":"백엔드 강조"}"""
+        val readyTarget = TargetBrief.retrieve(
+            id = targetId,
+            ownerId = ownerId,
+            recruitDirection = RecruitDirection("원문 채용 방향"),
+            company = null,
+            job = null,
+            writingStrategyJson = strategyJson,
+            strategyStatus = watson.resumaker.target.domain.StrategyStatus.READY,
+        )
+        whenever(experienceRepository.findAllByIdInAndOwnerId(any(), any()))
+            .thenAnswer { invocation ->
+                @Suppress("UNCHECKED_CAST")
+                (invocation.arguments[0] as Collection<UUID>).map { experienceRecord(ExperienceRecordId(it)) }
+            }
+        whenever(targetRepository.findByIdAndOwnerId(any(), any())).thenReturn(readyTarget)
+        whenever(templateRepository.findByIdAndOwnerId(any(), any())).thenReturn(template())
+        val captured = mutableListOf<Artifact>()
+        whenever(artifactRepository.save(any<Artifact>())).thenAnswer {
+            val a = it.arguments[0] as Artifact
+            captured += a
+            a
+        }
+        val output = GenerationOutput(
+            listOf(generated("section-0-요약", SectionKind.SUMMARY, "요약", succeeded = true, sources = listOf(exp1))),
+        )
+        val port = FakePort(output)
+
+        // when
+        service(port).generateResume(ownerId, resumeCommand())
+
+        // then — 재료 target에 전략이 실리고, 산출물 스냅샷에 전략 JSON이 보존된다.
+        val strategy = port.capturedMaterial!!.target.writingStrategy
+        assertThat(strategy).isNotNull
+        assertThat(strategy!!.summary).isEqualTo("백엔드 강조")
+        assertThat(captured.first().targetSnapshot.writingStrategyJson).isEqualTo(strategyJson)
+    }
+
+    @Test
+    fun 전략이_READY가_아니면_재료_target에_전략이_없고_스냅샷도_null이다() {
+        // given — target()은 PENDING(전략 없음) 기본. 전략 미주입·스냅샷 null 폴백을 고정한다.
+        stubResumeMaterial()
+        val captured = mutableListOf<Artifact>()
+        whenever(artifactRepository.save(any<Artifact>())).thenAnswer {
+            val a = it.arguments[0] as Artifact
+            captured += a
+            a
+        }
+        val output = GenerationOutput(
+            listOf(generated("section-0-요약", SectionKind.SUMMARY, "요약", succeeded = true, sources = listOf(exp1))),
+        )
+        val port = FakePort(output)
+
+        // when
+        service(port).generateResume(ownerId, resumeCommand())
+
+        // then
+        assertThat(port.capturedMaterial!!.target.writingStrategy).isNull()
+        assertThat(captured.first().targetSnapshot.writingStrategyJson).isNull()
     }
 
     private fun generated(

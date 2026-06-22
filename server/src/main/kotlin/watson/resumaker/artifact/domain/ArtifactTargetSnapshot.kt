@@ -32,18 +32,28 @@ class ArtifactTargetSnapshot private constructor(
     val company: String?,
     @Column(name = "target_job_title")
     val job: String?,
+    /**
+     * 생성 시점에 READY였던 AI 작성 전략의 JSON 직렬화 문자열(없으면 null — 원문으로 생성). 산출물은 생성에 쓴
+     * 작성 관점도 함께 불변 보존한다(원본 목표가 바뀌어도 산출물 맥락은 그대로). 구조화 파싱은 상위 계층 책임이다
+     * (엔티티는 JSON 문자열만 보관 — TargetBrief와 동일 정책).
+     */
+    @Column(name = "target_writing_strategy", columnDefinition = "text")
+    val writingStrategyJson: String?,
 ) {
 
     companion object {
         /**
          * 검증된 채용 방향 VO로부터 스냅샷을 만든다. [RecruitDirection]은 생성 시 비어있음·길이 상한을 이미
          * 검증하므로, 스냅샷은 그 값을 그대로 복제만 한다(불변식은 VO가 단일 소유).
+         *
+         * @param writingStrategyJson 생성에 쓴 작성 전략 JSON(READY일 때만, 그 외 null).
          */
         fun of(
             recruitDirection: RecruitDirection,
             company: String?,
             job: String?,
-        ): ArtifactTargetSnapshot = ArtifactTargetSnapshot(recruitDirection.value, company, job)
+            writingStrategyJson: String? = null,
+        ): ArtifactTargetSnapshot = ArtifactTargetSnapshot(recruitDirection.value, company, job, writingStrategyJson)
     }
 
     override fun equals(other: Any?): Boolean {
@@ -51,13 +61,15 @@ class ArtifactTargetSnapshot private constructor(
         if (other !is ArtifactTargetSnapshot) return false
         return recruitDirection == other.recruitDirection &&
             company == other.company &&
-            job == other.job
+            job == other.job &&
+            writingStrategyJson == other.writingStrategyJson
     }
 
     override fun hashCode(): Int {
         var result = recruitDirection.hashCode()
         result = 31 * result + (company?.hashCode() ?: 0)
         result = 31 * result + (job?.hashCode() ?: 0)
+        result = 31 * result + (writingStrategyJson?.hashCode() ?: 0)
         return result
     }
 }

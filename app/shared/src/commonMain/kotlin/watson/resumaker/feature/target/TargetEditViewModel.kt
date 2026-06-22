@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import watson.resumaker.model.dto.CreateTargetRequest
 import watson.resumaker.model.dto.UpdateTargetRequest
+import watson.resumaker.model.type.StrategyStatus
 import watson.resumaker.network.ApiResult
 import watson.resumaker.network.TargetApi
 import watson.resumaker.validation.Validators
@@ -24,8 +25,24 @@ data class TargetEditUiState(
     val loadError: String? = null,
     val snackbarMessage: String? = null,
     val saved: Boolean = false,
+    /**
+     * 편집 진입 시 로드된 기존 전략 상태. recruitDirection을 수정하면 백그라운드에서 전략이 재추출되므로,
+     * 전략이 이미 있던(READY) 목표에는 수정 InfoCard·재분석 안내 스낵바를 보여준다.
+     */
+    val loadedStrategyStatus: StrategyStatus? = null,
 ) {
     val isEditMode: Boolean get() = editingId != null
+
+    /** 채용 방향 수정 시 전략 재분석 안내(InfoCard) 노출 여부 — 편집 모드이면서 기존 전략이 준비된 경우만. */
+    val showStrategyReanalyzeInfo: Boolean get() = isEditMode && loadedStrategyStatus == StrategyStatus.READY
+
+    /** 저장 후 목록에서 노출할 성공 스낵바 문구(WX-4/16). 생성·수정(전략 있던 경우)을 구분한다. */
+    val savedMessage: String
+        get() = when {
+            !isEditMode -> "목표를 추가했어요. 작성 전략을 분석하는 중이에요."
+            showStrategyReanalyzeInfo -> "목표를 수정했어요. 변경된 내용으로 전략을 다시 분석하는 중이에요."
+            else -> "목표를 수정했어요."
+        }
 }
 
 /**
@@ -62,6 +79,7 @@ class TargetEditViewModel(
                             companyName = t.companyName.orEmpty(),
                             jobTitle = t.jobTitle.orEmpty(),
                             recruitDirection = t.recruitDirection,
+                            loadedStrategyStatus = t.strategyStatus,
                         )
                     }
                 }

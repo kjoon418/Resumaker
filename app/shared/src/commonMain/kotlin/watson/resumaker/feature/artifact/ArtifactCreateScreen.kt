@@ -27,6 +27,7 @@ import watson.resumaker.model.dto.ExperienceResponse
 import watson.resumaker.model.dto.TargetResponse
 import watson.resumaker.model.dto.TemplateResponse
 import watson.resumaker.model.type.ArtifactKind
+import watson.resumaker.model.type.StrategyStatus
 import watson.resumaker.ui.component.AppScaffold
 import watson.resumaker.ui.component.ComingSoon
 import watson.resumaker.ui.component.ContentWidth
@@ -35,6 +36,7 @@ import watson.resumaker.ui.component.PageHeader
 import watson.resumaker.ui.component.PrimaryButton
 import watson.resumaker.ui.component.SegmentedToggle
 import watson.resumaker.ui.component.SkeletonList
+import watson.resumaker.ui.component.StatusBadge
 import watson.resumaker.ui.theme.RmRadius
 import watson.resumaker.ui.theme.RmSize
 import watson.resumaker.ui.theme.RmSpacing
@@ -213,6 +215,13 @@ private fun CreateForm(
                 style = RmTextStyles.caption,
                 color = RmTheme.colors.textTertiary,
             )
+        } else if (state.selectedTargetStrategyNotReady) {
+            // 선택한 목표 전략이 아직 준비되지 않아도 생성은 가능하다 — 공고 원문 기반으로 만든다는 안내.
+            Text(
+                text = "선택한 목표의 전략이 아직 준비되지 않았어요. 공고 원문을 바탕으로 만들어 드릴게요.",
+                style = RmTextStyles.caption,
+                color = RmTheme.colors.textTertiary,
+            )
         }
     }
 }
@@ -266,13 +275,18 @@ private fun TargetSelectRow(
             // 채용 방향(서술 문장)은 보조 본문으로 둔다. 회사·직무가 비어 있으면 채용 방향을 제목으로 끌어올린다.
             val heading = listOfNotNull(target.companyName, target.jobTitle).joinToString(" · ")
                 .ifBlank { target.recruitDirection }
-            Text(
-                text = heading,
-                style = RmTextStyles.bodyM,
-                color = RmTheme.colors.textPrimary,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = heading,
+                    style = RmTextStyles.bodyM,
+                    color = RmTheme.colors.textPrimary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false),
+                )
+                // 제목 라인 우측 작은 전략 상태 배지(완료/분석 중만; 실패·없음은 배지 없음).
+                TargetStrategyBadgeInline(target.strategyStatus)
+            }
             // 채용 방향을 제목으로 올린 경우(회사·직무 없음)엔 중복 표시하지 않는다.
             if (heading != target.recruitDirection) {
                 Text(
@@ -285,6 +299,30 @@ private fun TargetSelectRow(
                 )
             }
         }
+    }
+}
+
+/**
+ * 목표 선택 행 제목 우측 작은 전략 상태 배지. 완료(success)·분석 중(warning)만 표시하고,
+ * 실패·없음(FAILED) 등 그 외 상태는 배지를 그리지 않는다(전략 없어도 생성은 항상 가능 — 막다른 길 금지).
+ */
+@Composable
+private fun TargetStrategyBadgeInline(status: StrategyStatus) {
+    val colors = RmTheme.colors
+    when (status) {
+        StrategyStatus.READY -> StatusBadge(
+            text = "전략 완료",
+            fg = colors.success,
+            bg = colors.successBg,
+            modifier = Modifier.padding(start = RmSpacing.space2),
+        )
+        StrategyStatus.PENDING, StrategyStatus.EXTRACTING -> StatusBadge(
+            text = "분석 중",
+            fg = colors.warning,
+            bg = colors.warningBg,
+            modifier = Modifier.padding(start = RmSpacing.space2),
+        )
+        StrategyStatus.FAILED -> Unit
     }
 }
 

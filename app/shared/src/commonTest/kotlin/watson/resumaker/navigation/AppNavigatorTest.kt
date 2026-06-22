@@ -135,14 +135,30 @@ class AppNavigatorTest {
     @Test
     fun popOnRootNavigatesToLogicalParent() {
         // #6: 직접 진입(history=null, backStack 크기 1)에서 pop()은 논리적 상위로 이동한다.
+        // 기존 목표 수정의 상위는 상세(라우팅 재배치).
         val nav = AppNavigator(Screen.TargetEdit(targetId = "t-1"))
         assertFalse(nav.canGoBack)
 
         nav.pop()
 
-        assertEquals(Screen.TargetList, nav.current)
-        // 상위가 루트가 되므로 더 이상 back 불가.
+        assertEquals(Screen.TargetDetail("t-1"), nav.current)
+        // 상위(상세)가 루트가 되므로 더 이상 back 불가.
         assertFalse(nav.canGoBack)
+    }
+
+    @Test
+    fun popOnRootNewTargetEditGoesToTargetList() {
+        // 신규 목표 생성(targetId=null)의 상위는 목록이다.
+        val nav = AppNavigator(Screen.TargetEdit(targetId = null))
+        nav.pop()
+        assertEquals(Screen.TargetList, nav.current)
+    }
+
+    @Test
+    fun popOnRootTargetDetailGoesToTargetList() {
+        val nav = AppNavigator(Screen.TargetDetail("t-1"))
+        nav.pop()
+        assertEquals(Screen.TargetList, nav.current)
     }
 
     @Test
@@ -188,6 +204,9 @@ class AppNavigatorTest {
         // parentOf 매핑이 화면별로 올바른 상위를 반환한다.
         assertEquals(Screen.ExperienceList, AppNavigator.parentOf(Screen.ExperienceEdit(null)))
         assertEquals(Screen.TargetList, AppNavigator.parentOf(Screen.TargetEdit(null)))
+        assertEquals(Screen.TargetList, AppNavigator.parentOf(Screen.TargetDetail("t-1")))
+        // 기존 목표 수정의 상위는 상세, 신규 생성의 상위는 목록.
+        assertEquals(Screen.TargetDetail("t-1"), AppNavigator.parentOf(Screen.TargetEdit("t-1")))
         assertEquals(Screen.TemplateList, AppNavigator.parentOf(Screen.TemplateEdit(null)))
         assertEquals(Screen.TemplateList, AppNavigator.parentOf(Screen.TemplatePreset))
         assertEquals(Screen.TemplateList, AppNavigator.parentOf(Screen.TemplateInterpret))

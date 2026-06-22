@@ -119,7 +119,9 @@ class AppNavigator(
          */
         fun parentOf(screen: Screen): Screen? = when (screen) {
             is Screen.ExperienceEdit -> Screen.ExperienceList
-            is Screen.TargetEdit -> Screen.TargetList
+            is Screen.TargetDetail -> Screen.TargetList
+            // 기존 목표 수정의 상위는 상세, 신규 생성의 상위는 목록.
+            is Screen.TargetEdit -> if (screen.targetId != null) Screen.TargetDetail(screen.targetId) else Screen.TargetList
             is Screen.TemplateEdit -> Screen.TemplateList
             Screen.TemplatePreset -> Screen.TemplateList
             Screen.TemplateInterpret -> Screen.TemplateList

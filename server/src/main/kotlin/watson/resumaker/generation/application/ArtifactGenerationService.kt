@@ -58,6 +58,7 @@ class ArtifactGenerationService(
     private val sectionRegenerationProcessor: SectionRegenerationProcessor,
     private val mapper: ArtifactGenerationServiceMapper,
     private val transactionTemplate: TransactionTemplate,
+    private val objectMapper: com.fasterxml.jackson.databind.ObjectMapper,
     private val clock: Clock,
 ) {
 
@@ -362,13 +363,29 @@ class ArtifactGenerationService(
         recruitDirection = recruitDirection.value,
         company = company?.value,
         job = job?.value,
+        // 전략이 READY일 때만 싣는다(추출 전·실패·진행 중이면 원문으로 생성한다 — 어댑터가 폴백).
+        writingStrategy = readyWritingStrategy(),
     )
 
     private fun TargetBrief.toArtifactTargetSnapshot(): ArtifactTargetSnapshot = ArtifactTargetSnapshot.of(
         recruitDirection = recruitDirection,
         company = company?.value,
         job = job?.value,
+        // 생성에 쓴 전략(READY인 경우의 원본 JSON)을 산출물에 함께 불변 보존한다(원문 폴백이면 null).
+        writingStrategyJson = readyWritingStrategy()?.let { writingStrategyJson },
     )
+
+    /**
+     * 전략 상태가 READY이고 JSON이 정상 역직렬화될 때만 [WritingStrategy]를 돌려준다. 그 외(미추출·실패·진행 중·
+     * JSON 손상)는 null이라 생성은 채용 방향 원문으로 진행한다(어댑터 폴백).
+     */
+    private fun TargetBrief.readyWritingStrategy(): watson.resumaker.target.domain.WritingStrategy? {
+        if (strategyStatus != watson.resumaker.target.domain.StrategyStatus.READY) return null
+        val json = writingStrategyJson ?: return null
+        return runCatching {
+            objectMapper.readValue(json, watson.resumaker.target.domain.WritingStrategy::class.java)
+        }.getOrNull()
+    }
 
     /** tx1에서 적재한 재료 + 목표 스냅샷을 tx2로 전달하는 컨테이너. */
     private data class PreparedGeneration(

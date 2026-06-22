@@ -53,6 +53,17 @@ class TargetService(
         repository.delete(brief)
     }
 
+    /**
+     * 작성 전략 추출을 다시 대기열에 올린다(상태 PENDING으로 리셋). 추출 실패(FAILED)나 사용자가 직접 재시도할 때
+     * 쓴다. 소유 격리(findOwnedOrThrow)로 본인 목표만 리셋한다. 멱등 — 이미 PENDING/진행 중이어도 허용한다
+     * (PENDING으로 되돌리면 진행 중이던 추출은 결과 쓰기 0행으로 폐기되고 다음 틱이 재추출한다).
+     */
+    @Transactional
+    fun retryStrategy(ownerId: UserId, id: TargetBriefId) {
+        val brief = findOwnedOrThrow(ownerId, id)
+        brief.resetStrategyPending()
+    }
+
     private fun findOwnedOrThrow(ownerId: UserId, id: TargetBriefId): TargetBrief =
         repository.findByIdAndOwnerId(id, ownerId)
             ?: throw ResourceNotFoundException("요청하신 목표 정보를 찾을 수 없어요.")

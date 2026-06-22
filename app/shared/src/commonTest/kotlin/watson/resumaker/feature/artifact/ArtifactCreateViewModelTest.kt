@@ -18,6 +18,7 @@ import watson.resumaker.model.dto.TemplateResponse
 import watson.resumaker.model.type.ArtifactKind
 import watson.resumaker.model.type.GenerationJobStatus
 import watson.resumaker.model.type.SectionCharacter
+import watson.resumaker.model.type.StrategyStatus
 import watson.resumaker.network.ApiResult
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
@@ -85,6 +86,23 @@ class ArtifactCreateViewModelTest {
         assertFalse(vm.state.value.canSubmit) // 이력서는 양식 필수.
         vm.selectTemplate("tpl-1")
         assertTrue(vm.state.value.canSubmit)
+    }
+
+    @Test
+    fun selectedTargetStrategyNotReadyReflectsTargetStatus() = runTest(dispatcher) {
+        val ready = TargetResponse(id = "t-ready", recruitDirection = "방향", strategyStatus = StrategyStatus.READY)
+        val pending = TargetResponse(id = "t-pending", recruitDirection = "방향", strategyStatus = StrategyStatus.PENDING)
+        val vm = vmWith(FakeArtifactApi(), targets = listOf(ready, pending))
+        testScheduler.advanceUntilIdle()
+
+        // 미선택이면 caption 없음.
+        assertFalse(vm.state.value.selectedTargetStrategyNotReady)
+
+        vm.selectTarget("t-ready")
+        assertFalse(vm.state.value.selectedTargetStrategyNotReady) // READY → caption 없음.
+
+        vm.selectTarget("t-pending")
+        assertTrue(vm.state.value.selectedTargetStrategyNotReady) // 분석 중 → caption 노출.
     }
 
     @Test

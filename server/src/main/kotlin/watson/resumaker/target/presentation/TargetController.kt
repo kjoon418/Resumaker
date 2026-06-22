@@ -57,6 +57,16 @@ class TargetController(
         return ResponseEntity.noContent().build()
     }
 
+    /**
+     * 작성 전략 추출을 다시 요청한다(비동기 — 상태를 PENDING으로 리셋하고 워커가 추출). 즉시 202를 돌려주고,
+     * 클라이언트는 GET /{id}의 strategyStatus로 폴링한다. 소유 격리로 본인 목표만 재시도한다.
+     */
+    @PostMapping("/{id}/strategy/retry")
+    fun retryStrategy(@PathVariable id: String): ResponseEntity<Void> {
+        service.retryStrategy(currentUserProvider.currentUserId(), toId(id))
+        return ResponseEntity.accepted().build()
+    }
+
     private fun toId(id: String): TargetBriefId = try {
         TargetBriefId(UUID.fromString(id))
     } catch (e: IllegalArgumentException) {

@@ -55,11 +55,17 @@ data class ExperienceSnapshot(
     val skillTags: List<String>,
 )
 
-/** 목표 정보 스냅샷(채용 방향 필수, 회사·직무 선택). */
+/**
+ * 목표 정보 스냅샷(채용 방향 필수, 회사·직무 선택).
+ *
+ * [writingStrategy]는 채용 방향에서 추출한 AI 작성 전략(구조화). **추출이 READY일 때만** 실린다. 어댑터는 전략이
+ * 있으면 프롬프트에 원문 대신 전략을 주입하고, 없으면 원문(recruitDirection)을 그대로 쓴다(폴백).
+ */
 data class TargetSnapshot(
     val recruitDirection: String,
     val company: String?,
     val job: String?,
+    val writingStrategy: watson.resumaker.target.domain.WritingStrategy? = null,
 )
 
 /**

@@ -180,6 +180,7 @@ private fun TargetRow(
         title = targetTitle(item),
         meta = item.recruitDirection,
         onClick = onOpen,
+        badge = { StrategyStatusBadge(status = item.strategyStatus) },
         trailing = {
             IconButton(onClick = onDelete, modifier = Modifier.padding(start = RmSpacing.space2)) {
                 Icon(

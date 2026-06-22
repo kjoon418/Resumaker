@@ -7,6 +7,7 @@ import watson.resumaker.generation.application.ExperienceSnapshot
 import watson.resumaker.generation.application.ResumeTemplateGeneration
 import watson.resumaker.generation.application.ResumeTemplateGenerationInput
 import watson.resumaker.generation.application.ResumeTemplateGenerator
+import watson.resumaker.generation.application.TargetSnapshot
 import watson.resumaker.template.domain.SectionCharacter
 import watson.resumaker.template.domain.SectionDefinition
 
@@ -81,14 +82,32 @@ class ClaudeCliResumeTemplateGenerator(
         sb.appendLine("- **맨 앞에 '자기소개(요약)' 섹션을 하나 두세요**(character=SUMMARY, required=true). 이 사람을 아래 채용 방향에 맞춰 한두 문장으로 포지셔닝하는 칸입니다.")
         sb.appendLine("- 모든 섹션은 경험·목표로 채울 수 있는 요약(SUMMARY)·경력(CAREER) 성격만 만드세요.")
         sb.appendLine()
-        sb.appendLine("## 목표 정보(채용 방향)")
-        sb.appendLine("- 채용 방향: ${material.target.recruitDirection}")
-        material.target.company?.let { sb.appendLine("- 회사: $it") }
-        material.target.job?.let { sb.appendLine("- 직무: $it") }
+        appendTargetBlock(sb, material.target)
         sb.appendLine()
         sb.appendLine("## 경험 기록(섹션 구조를 가늠하는 근거)")
         material.experiences.forEach { sb.appendLine(it.toPromptBlock()) }
         return sb.toString()
+    }
+
+    /**
+     * 목표 블록을 펼친다. 작성 전략이 있으면(생성 시점 READY) 원문 대신 전략을 자연어 지시문으로 펼쳐 넣고,
+     * 없으면 기존 "## 목표 정보(채용 방향)" 원문을 그대로 쓴다(폴백). 회사·직무는 두 경우 모두 함께 싣는다.
+     */
+    private fun appendTargetBlock(sb: StringBuilder, target: TargetSnapshot) {
+        val strategy = target.writingStrategy
+        if (strategy != null) {
+            sb.appendLine("## 작성 전략(이 방향으로 작성)")
+            if (strategy.summary.isNotBlank()) sb.appendLine("- 공고 요약: ${strategy.summary}")
+            if (strategy.keywords.isNotEmpty()) sb.appendLine("- 강조 키워드(핵심 역량): ${strategy.keywords.joinToString(", ")}")
+            if (strategy.tone.isNotBlank()) sb.appendLine("- 권장 어조: ${strategy.tone}")
+            if (strategy.emphasize.isNotEmpty()) sb.appendLine("- 강조할 점: ${strategy.emphasize.joinToString(", ")}")
+            if (strategy.avoid.isNotEmpty()) sb.appendLine("- 피할 점: ${strategy.avoid.joinToString(", ")}")
+        } else {
+            sb.appendLine("## 목표 정보(채용 방향)")
+            sb.appendLine("- 채용 방향: ${target.recruitDirection}")
+        }
+        target.company?.let { sb.appendLine("- 회사: $it") }
+        target.job?.let { sb.appendLine("- 직무: $it") }
     }
 
     private fun ExperienceSnapshot.toPromptBlock(): String {

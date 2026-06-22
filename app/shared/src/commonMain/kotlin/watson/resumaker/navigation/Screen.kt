@@ -23,7 +23,12 @@ sealed interface Screen {
     data object TargetList : Screen
 
     /**
-     * 목표 생성·수정. [targetId]가 null이면 신규.
+     * 목표 상세(회사·직무·채용 방향 원문 + AI 작성 전략 열람·상태·재시도). 목록 카드 클릭 시 진입.
+     */
+    data class TargetDetail(val targetId: String) : Screen
+
+    /**
+     * 목표 생성·수정. [targetId]가 null이면 신규(`/targets/new`), non-null이면 수정(`/targets/{id}/edit`).
      */
     data class TargetEdit(val targetId: String? = null) : Screen
 

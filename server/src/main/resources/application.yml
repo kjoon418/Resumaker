@@ -57,6 +57,12 @@ resumaker:
   generation-job:
     poll-interval-ms: ${GENERATION_JOB_POLL_INTERVAL_MS:2000}
     stale-running-timeout: ${GENERATION_JOB_STALE_RUNNING_TIMEOUT:PT5M}
+  # 작성 전략 추출 워커 수치(generation-job과 동형). 목표 저장 시 채용 방향에서 작성 전략을 비동기로 추출한다.
+  # 전략 추출은 생성 일일 한도(quota)와 무관하다(차감 없음). poll-interval-ms: 폴링 주기(기본 2000ms=2초).
+  # stale-running-timeout: EXTRACTING이 이 시간을 넘기면 고아로 보고 FAILED 회수(기본 PT5M=5분). 재추출하지 않는다.
+  target-strategy:
+    poll-interval-ms: ${TARGET_STRATEGY_POLL_INTERVAL_MS:2000}
+    stale-running-timeout: ${TARGET_STRATEGY_STALE_RUNNING_TIMEOUT:PT5M}
   # 인증 토큰 수명(불투명 access/refresh). access는 짧게(요청 인증), refresh는 길게(재발급) 둔다.
   # refresh는 사용 시 회전(rotation)되고, 로그아웃·계정삭제 시 Redis에서 즉시 폐기된다.
   auth:

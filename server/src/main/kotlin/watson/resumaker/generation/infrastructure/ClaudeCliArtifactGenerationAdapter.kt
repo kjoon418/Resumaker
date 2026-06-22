@@ -12,6 +12,7 @@ import watson.resumaker.generation.application.GeneratedSection
 import watson.resumaker.generation.application.GenerationKind
 import watson.resumaker.generation.application.GenerationMaterial
 import watson.resumaker.generation.application.GenerationOutput
+import watson.resumaker.generation.application.TargetSnapshot
 import watson.resumaker.generation.application.TemplateSectionSpec
 
 /**
@@ -50,10 +51,7 @@ class ClaudeCliArtifactGenerationAdapter(
         sb.appendLine("- 각 항목마다 근거가 된 경험의 id 목록(sourceExperienceIds)을 함께 제시하세요.")
         sb.appendLine("- 산출물에 등장한 수치/고유명사 각각에 대해 factGroundings로 근거(token, kind, sourceExperienceId, evidenceText)를 제시하세요. evidenceText는 경험 기록 본문에 실제로 등장한 문자열이어야 합니다.")
         sb.appendLine()
-        sb.appendLine("## 목표 정보(채용 방향)")
-        sb.appendLine("- 채용 방향: ${material.target.recruitDirection}")
-        material.target.company?.let { sb.appendLine("- 회사: $it") }
-        material.target.job?.let { sb.appendLine("- 직무: $it") }
+        appendTargetBlock(sb, material.target)
         sb.appendLine()
         sb.appendLine("## 경험 기록(이 안에 근거가 있는 사실만 사용)")
         material.experiences.forEach { sb.appendLine(it.toPromptBlock()) }
@@ -72,6 +70,27 @@ class ClaudeCliArtifactGenerationAdapter(
             GenerationKind.PORTFOLIO -> appendPortfolioInstructions(sb, material.experiences)
         }
         return sb.toString()
+    }
+
+    /**
+     * 목표 블록을 펼친다. 작성 전략이 있으면(생성 시점 READY) **원문 대신 전략**을 자연어 지시문으로 펼쳐 넣고,
+     * 없으면 기존 "## 목표 정보(채용 방향)" 원문을 그대로 쓴다(폴백). 회사·직무는 두 경우 모두 함께 싣는다.
+     */
+    private fun appendTargetBlock(sb: StringBuilder, target: TargetSnapshot) {
+        val strategy = target.writingStrategy
+        if (strategy != null) {
+            sb.appendLine("## 작성 전략(이 방향으로 작성)")
+            if (strategy.summary.isNotBlank()) sb.appendLine("- 공고 요약: ${strategy.summary}")
+            if (strategy.keywords.isNotEmpty()) sb.appendLine("- 강조 키워드(핵심 역량): ${strategy.keywords.joinToString(", ")}")
+            if (strategy.tone.isNotBlank()) sb.appendLine("- 권장 어조: ${strategy.tone}")
+            if (strategy.emphasize.isNotEmpty()) sb.appendLine("- 강조할 점: ${strategy.emphasize.joinToString(", ")}")
+            if (strategy.avoid.isNotEmpty()) sb.appendLine("- 피할 점: ${strategy.avoid.joinToString(", ")}")
+        } else {
+            sb.appendLine("## 목표 정보(채용 방향)")
+            sb.appendLine("- 채용 방향: ${target.recruitDirection}")
+        }
+        target.company?.let { sb.appendLine("- 회사: $it") }
+        target.job?.let { sb.appendLine("- 직무: $it") }
     }
 
     private fun appendResumeInstructions(sb: StringBuilder, sections: List<TemplateSectionSpec>) {

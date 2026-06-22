@@ -22,7 +22,8 @@ class RoutesTest {
         assertEquals("/experiences/new", Routes.pathOf(Screen.ExperienceEdit(null)))
         assertEquals("/experiences/abc", Routes.pathOf(Screen.ExperienceEdit("abc")))
         assertEquals("/targets/new", Routes.pathOf(Screen.TargetEdit(null)))
-        assertEquals("/targets/xyz", Routes.pathOf(Screen.TargetEdit("xyz")))
+        assertEquals("/targets/xyz/edit", Routes.pathOf(Screen.TargetEdit("xyz")))
+        assertEquals("/targets/xyz", Routes.pathOf(Screen.TargetDetail("xyz")))
     }
 
     @Test
@@ -39,7 +40,20 @@ class RoutesTest {
         assertEquals(Screen.ExperienceEdit(null), Routes.screenOf("/experiences/new"))
         assertEquals(Screen.ExperienceEdit("abc"), Routes.screenOf("/experiences/abc"))
         assertEquals(Screen.TargetEdit(null), Routes.screenOf("/targets/new"))
-        assertEquals(Screen.TargetEdit("xyz"), Routes.screenOf("/targets/xyz"))
+        // /targets/{id} 는 상세, /targets/{id}/edit 는 수정으로 매핑된다(상세 신설·라우팅 재배치).
+        assertEquals(Screen.TargetDetail("xyz"), Routes.screenOf("/targets/xyz"))
+        assertEquals(Screen.TargetEdit("xyz"), Routes.screenOf("/targets/xyz/edit"))
+    }
+
+    @Test
+    fun targetDetailAndEditRoundTrip() {
+        // 상세: /targets/{id} 왕복. 수정(3세그먼트)이 상세(2세그먼트)에 가려지지 않는다.
+        assertEquals("/targets/t-1", Routes.pathOf(Screen.TargetDetail("t-1")))
+        assertEquals(Screen.TargetDetail("t-1"), Routes.screenOf("/targets/t-1"))
+        assertEquals("/targets/t-1/edit", Routes.pathOf(Screen.TargetEdit("t-1")))
+        assertEquals(Screen.TargetEdit("t-1"), Routes.screenOf("/targets/t-1/edit"))
+        // 신규 생성은 여전히 /targets/new.
+        assertEquals(Screen.TargetEdit(null), Routes.screenOf("/targets/new"))
     }
 
     @Test

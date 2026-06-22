@@ -84,6 +84,16 @@ data class ArtifactCreateUiState(
             selectedExperienceIds.isNotEmpty() &&
             selectedTargetId != null &&
             templateChoiceSatisfied
+
+    /**
+     * 선택된 목표가 있고 그 전략이 아직 READY가 아닌지. true면 "공고 원문 기반으로 만들어 드린다"는 안내 caption을
+     * 노출한다(전략 없어도 생성은 항상 가능 — 막다른 길 금지). 미선택이면 false.
+     */
+    val selectedTargetStrategyNotReady: Boolean
+        get() {
+            val target = targets.firstOrNull { it.id == selectedTargetId } ?: return false
+            return target.strategyStatus != watson.resumaker.model.type.StrategyStatus.READY
+        }
 }
 
 /**

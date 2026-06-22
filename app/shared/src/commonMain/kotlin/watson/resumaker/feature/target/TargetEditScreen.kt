@@ -13,16 +13,20 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.material3.Text
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import watson.resumaker.ui.component.AppScaffold
 import watson.resumaker.ui.component.ContentWidth
 import watson.resumaker.ui.component.ErrorBanner
+import watson.resumaker.ui.component.InfoCard
 import watson.resumaker.ui.component.LoadingState
 import watson.resumaker.ui.component.PageHeader
 import watson.resumaker.ui.component.PrimaryButton
 import watson.resumaker.ui.component.RmTextField
 import watson.resumaker.ui.theme.RmSize
 import watson.resumaker.ui.theme.RmSpacing
+import watson.resumaker.ui.theme.RmTextStyles
+import watson.resumaker.ui.theme.RmTheme
 import watson.resumaker.ui.theme.pagePadding
 
 /**
@@ -32,14 +36,15 @@ import watson.resumaker.ui.theme.pagePadding
 fun TargetEditScreen(
     viewModel: TargetEditViewModel,
     onBack: () -> Unit,
-    onSaved: () -> Unit,
+    /** 저장 성공 시 1회 호출. 인자는 목록에서 노출할 성공 스낵바 문구(생성/수정·전략 유무로 분기). */
+    onSaved: (message: String) -> Unit,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     val jobFocusRequester = remember { FocusRequester() }
     val directionFocusRequester = remember { FocusRequester() }
 
-    LaunchedEffect(state.saved) { if (state.saved) onSaved() }
+    LaunchedEffect(state.saved) { if (state.saved) onSaved(state.savedMessage) }
     LaunchedEffect(state.snackbarMessage) {
         state.snackbarMessage?.let {
             snackbarHostState.showSnackbar(it)
@@ -88,12 +93,22 @@ fun TargetEditScreen(
                     onImeAction = { directionFocusRequester.requestFocus() },
                     focusRequester = jobFocusRequester,
                 )
+                // 채용 방향 수정 시 전략 재분석 안내(편집 모드 + 기존 전략 READY일 때만).
+                if (state.showStrategyReanalyzeInfo) {
+                    InfoCard(title = "채용 방향을 수정하면 전략이 다시 분석돼요") {
+                        Text(
+                            text = "공고 내용을 업데이트하면 AI가 새 전략을 만들어 드려요.",
+                            style = RmTextStyles.bodyS,
+                            color = RmTheme.colors.onPrimaryContainer,
+                        )
+                    }
+                }
                 RmTextField(
                     value = state.recruitDirection,
                     onValueChange = viewModel::onRecruitDirectionChange,
                     label = "채용 방향 *",
                     placeholder = "이 회사가 원하는 인재상·요구 역량을 적어 주세요.",
-                    helper = "채용공고를 그대로 붙여넣어도 됩니다. (${state.recruitDirection.length}/5000)",
+                    helper = "공고를 통째로 붙여넣어도 괜찮아요. 저장하면 AI가 핵심 전략을 정리해 드려요. (${state.recruitDirection.length}/5000)",
                     error = state.recruitDirectionError,
                     singleLine = false,
                     minHeight = RmSize.targetBodyMinHeight,
