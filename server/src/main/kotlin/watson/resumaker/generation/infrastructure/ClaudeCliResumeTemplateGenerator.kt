@@ -74,6 +74,12 @@ class ClaudeCliResumeTemplateGenerator(
         sb.appendLine("- 각 섹션은 name(섹션 이름), character(SUMMARY=요약형 또는 CAREER=경력형), required(필수 여부)를 가집니다.")
         sb.appendLine("- **구조(어떤 칸이 있는지)만** 만들고, 사실 내용(항목 본문)은 절대 만들지 마세요.")
         sb.appendLine("- 경험에 근거가 없는 섹션을 억지로 넣지 말고, 경험·목표에 맞는 섹션만 순서대로 제시하세요.")
+        // [자기소개 개선 C+D] 이 서비스는 이름·연락처·학력 같은 개인 신상 정보를 받지 않는다. 그런 칸을 만들면
+        // 채울 근거가 없어 빈 항목(생성 실패)으로 남는다. 그래서 신상 섹션은 금지하고, 경험·채용 방향으로 채울 수
+        // 있는 자기소개(요약)·역량·경력 성격만 만들게 한다(빈 섹션 실패 제거).
+        sb.appendLine("- **'인적사항·기본 정보·연락처·이름·학력' 같은 개인 신상 섹션은 절대 만들지 마세요.** 이 서비스는 그런 정보를 받지 않아 채울 수 없습니다(빈 칸이 됩니다).")
+        sb.appendLine("- **맨 앞에 '자기소개(요약)' 섹션을 하나 두세요**(character=SUMMARY, required=true). 이 사람을 아래 채용 방향에 맞춰 한두 문장으로 포지셔닝하는 칸입니다.")
+        sb.appendLine("- 모든 섹션은 경험·목표로 채울 수 있는 요약(SUMMARY)·경력(CAREER) 성격만 만드세요.")
         sb.appendLine()
         sb.appendLine("## 목표 정보(채용 방향)")
         sb.appendLine("- 채용 방향: ${material.target.recruitDirection}")

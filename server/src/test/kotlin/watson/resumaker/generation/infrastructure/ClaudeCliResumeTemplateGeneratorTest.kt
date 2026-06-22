@@ -109,6 +109,20 @@ class ClaudeCliResumeTemplateGeneratorTest {
     }
 
     @Test
+    fun 프롬프트는_개인_신상_섹션을_금지하고_자기소개_섹션을_요구한다() {
+        // given — 개인 신상(이름·연락처·학력)을 받지 않으므로 그런 섹션은 빈 채로 실패한다. 대신 자기소개(요약)를 둔다.
+        val runner = CannedRunner("""{"sections":[]}""")
+        val generator = generatorWith(runner)
+
+        // when
+        generator.generate(input())
+
+        // then
+        assertThat(runner.capturedStdin).contains("개인 신상")
+        assertThat(runner.capturedStdin).contains("자기소개")
+    }
+
+    @Test
     fun CLI_실패면_차단하지_않고_Unavailable로_폴백한다() {
         // given (graceful 폴백, §186)
         val generator = generatorWith(FailingRunner())

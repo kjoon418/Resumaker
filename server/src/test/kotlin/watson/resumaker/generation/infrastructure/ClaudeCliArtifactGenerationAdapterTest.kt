@@ -65,6 +65,27 @@ class ClaudeCliArtifactGenerationAdapterTest {
     private val target = TargetSnapshot(recruitDirection = "백엔드 신입", company = "토스", job = "서버 개발자")
 
     @Test
+    fun 이력서_프롬프트는_SUMMARY_섹션에_자기소개_초안_작성을_지시한다() {
+        // given — 개인 신상 정보가 없어도 채용 방향으로 자기소개(요약) 초안을 만들도록 지시한다(자기소개 개선 C+D).
+        val (adapter, runner) = adapter("""{"sections":[]}""")
+        val material = GenerationMaterial(
+            kind = GenerationKind.RESUME,
+            experiences = listOf(experienceSnapshot(exp1, "요약경험")),
+            target = target,
+            templateSections = listOf(
+                TemplateSectionSpec("section-0-요약", "요약", SectionKind.SUMMARY, required = true),
+            ),
+            selectedExperienceIds = emptyList(),
+        )
+
+        // when
+        adapter.generate(material)
+
+        // then
+        assertThat(runner.capturedStdin).contains("자기소개 초안")
+    }
+
+    @Test
     fun 이력서_생성_결과를_항목과_근거로_매핑한다() {
         // given — CLI가 한 섹션을 근거와 함께 돌려줬다고 가정한다.
         val resultJson = """

@@ -79,6 +79,11 @@ class ClaudeCliArtifactGenerationAdapter(
         sb.appendLine("- 아래 각 섹션에 대해, 근거 경험이 하나라도 있으면 항목을 생성하세요.")
         sb.appendLine("- **근거 경험이 0인 섹션은 항목을 생성하지 마세요**(결과에서 제외). 근거 없이 섹션을 채우지 마세요.")
         sb.appendLine("- 각 항목의 definitionKey는 해당 섹션의 키를 그대로 쓰고, sectionKind도 그대로 쓰세요.")
+        // [자기소개 개선 C+D] 자기소개(요약)는 이력서의 핵심이다. 개인 신상 정보가 없어도, 위 '채용 방향'이 강조하는
+        // 지향에 맞춰 경험들에서 드러나는 강점을 종합해 포지셔닝 한두 문장을 만든다. 채용 방향(사용자가 입력한 목표)은
+        // 합법적 근거이므로 이를 반영하되, 신뢰성 가드레일(경험에 없는 수치·고유명사 날조 금지)은 그대로 지킨다.
+        // 자기소개는 사용자가 이후 한 줄 다듬어 확정할 '초안'이므로 과장 없이 담백하게 쓴다.
+        sb.appendLine("- **SUMMARY(요약/자기소개) 성격의 섹션은**, 위 '채용 방향'이 강조하는 지향에 맞춰 이 사람의 강점을 한두 문장으로 압축한 **자기소개 초안**을 작성하세요. 여러 경험에서 드러나는 역량을 종합해도 됩니다(그 경험들의 id를 sourceExperienceIds에 모두 담으세요). 단, 경험 기록에 없는 수치·고유명사는 절대 넣지 마세요. 이는 사용자가 이후 한 줄 다듬어 확정할 '초안'입니다.")
         sections.forEach {
             sb.appendLine("  - definitionKey=\"${it.definitionKey}\", name=\"${it.name}\", sectionKind=${it.sectionKind}, required=${it.required}")
         }
