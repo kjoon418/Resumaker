@@ -262,20 +262,24 @@ private fun TargetSelectRow(
 ) {
     SelectableRow(selected = selected, onClick = onSelect) {
         Column(modifier = Modifier.weight(1f)) {
+            // 카드의 정체성은 '어디에(회사)·무엇으로(직무) 지원하는가'다. 회사·직무를 제목(진한 bodyM)으로 올리고
+            // 채용 방향(서술 문장)은 보조 본문으로 둔다. 회사·직무가 비어 있으면 채용 방향을 제목으로 끌어올린다.
+            val heading = listOfNotNull(target.companyName, target.jobTitle).joinToString(" · ")
+                .ifBlank { target.recruitDirection }
             Text(
-                text = target.recruitDirection,
+                text = heading,
                 style = RmTextStyles.bodyM,
                 color = RmTheme.colors.textPrimary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            val meta = listOfNotNull(target.companyName, target.jobTitle).joinToString(" · ")
-            if (meta.isNotBlank()) {
+            // 채용 방향을 제목으로 올린 경우(회사·직무 없음)엔 중복 표시하지 않는다.
+            if (heading != target.recruitDirection) {
                 Text(
-                    text = meta,
+                    text = target.recruitDirection,
                     style = RmTextStyles.caption,
-                    color = RmTheme.colors.textTertiary,
-                    maxLines = 1,
+                    color = RmTheme.colors.textSecondary,
+                    maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.padding(top = RmSpacing.space1),
                 )
