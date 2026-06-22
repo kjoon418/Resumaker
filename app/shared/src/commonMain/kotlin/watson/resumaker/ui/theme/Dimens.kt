@@ -69,7 +69,7 @@ object RmSize {
 
     // §7 웹 반응형 컨테이너 폭(WX-1). 리스트/홈은 넓게, 폼·세션은 읽기 최적폭으로 좁게.
     val contentMaxWide: Dp = 1120.dp  // 리스트/홈 콘텐츠 최대폭
-    val contentMaxNarrow: Dp = 640.dp // 폼·세션 콘텐츠 최대폭
+    val contentMaxNarrow: Dp = 760.dp // 폼·세션·산출물 열람 콘텐츠 최대폭(읽기 가독성 위해 소폭 확대)
 
     // §7 브레이크포인트(WX-1). <600 Compact / 600~1024 Medium / >1024 Expanded.
     val breakpointCompact: Dp = 600.dp
