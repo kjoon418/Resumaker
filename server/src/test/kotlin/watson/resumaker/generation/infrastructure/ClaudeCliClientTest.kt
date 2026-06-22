@@ -126,6 +126,29 @@ class ClaudeCliClientTest {
     }
 
     @Test
+    fun 멀티라인_스키마는_한_줄로_펴서_인자에_전달된다() {
+        // given — Windows에서 claude.cmd(cmd.exe 경유)는 인자 안 개행에서 명령행을 잘라 JSON을 truncate시킨다.
+        // trimIndent()로 개행이 보존된 멀티라인 스키마가 그대로 전달되면 CLI가 "not valid JSON"으로 즉시 실패한다.
+        var capturedCommand: List<String>? = null
+        val runner = fakeRunner(stdout = envelope("""{"ok":true}""")) { cmd, _ -> capturedCommand = cmd }
+        val multilineSchema = """
+            {
+              "type": "object",
+              "required": ["sections"]
+            }
+        """.trimIndent()
+
+        // when
+        client(runner).complete(prompt = "p", jsonSchema = multilineSchema)
+
+        // then — --json-schema 인자에 개행이 없고(한 줄), 토큰은 보존된다.
+        val command = capturedCommand!!
+        val schemaArg = command[command.indexOf("--json-schema") + 1]
+        assertThat(schemaArg).doesNotContain("\n").doesNotContain("\r")
+        assertThat(schemaArg).contains("\"type\"", "\"object\"", "\"sections\"")
+    }
+
+    @Test
     fun 비정상_종료코드는_예외로_전파된다() {
         // given
         val runner = fakeRunner(exitCode = 1, stderr = "boom")

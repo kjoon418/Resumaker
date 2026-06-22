@@ -48,7 +48,13 @@ class ClaudeCliClient(
             "-p",
             "--model", properties.model,
             "--output-format", "json",
-            "--json-schema", jsonSchema,
+            // 스키마는 한 줄로 펴서 인자에 싣는다. Windows에서 `claude`는 `claude.cmd`(PATHEXT)로 해석돼
+            // ProcessBuilder가 cmd.exe를 거치는데, cmd.exe는 **인자 안의 개행에서 명령행을 잘라버린다**. 멀티라인
+            // 스키마(`trimIndent()`로 개행 보존)를 그대로 넘기면 JSON이 첫 줄에서 truncate돼 CLI가 "not valid JSON"으로
+            // 즉시 실패한다(생성이 pending처럼 보이다 503). JSON은 토큰 사이 공백에 무관하고 스키마 문자열 값 안에는
+            // 리터럴 개행이 없으므로(있으면 애초에 무효 JSON), 개행을 공백으로 바꿔 한 줄로 만들면 의미가 보존된다.
+            // Linux/docker(execvp, cmd.exe 미경유)에는 영향이 없다.
+            "--json-schema", jsonSchema.toSingleLine(),
         )
 
         val result = try {
@@ -102,6 +108,12 @@ class ClaudeCliClient(
             throw ClaudeCliException("Claude CLI 결과가 올바른 JSON이 아니에요.", e)
         }
     }
+
+    /**
+     * 개행(CRLF/CR/LF)을 공백으로 바꿔 스키마를 한 줄로 편다. cmd.exe 인자 개행 truncation 회피용(위 [complete] 주석).
+     * 연속 개행/주변 공백이 늘어나도 JSON 의미에는 영향이 없다(토큰 사이 공백 무관).
+     */
+    private fun String.toSingleLine(): String = replace("\r\n", " ").replace('\r', ' ').replace('\n', ' ')
 
     private fun truncateForDiagnostics(stderr: String): String {
         val trimmed = stderr.trim()
