@@ -1,25 +1,27 @@
 package watson.resumaker.network
 
 import io.ktor.client.call.body
+import io.ktor.client.request.delete
 import io.ktor.client.request.get
 import io.ktor.client.request.post
 import io.ktor.client.request.put
 import io.ktor.client.request.setBody
 import watson.resumaker.model.dto.ArtifactResponse
+import watson.resumaker.model.dto.ArtifactSummaryResponse
 import watson.resumaker.model.dto.ArtifactVersionsResponse
 import watson.resumaker.model.dto.EditSectionContentRequest
-import watson.resumaker.model.dto.GenerationResponse
+import watson.resumaker.model.dto.GenerationJobResponse
 import watson.resumaker.model.dto.PortfolioGenerationRequest
 import watson.resumaker.model.dto.RegenerateSectionRequest
 import watson.resumaker.model.dto.ResumeGenerationRequest
 
 /**
- * 산출물 API: 생성(이력서/포트폴리오)·열람. 모든 요청은 `X-User-Id`로 보호된다(ApiClient 주입).
+ * 산출물 API: 생성(이력서/포트폴리오)·작업 폴링·열람. 모든 요청은 `X-User-Id`로 보호된다(ApiClient 주입).
  * 인터페이스로 두어 ViewModel 테스트에서 fake로 대체할 수 있게 한다(의존성 역전).
  *
- * 부분 성공(일부 항목 *_FAILED, 서버 200)도 [ApiResult.Success]로 받아 화면이 항목 상태로 고지한다
- * (도메인 이해 §306·신뢰성 가드레일 — 가짜 성공 금지). 빈 경험(409 ADD_EXPERIENCE)·타인/미존재(404)는
- * [ApiResult.Failure]로 내려오며 `code`로 분기한다.
+ * 생성은 동기→비동기로 전환됐다: 제출(POST)은 202로 [GenerationJobResponse]를 돌려주고, 화면이 작업 목록
+ * (listJobs)·완성 산출물 목록(listArtifacts)을 폴링해 완료를 확인한다. 부분 성공(≥1 섹션)도 작업은 SUCCEEDED가
+ * 되고, 처리 중 실패는 FAILED가 되어 errorCode/errorMessage로 표면화된다(가짜 성공 금지 — 도메인 §306).
  *
  * Slice 2(항목 재생성·직접 편집)는 아래 메서드로 추가됐다. 재생성은 LLM 호출(수십 초)이라 withLongTimeout을
  * 적용하고, 편집은 AI 비호출 동기 영속이라 일반 타임아웃을 쓴다. 둘 다 [ArtifactResponse](활성 버전 래핑)로
@@ -31,8 +33,32 @@ import watson.resumaker.model.dto.ResumeGenerationRequest
  * NOT_FOUND)은 [ApiResult.Failure]의 `code`로 분기한다.
  */
 interface ArtifactApi {
-    suspend fun generateResume(request: ResumeGenerationRequest): ApiResult<GenerationResponse>
-    suspend fun generatePortfolio(request: PortfolioGenerationRequest): ApiResult<GenerationResponse>
+    /**
+     * 이력서 생성 제출(POST /artifacts/resume → 202). 더 이상 산출물을 즉시 반환하지 않고 비동기 생성 작업을
+     * 만들어 [GenerationJobResponse]로 돌려준다. 제출은 빠르므로 일반 타임아웃을 쓴다. 한도 초과(429
+     * GENERATION_QUOTA_EXCEEDED)·목표 없음(404)은 [ApiResult.Failure]로 내려온다. 처리 중 실패는 작업이
+     * FAILED가 되어 폴링으로 표면화된다.
+     */
+    suspend fun generateResume(request: ResumeGenerationRequest): ApiResult<GenerationJobResponse>
+
+    /** 포트폴리오 생성 제출(POST /artifacts/portfolio → 202). [generateResume]와 동일한 비동기 제출 계약. */
+    suspend fun generatePortfolio(request: PortfolioGenerationRequest): ApiResult<GenerationJobResponse>
+
+    /** 내 생성 작업 목록(GET /generation-jobs, 최신순). 목록 화면이 진행 중/실패 작업 카드로 표시한다. */
+    suspend fun listJobs(): ApiResult<List<GenerationJobResponse>>
+
+    /** 생성 작업 단건 조회(GET /generation-jobs/{id}). 없음/타인 404, 잘못된 uuid 400은 [ApiResult.Failure]. */
+    suspend fun getJob(id: String): ApiResult<GenerationJobResponse>
+
+    /**
+     * 생성 작업 기록 삭제(DELETE /generation-jobs/{id} → 204). 활성 작업(PENDING/RUNNING)이면 409, 없음 404.
+     * 204/Unit 디코드는 [ExperienceApi.delete] 패턴을 따른다.
+     */
+    suspend fun deleteJob(id: String): ApiResult<Unit>
+
+    /** 내 완성 산출물 목록(GET /artifacts, 최신순). 목록 화면이 완성 카드로 표시한다. */
+    suspend fun listArtifacts(): ApiResult<List<ArtifactSummaryResponse>>
+
     suspend fun getArtifact(id: String): ApiResult<ArtifactResponse>
 
     /**
@@ -74,25 +100,47 @@ interface ArtifactApi {
 
 class ArtifactApiImpl(private val client: ApiClient) : ArtifactApi {
 
-    override suspend fun generateResume(request: ResumeGenerationRequest): ApiResult<GenerationResponse> =
-        client.safeRequest(decode = { it.body<GenerationResponse>() }) {
+    override suspend fun generateResume(request: ResumeGenerationRequest): ApiResult<GenerationJobResponse> =
+        client.safeRequest(decode = { it.body<GenerationJobResponse>() }) {
             client.http.post(client.url("/artifacts/resume")) {
-                with(client) {
-                    withUser()
-                    withLongTimeout()
-                }
+                with(client) { withUser() }
                 setBody(request)
             }
         }
 
-    override suspend fun generatePortfolio(request: PortfolioGenerationRequest): ApiResult<GenerationResponse> =
-        client.safeRequest(decode = { it.body<GenerationResponse>() }) {
+    override suspend fun generatePortfolio(request: PortfolioGenerationRequest): ApiResult<GenerationJobResponse> =
+        client.safeRequest(decode = { it.body<GenerationJobResponse>() }) {
             client.http.post(client.url("/artifacts/portfolio")) {
-                with(client) {
-                    withUser()
-                    withLongTimeout()
-                }
+                with(client) { withUser() }
                 setBody(request)
+            }
+        }
+
+    override suspend fun listJobs(): ApiResult<List<GenerationJobResponse>> =
+        client.safeRequest(decode = { it.body<List<GenerationJobResponse>>() }) {
+            client.http.get(client.url("/generation-jobs")) {
+                with(client) { withUser() }
+            }
+        }
+
+    override suspend fun getJob(id: String): ApiResult<GenerationJobResponse> =
+        client.safeRequest(decode = { it.body<GenerationJobResponse>() }) {
+            client.http.get(client.url("/generation-jobs/$id")) {
+                with(client) { withUser() }
+            }
+        }
+
+    override suspend fun deleteJob(id: String): ApiResult<Unit> =
+        client.safeRequest(decode = { }) {
+            client.http.delete(client.url("/generation-jobs/$id")) {
+                with(client) { withUser() }
+            }
+        }
+
+    override suspend fun listArtifacts(): ApiResult<List<ArtifactSummaryResponse>> =
+        client.safeRequest(decode = { it.body<List<ArtifactSummaryResponse>>() }) {
+            client.http.get(client.url("/artifacts")) {
+                with(client) { withUser() }
             }
         }
 

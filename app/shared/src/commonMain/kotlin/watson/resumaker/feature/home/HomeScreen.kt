@@ -28,8 +28,10 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import watson.resumaker.feature.experience.formatPeriod
 import watson.resumaker.feature.target.targetTitle
 import watson.resumaker.feature.template.templateSummary
+import watson.resumaker.model.dto.ArtifactSummaryResponse
 import watson.resumaker.ui.component.AppHeader
 import watson.resumaker.ui.component.AppScaffold
+import watson.resumaker.ui.component.Badge
 import watson.resumaker.ui.component.ContentWidth
 import watson.resumaker.ui.component.EmptyState
 import watson.resumaker.ui.component.ErrorBanner
@@ -41,6 +43,7 @@ import watson.resumaker.ui.component.ListItemCard
 import watson.resumaker.ui.component.LocalContentMaxWidth
 import watson.resumaker.ui.component.PrimaryButton
 import watson.resumaker.ui.component.SkeletonList
+import watson.resumaker.ui.component.StatusBadge
 import watson.resumaker.ui.component.TextLink
 import watson.resumaker.ui.component.TypeBadge
 import watson.resumaker.ui.theme.RmIcons
@@ -66,6 +69,8 @@ fun HomeScreen(
     onOpenTemplate: (String) -> Unit,
     onCreateExperience: () -> Unit,
     onOpenArtifact: (hasExperiences: Boolean) -> Unit,
+    onOpenArtifactList: () -> Unit,
+    onOpenArtifactView: (String) -> Unit,
     onSelectTab: (HeaderTab) -> Unit,
     onOpenMyPage: () -> Unit,
 ) {
@@ -131,6 +136,16 @@ fun HomeScreen(
                             onOpenTargets = onOpenTargets,
                         )
                     }
+                }
+
+                // 내 산출물 — 진행 중 작업이나 완성 산출물이 있을 때만 노출(없으면 섹션 숨김).
+                if (state.showArtifactSection) {
+                    ArtifactSection(
+                        activeJobCount = state.activeJobCount,
+                        artifacts = state.artifactPreview,
+                        onViewAll = onOpenArtifactList,
+                        onOpenArtifact = onOpenArtifactView,
+                    )
                 }
 
                 // 내 경험
@@ -220,6 +235,52 @@ fun HomeScreen(
             }
         }
     }
+}
+
+/**
+ * 홈 "내 산출물" 섹션. 진행 중 작업 수 배지 + 최근 완성 산출물 1~2개 미리보기 + "전체보기"(→산출물 목록).
+ * 폴링은 하지 않는다(진입 시 1회 로드) — 실시간 진행 추적은 산출물 목록 화면이 담당한다.
+ */
+@Composable
+private fun ArtifactSection(
+    activeJobCount: Int,
+    artifacts: List<ArtifactSummaryResponse>,
+    onViewAll: () -> Unit,
+    onOpenArtifact: (String) -> Unit,
+) {
+    val colors = RmTheme.colors
+    Column(verticalArrangement = Arrangement.spacedBy(RmSpacing.space3)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(RmSpacing.space2),
+        ) {
+            Text(
+                text = "내 산출물",
+                style = RmTextStyles.headingM,
+                color = colors.textPrimary,
+            )
+            if (activeJobCount > 0) {
+                StatusBadge(text = "${activeJobCount}건 진행 중")
+            }
+            Spacer(Modifier.weight(1f))
+            TextLink(text = "전체보기", onClick = onViewAll)
+        }
+        artifacts.forEach { artifact ->
+            ListItemCard(
+                title = artifactTitle(artifact.kind, artifact.targetCompany),
+                badge = { Badge(text = "완성", fg = colors.success, bg = colors.successBg) },
+                onClick = { onOpenArtifact(artifact.id) },
+            )
+        }
+    }
+}
+
+/** 산출물 종류·회사로 제목을 만든다(목록 화면 jobTitle과 동일 규칙). 회사가 없으면 종류만. */
+private fun artifactTitle(kind: watson.resumaker.model.type.ArtifactKind, targetCompany: String?): String {
+    val noun = if (kind == watson.resumaker.model.type.ArtifactKind.RESUME) "이력서" else "포트폴리오"
+    val company = targetCompany?.takeIf { it.isNotBlank() }
+    return if (company != null) "$company $noun" else noun
 }
 
 /**

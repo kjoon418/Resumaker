@@ -7,6 +7,7 @@ import watson.resumaker.artifact.domain.ArtifactId
 import watson.resumaker.artifact.infrastructure.ArtifactRepository
 import watson.resumaker.common.domain.ResourceNotFoundException
 import watson.resumaker.generation.presentation.ArtifactResponse
+import watson.resumaker.generation.presentation.ArtifactSummaryResponse
 import watson.resumaker.generation.presentation.ArtifactVersionsResponse
 
 /**
@@ -23,6 +24,16 @@ class ArtifactReadService(
     private val artifactRepository: ArtifactRepository,
     private val mapper: ArtifactReadServiceMapper,
 ) {
+
+    /**
+     * 내 산출물 목록을 카드용 요약으로 돌려준다(GET /artifacts). 생성 시각 내림차순(최신 먼저)으로 정렬한다.
+     * 회사명·생성/수정 시각은 지연 로딩 경계(버전·스냅샷) 안에서 변환되므로 readOnly 트랜잭션 내부에서 매핑한다.
+     */
+    @Transactional(readOnly = true)
+    fun listArtifacts(ownerId: UserId): List<ArtifactSummaryResponse> =
+        artifactRepository.findAllByOwnerId(ownerId)
+            .map { mapper.toSummary(it) }
+            .sortedByDescending { it.createdAt }
 
     @Transactional(readOnly = true)
     fun getArtifact(ownerId: UserId, id: ArtifactId): ArtifactResponse {

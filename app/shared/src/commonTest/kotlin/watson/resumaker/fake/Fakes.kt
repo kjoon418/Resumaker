@@ -1,11 +1,12 @@
 package watson.resumaker.fake
 
 import watson.resumaker.model.dto.ArtifactResponse
+import watson.resumaker.model.dto.ArtifactSummaryResponse
 import watson.resumaker.model.dto.ArtifactVersionsResponse
 import watson.resumaker.model.dto.CreateExperienceRequest
 import watson.resumaker.model.dto.CreateTargetRequest
 import watson.resumaker.model.dto.ExperienceResponse
-import watson.resumaker.model.dto.GenerationResponse
+import watson.resumaker.model.dto.GenerationJobResponse
 import watson.resumaker.model.dto.PortfolioGenerationRequest
 import watson.resumaker.model.dto.ResumeGenerationRequest
 import watson.resumaker.model.dto.InterpretRequest
@@ -202,20 +203,37 @@ class FakeTemplateInterpretApi(
 
 /** 결과를 미리 지정하는 fake ArtifactApi. 호출 인자를 기록해 검증한다. */
 class FakeArtifactApi(
-    var generateResumeResult: ApiResult<GenerationResponse>? = null,
-    var generatePortfolioResult: ApiResult<GenerationResponse>? = null,
+    var generateResumeResult: ApiResult<GenerationJobResponse>? = null,
+    var generatePortfolioResult: ApiResult<GenerationJobResponse>? = null,
     var getArtifactResult: ApiResult<ArtifactResponse>? = null,
     var regenerateResult: ApiResult<ArtifactResponse>? = null,
     var editResult: ApiResult<ArtifactResponse>? = null,
     var getVersionsResult: ApiResult<ArtifactVersionsResponse>? = null,
     var restoreResult: ApiResult<ArtifactResponse>? = null,
+    var listJobsResult: ApiResult<List<GenerationJobResponse>> = ApiResult.Success(emptyList()),
+    var getJobResult: ApiResult<GenerationJobResponse>? = null,
+    var deleteJobResult: ApiResult<Unit> = ApiResult.Success(Unit),
+    var listArtifactsResult: ApiResult<List<ArtifactSummaryResponse>> = ApiResult.Success(emptyList()),
+    /**
+     * 호출마다 다른 listJobs 결과를 돌려주기 위한 큐(폴링 전환 테스트용). 비어 있지 않으면 매 호출 앞에서 하나씩
+     * 꺼내 [listJobsResult]를 갱신한 뒤 반환한다. 비면 마지막 [listJobsResult]를 계속 반환한다.
+     */
+    var listJobsSequence: ArrayDeque<ApiResult<List<GenerationJobResponse>>> = ArrayDeque(),
 ) : ArtifactApi {
     var lastResumeRequest: ResumeGenerationRequest? = null
     var lastPortfolioRequest: PortfolioGenerationRequest? = null
     var getArtifactId: String? = null
+    var deletedJobId: String? = null
+    var getJobId: String? = null
 
     /** generateResume 호출 횟수(재시도 검증용). */
     var generateResumeCallCount = 0
+        private set
+
+    /** listJobs/listArtifacts 호출 횟수(폴링 검증용). */
+    var listJobsCallCount = 0
+        private set
+    var listArtifactsCallCount = 0
         private set
 
     /** 버전 목록 조회에 들어온 artifactId 기록. */
@@ -260,15 +278,38 @@ class FakeArtifactApi(
      */
     var editGate: kotlinx.coroutines.CompletableDeferred<Unit>? = null
 
-    override suspend fun generateResume(request: ResumeGenerationRequest): ApiResult<GenerationResponse> {
+    override suspend fun generateResume(request: ResumeGenerationRequest): ApiResult<GenerationJobResponse> {
         generateResumeCallCount++
         lastResumeRequest = request
         return generateResumeResult ?: ApiResult.Failure("no result")
     }
 
-    override suspend fun generatePortfolio(request: PortfolioGenerationRequest): ApiResult<GenerationResponse> {
+    override suspend fun generatePortfolio(request: PortfolioGenerationRequest): ApiResult<GenerationJobResponse> {
         lastPortfolioRequest = request
         return generatePortfolioResult ?: ApiResult.Failure("no result")
+    }
+
+    override suspend fun listJobs(): ApiResult<List<GenerationJobResponse>> {
+        listJobsCallCount++
+        if (listJobsSequence.isNotEmpty()) {
+            listJobsResult = listJobsSequence.removeFirst()
+        }
+        return listJobsResult
+    }
+
+    override suspend fun getJob(id: String): ApiResult<GenerationJobResponse> {
+        getJobId = id
+        return getJobResult ?: ApiResult.Failure("no result")
+    }
+
+    override suspend fun deleteJob(id: String): ApiResult<Unit> {
+        deletedJobId = id
+        return deleteJobResult
+    }
+
+    override suspend fun listArtifacts(): ApiResult<List<ArtifactSummaryResponse>> {
+        listArtifactsCallCount++
+        return listArtifactsResult
     }
 
     override suspend fun getArtifact(id: String): ApiResult<ArtifactResponse> {

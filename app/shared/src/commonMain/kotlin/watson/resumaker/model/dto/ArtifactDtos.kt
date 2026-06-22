@@ -3,6 +3,7 @@ package watson.resumaker.model.dto
 import kotlinx.serialization.Serializable
 import watson.resumaker.model.type.ArtifactKind
 import watson.resumaker.model.type.FactKind
+import watson.resumaker.model.type.GenerationJobStatus
 import watson.resumaker.model.type.SectionKind
 import watson.resumaker.model.type.SectionStatus
 import watson.resumaker.model.type.TemplateOrigin
@@ -62,6 +63,38 @@ data class RegenerateSectionRequest(
 @Serializable
 data class EditSectionContentRequest(
     val content: String,
+)
+
+/**
+ * 비동기 생성 작업 응답(POST /artifacts/resume·portfolio → 202, GET /generation-jobs[/{id}]). 서버
+ * GenerationJobResponse와 1:1. 제출은 더 이상 산출물을 즉시 반환하지 않고 작업을 만든 뒤 이 응답을 돌려준다.
+ *
+ * [status]가 SUCCEEDED면 [artifactId]가 채워져 완성 산출물을 가리킨다. FAILED면 [errorCode]/[errorMessage]로
+ * 실패 원인을 표면화한다(가짜 성공 금지). PENDING·RUNNING은 활성 상태로, 목록 화면이 폴링으로 완료를 확인한다.
+ */
+@Serializable
+data class GenerationJobResponse(
+    val jobId: String,
+    val kind: ArtifactKind,
+    val status: GenerationJobStatus,
+    val artifactId: String? = null,
+    val errorCode: String? = null,
+    val errorMessage: String? = null,
+    val targetCompany: String? = null,
+    val createdAt: String,
+)
+
+/**
+ * 산출물 목록 항목 응답(GET /artifacts). 서버 ArtifactSummaryResponse와 1:1. 목록 표시에 필요한 최소 정보만
+ * 담는다(상세는 [ArtifactResponse]를 GET /artifacts/{id}로 조회). 최신순으로 내려온다.
+ */
+@Serializable
+data class ArtifactSummaryResponse(
+    val id: String,
+    val kind: ArtifactKind,
+    val targetCompany: String? = null,
+    val createdAt: String,
+    val updatedAt: String,
 )
 
 /**

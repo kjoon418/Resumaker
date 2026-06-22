@@ -51,6 +51,12 @@ resumaker:
   quota:
     daily-initial-generation-limit: ${DAILY_INITIAL_GENERATION_LIMIT:10}
     daily-regeneration-limit-per-section: ${DAILY_REGENERATION_LIMIT_PER_SECTION:5}
+  # 비동기 생성 작업 워커 수치. 카운트 대상·차감 시점은 코드 고정이고 여기서는 폴링 주기·고아 회수 기준만 둔다.
+  # poll-interval-ms: 워커 폴링 주기(기본 2000ms=2초). stale-running-timeout: RUNNING이 이 시간을 넘기면 고아로
+  # 보고 FAILED 회수(기본 PT5M=5분). 재시도하지 않는다(이중 비용 방지).
+  generation-job:
+    poll-interval-ms: ${GENERATION_JOB_POLL_INTERVAL_MS:2000}
+    stale-running-timeout: ${GENERATION_JOB_STALE_RUNNING_TIMEOUT:PT5M}
   # 인증 토큰 수명(불투명 access/refresh). access는 짧게(요청 인증), refresh는 길게(재발급) 둔다.
   # refresh는 사용 시 회전(rotation)되고, 로그아웃·계정삭제 시 Redis에서 즉시 폐기된다.
   auth:

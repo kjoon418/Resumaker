@@ -15,6 +15,7 @@ import watson.resumaker.account.domain.UserTimeZone
 import watson.resumaker.account.infrastructure.PasswordHasher
 import watson.resumaker.account.infrastructure.UserRepository
 import watson.resumaker.artifact.infrastructure.ArtifactRepository
+import watson.resumaker.generation.infrastructure.GenerationJobRepository
 import watson.resumaker.common.domain.UnauthorizedException
 import watson.resumaker.account.domain.UserId
 import watson.resumaker.experience.infrastructure.ExperienceRecordRepository
@@ -29,6 +30,7 @@ class AccountServiceTest {
     private val targetBriefRepository: TargetBriefRepository = mock()
     private val resumeTemplateRepository: ResumeTemplateRepository = mock()
     private val artifactRepository: ArtifactRepository = mock()
+    private val generationJobRepository: GenerationJobRepository = mock()
     private val passwordHasher: PasswordHasher = mock()
     private val mapper = AccountServiceMapper()
 
@@ -45,6 +47,7 @@ class AccountServiceTest {
             targetBriefRepository = targetBriefRepository,
             resumeTemplateRepository = resumeTemplateRepository,
             artifactRepository = artifactRepository,
+            generationJobRepository = generationJobRepository,
             mapper = mapper,
             passwordHasher = passwordHasher,
         )
@@ -143,6 +146,7 @@ class AccountServiceTest {
             verify(targetBriefRepository).deleteByOwnerId(userId)
             verify(resumeTemplateRepository).deleteByOwnerId(userId)
             verify(artifactRepository).deleteByOwnerId(userId)
+            verify(generationJobRepository).deleteByOwnerId(userId)
             verify(userRepository).deleteById(userId.value)
         }
     }

@@ -5,6 +5,7 @@ import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.transaction.PlatformTransactionManager
 import org.springframework.transaction.support.TransactionTemplate
+import watson.resumaker.generation.application.GenerationJobProperties
 import java.time.Clock
 
 /**
@@ -18,6 +19,7 @@ import java.time.Clock
     ClaudeCliProperties::class,
     ArtifactVersioningProperties::class,
     GenerationQuotaProperties::class,
+    GenerationJobProperties::class,
 )
 class GenerationConfig {
 

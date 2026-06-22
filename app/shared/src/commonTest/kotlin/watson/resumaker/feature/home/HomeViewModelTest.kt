@@ -6,6 +6,7 @@ import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
+import watson.resumaker.fake.FakeArtifactApi
 import watson.resumaker.fake.FakeExperienceApi
 import watson.resumaker.fake.FakeTargetApi
 import watson.resumaker.fake.FakeTemplateApi
@@ -40,6 +41,7 @@ class HomeViewModelTest {
             FakeExperienceApi(getAllResult = ApiResult.Success(experiences)),
             FakeTargetApi(getAllResult = ApiResult.Success(targets)),
             FakeTemplateApi(),
+            FakeArtifactApi(),
         )
         testScheduler.advanceUntilIdle()
 
@@ -59,6 +61,7 @@ class HomeViewModelTest {
             FakeExperienceApi(getAllResult = ApiResult.Failure("경험 로드 실패")),
             FakeTargetApi(getAllResult = ApiResult.Success(listOf(target("t1")))),
             FakeTemplateApi(),
+            FakeArtifactApi(),
         )
         testScheduler.advanceUntilIdle()
 
@@ -75,6 +78,7 @@ class HomeViewModelTest {
             FakeExperienceApi(getAllResult = ApiResult.Success(listOf(sampleExperience()))),
             FakeTargetApi(getAllResult = ApiResult.Failure("목표 로드 실패")),
             FakeTemplateApi(),
+            FakeArtifactApi(),
         )
         testScheduler.advanceUntilIdle()
 

@@ -6,6 +6,7 @@ import watson.resumaker.artifact.domain.ArtifactSection
 import watson.resumaker.artifact.domain.Version
 import watson.resumaker.generation.presentation.ArtifactResponse
 import watson.resumaker.generation.presentation.ArtifactSectionResponse
+import watson.resumaker.generation.presentation.ArtifactSummaryResponse
 import watson.resumaker.generation.presentation.ArtifactVersionResponse
 import watson.resumaker.generation.presentation.ArtifactVersionsResponse
 import watson.resumaker.generation.presentation.VersionHistoryResponse
@@ -36,6 +37,19 @@ class ArtifactReadServiceMapper {
             prunedVersionCount = prunedVersionCount,
         )
     }
+
+    /**
+     * 산출물을 목록 카드용 요약으로 변환한다(GET /artifacts). 회사명은 생성 시점 목표 스냅샷에서 읽는다.
+     * createdAt은 가장 오래된 버전(=초기 생성)의 생성 시각, updatedAt은 활성 버전의 생성 시각으로 둔다
+     * (재생성·편집·복원으로 활성이 바뀌면 갱신된다). JPA 지연 로딩 경계 안에서 변환된다(readOnly 트랜잭션 내부).
+     */
+    fun toSummary(artifact: Artifact): ArtifactSummaryResponse = ArtifactSummaryResponse(
+        id = artifact.id.value.toString(),
+        kind = artifact.kind,
+        targetCompany = artifact.targetSnapshot.company,
+        createdAt = artifact.versions.minOf { it.createdAt }.toString(),
+        updatedAt = artifact.activeVersion().createdAt.toString(),
+    )
 
     /**
      * 한 산출물의 모든 버전을 생성 순서(오래된→최신)로 비교용 응답으로 변환한다(수용 기준 11·12, §363).

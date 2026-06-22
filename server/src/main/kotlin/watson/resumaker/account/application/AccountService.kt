@@ -12,6 +12,7 @@ import watson.resumaker.experience.infrastructure.ExperienceRecordRepository
 import watson.resumaker.account.presentation.LoginResponse
 import watson.resumaker.account.presentation.SignUpResponse
 import watson.resumaker.artifact.infrastructure.ArtifactRepository
+import watson.resumaker.generation.infrastructure.GenerationJobRepository
 import watson.resumaker.target.infrastructure.TargetBriefRepository
 import watson.resumaker.template.infrastructure.ResumeTemplateRepository
 
@@ -31,6 +32,7 @@ class AccountService(
     private val targetBriefRepository: TargetBriefRepository,
     private val resumeTemplateRepository: ResumeTemplateRepository,
     private val artifactRepository: ArtifactRepository,
+    private val generationJobRepository: GenerationJobRepository,
     private val mapper: AccountServiceMapper,
     private val passwordHasher: PasswordHasher,
 ) {
@@ -80,6 +82,7 @@ class AccountService(
         targetBriefRepository.deleteByOwnerId(userId)
         resumeTemplateRepository.deleteByOwnerId(userId)
         artifactRepository.deleteByOwnerId(userId)
+        generationJobRepository.deleteByOwnerId(userId)
         userRepository.deleteById(userId.value)
     }
 

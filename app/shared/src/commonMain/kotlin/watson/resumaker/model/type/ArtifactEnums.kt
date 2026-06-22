@@ -16,6 +16,27 @@ enum class ArtifactKind {
 }
 
 /**
+ * 비동기 생성 작업 상태(서버 `GenerationJobStatus`와 1:1). 직렬화 이름은 서버 enum 상수명과 동일해야 한다.
+ * - PENDING: 제출 후 대기.
+ * - RUNNING: AI가 작성 중.
+ * - SUCCEEDED: 완료(부분 성공 ≥1 섹션 포함). 산출물이 생성되어 [GenerationJobResponse.artifactId]가 채워진다.
+ * - FAILED: 처리 중 실패. errorCode/errorMessage로 원인을 표면화한다.
+ *
+ * PENDING·RUNNING은 "활성" 상태로, 목록 화면이 이 상태가 하나라도 있으면 폴링을 유지한다.
+ */
+@Serializable
+enum class GenerationJobStatus {
+    PENDING,
+    RUNNING,
+    SUCCEEDED,
+    FAILED,
+    ;
+
+    /** 폴링을 계속해야 하는 활성 상태인지(완료/실패면 더 폴링하지 않는다). */
+    val isActive: Boolean get() = this == PENDING || this == RUNNING
+}
+
+/**
  * 생성 항목의 종류(서버 `artifact.domain.SectionKind`와 1:1).
  * - 이력서: SUMMARY(요약형), CAREER(경력형).
  * - 포트폴리오: EXPERIENCE_NARRATIVE(선택 경험과 1:1).

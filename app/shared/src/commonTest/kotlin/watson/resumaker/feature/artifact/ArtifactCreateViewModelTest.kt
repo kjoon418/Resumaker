@@ -11,15 +11,13 @@ import watson.resumaker.fake.FakeExperienceApi
 import watson.resumaker.fake.FakeTargetApi
 import watson.resumaker.fake.FakeTemplateApi
 import watson.resumaker.fake.sampleExperience
-import watson.resumaker.model.dto.GeneratedSectionResponse
-import watson.resumaker.model.dto.GenerationResponse
+import watson.resumaker.model.dto.GenerationJobResponse
 import watson.resumaker.model.dto.SectionResponse
 import watson.resumaker.model.dto.TargetResponse
 import watson.resumaker.model.dto.TemplateResponse
 import watson.resumaker.model.type.ArtifactKind
+import watson.resumaker.model.type.GenerationJobStatus
 import watson.resumaker.model.type.SectionCharacter
-import watson.resumaker.model.type.SectionKind
-import watson.resumaker.model.type.SectionStatus
 import watson.resumaker.network.ApiResult
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
@@ -45,14 +43,11 @@ class ArtifactCreateViewModelTest {
     private fun template(id: String) =
         TemplateResponse(id = id, name = "표준 양식", sections = listOf(SectionResponse("요약", SectionCharacter.SUMMARY, false)))
 
-    private fun section(id: String, status: SectionStatus) = GeneratedSectionResponse(
-        sectionId = id,
-        definitionKey = "summary",
-        sectionKind = SectionKind.SUMMARY,
-        content = "내용 $id",
-        status = status,
-        sourceExperienceIds = listOf("e-1"),
-        factGroundings = emptyList(),
+    private fun job(id: String, kind: ArtifactKind = ArtifactKind.RESUME) = GenerationJobResponse(
+        jobId = id,
+        kind = kind,
+        status = GenerationJobStatus.PENDING,
+        createdAt = "2026-06-22T00:00:00Z",
     )
 
     private fun vmWith(
@@ -144,14 +139,7 @@ class ArtifactCreateViewModelTest {
     fun generateWithAiTemplateSendsNullTemplateId() = runTest(dispatcher) {
         // 양식 자동 생성 시 서버로 templateId=null이 전송된다(AI 생성 양식 경로).
         val api = FakeArtifactApi(
-            generateResumeResult = ApiResult.Success(
-                GenerationResponse(
-                    artifactId = "a-3",
-                    kind = ArtifactKind.RESUME,
-                    activeVersionId = "v-3",
-                    sections = listOf(section("s-1", SectionStatus.GENERATED)),
-                ),
-            ),
+            generateResumeResult = ApiResult.Success(job("job-3")),
         )
         val vm = vmWith(api)
         testScheduler.advanceUntilIdle()
@@ -162,22 +150,17 @@ class ArtifactCreateViewModelTest {
         vm.generate()
         testScheduler.advanceUntilIdle()
 
-        assertEquals("a-3", vm.state.value.generated?.artifactId)
+        // 제출 성공 → 목록 이동 신호.
+        assertTrue(vm.state.value.submitted)
         assertNull(api.lastResumeRequest?.templateId)
         assertEquals(listOf("e-1"), api.lastResumeRequest?.experienceIds)
     }
 
     @Test
-    fun generateResumeSuccessExposesGeneratedResponse() = runTest(dispatcher) {
+    fun generateResumeSubmitSignalsListNavigation() = runTest(dispatcher) {
+        // 비동기 전환: 제출(202) 성공 시 산출물을 즉시 받지 않고 submitted 신호로 목록으로 이동한다.
         val api = FakeArtifactApi(
-            generateResumeResult = ApiResult.Success(
-                GenerationResponse(
-                    artifactId = "a-1",
-                    kind = ArtifactKind.RESUME,
-                    activeVersionId = "v-1",
-                    sections = listOf(section("s-1", SectionStatus.GENERATED)),
-                ),
-            ),
+            generateResumeResult = ApiResult.Success(job("job-1")),
         )
         val vm = vmWith(api)
         testScheduler.advanceUntilIdle()
@@ -188,28 +171,16 @@ class ArtifactCreateViewModelTest {
         vm.generate()
         testScheduler.advanceUntilIdle()
 
-        assertEquals("a-1", vm.state.value.generated?.artifactId)
+        assertTrue(vm.state.value.submitted)
         assertNull(vm.state.value.generationError)
         assertEquals(listOf("e-1"), api.lastResumeRequest?.experienceIds)
         assertEquals("tpl-1", api.lastResumeRequest?.templateId)
     }
 
     @Test
-    fun partialSuccessIsTreatedAsSuccess() = runTest(dispatcher) {
-        // 부분 성공(200): 일부 항목 *_FAILED여도 성공 응답으로 받아 열람으로 이동(가짜 성공 금지는 열람에서 고지).
-        val api = FakeArtifactApi(
-            generateResumeResult = ApiResult.Success(
-                GenerationResponse(
-                    artifactId = "a-2",
-                    kind = ArtifactKind.RESUME,
-                    activeVersionId = "v-2",
-                    sections = listOf(
-                        section("s-1", SectionStatus.GENERATED),
-                        section("s-2", SectionStatus.GENERATION_FAILED),
-                    ),
-                ),
-            ),
-        )
+    fun consumeSubmittedClearsSignal() = runTest(dispatcher) {
+        // 화면이 1회 소비하면 submitted가 내려가 중복 내비를 막는다.
+        val api = FakeArtifactApi(generateResumeResult = ApiResult.Success(job("job-2")))
         val vm = vmWith(api)
         testScheduler.advanceUntilIdle()
 
@@ -218,9 +189,10 @@ class ArtifactCreateViewModelTest {
         vm.selectTemplate("tpl-1")
         vm.generate()
         testScheduler.advanceUntilIdle()
+        assertTrue(vm.state.value.submitted)
 
-        assertNotNull(vm.state.value.generated)
-        assertNull(vm.state.value.generationError)
+        vm.consumeSubmitted()
+        assertFalse(vm.state.value.submitted)
     }
 
     @Test
@@ -246,7 +218,7 @@ class ArtifactCreateViewModelTest {
         assertEquals("EMPTY_EXPERIENCE_SELECTION", vm.state.value.generationErrorCode)
         assertEquals("ADD_EXPERIENCE", vm.state.value.generationAction)
         assertNotNull(vm.state.value.generationError)
-        assertNull(vm.state.value.generated)
+        assertFalse(vm.state.value.submitted)
         assertFalse(vm.state.value.generating)
     }
 
@@ -271,18 +243,12 @@ class ArtifactCreateViewModelTest {
         assertEquals("GENERATION_QUOTA_EXCEEDED", vm.state.value.generationErrorCode)
         assertEquals(true, vm.state.value.isGenerationQuotaExceeded)
         assertNotNull(vm.state.value.generationError)
-        assertNull(vm.state.value.generated)
+        assertFalse(vm.state.value.submitted)
     }
 
     @Test
     fun retryGenerateReissuesApiCallAfterFailure() = runTest(dispatcher) {
         // #4: 생성 실패 후 retryGenerate()는 오류를 닫는 데 그치지 않고 API를 실제로 재호출한다.
-        val successResponse = GenerationResponse(
-            artifactId = "a-retry",
-            kind = ArtifactKind.RESUME,
-            activeVersionId = "v-retry",
-            sections = listOf(section("s-1", SectionStatus.GENERATED)),
-        )
         val api = FakeArtifactApi(
             generateResumeResult = ApiResult.Failure(
                 message = "AI 생성 서비스를 일시적으로 사용할 수 없어요. 잠시 후 다시 시도해 주세요.",
@@ -302,15 +268,15 @@ class ArtifactCreateViewModelTest {
         assertNotNull(vm.state.value.generationError)
         assertEquals(1, api.generateResumeCallCount)
 
-        // 재시도: 이번엔 성공 응답으로 교체.
-        api.generateResumeResult = ApiResult.Success(successResponse)
+        // 재시도: 이번엔 제출 성공으로 교체.
+        api.generateResumeResult = ApiResult.Success(job("job-retry"))
         vm.retryGenerate()
         testScheduler.advanceUntilIdle()
 
-        // API가 실제로 재호출됐고 성공 응답이 반영된다.
+        // API가 실제로 재호출됐고 제출 성공 신호가 반영된다.
         assertEquals(2, api.generateResumeCallCount)
         assertNull(vm.state.value.generationError)
-        assertEquals("a-retry", vm.state.value.generated?.artifactId)
+        assertTrue(vm.state.value.submitted)
     }
 
     @Test

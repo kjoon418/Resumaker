@@ -90,6 +90,13 @@ class RoutesTest {
     }
 
     @Test
+    fun artifactListRoundTrips() {
+        // 내 산출물 목록: /artifacts(1세그먼트). 2세그먼트 열람·3세그먼트 버전과 구분된다.
+        assertEquals("/artifacts", Routes.pathOf(Screen.ArtifactList))
+        assertEquals(Screen.ArtifactList, Routes.screenOf("/artifacts"))
+    }
+
+    @Test
     fun artifactViewEncodesIdAndRestoresWithoutInitial() {
         // 열람: id 는 URL 에 담기고, transient initial 은 비참여라 딥링크 복원 시 null 이다.
         assertEquals("/artifacts/a-1", Routes.pathOf(Screen.ArtifactView("a-1")))

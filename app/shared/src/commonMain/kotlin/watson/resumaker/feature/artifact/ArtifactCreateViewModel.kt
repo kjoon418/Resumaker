@@ -10,7 +10,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import watson.resumaker.model.dto.ExperienceResponse
-import watson.resumaker.model.dto.GenerationResponse
+import watson.resumaker.model.dto.GenerationJobResponse
 import watson.resumaker.model.dto.PortfolioGenerationRequest
 import watson.resumaker.model.dto.ResumeGenerationRequest
 import watson.resumaker.model.dto.TargetResponse
@@ -48,8 +48,11 @@ data class ArtifactCreateUiState(
      */
     val useAiTemplate: Boolean = false,
     val generating: Boolean = false,
-    /** 생성 성공 시 채워지며, 화면이 열람 화면으로 이동하는 신호로 1회 소비한다(재조회 없이 그대로 표시). */
-    val generated: GenerationResponse? = null,
+    /**
+     * 제출(202) 성공 신호. true면 화면이 1회 소비해 산출물 목록(Screen.ArtifactList)으로 이동한다.
+     * 비동기 전환 후 생성은 즉시 산출물을 주지 않으므로, 완료가 아니라 "제출됨"을 신호한다.
+     */
+    val submitted: Boolean = false,
     /** 생성 실패(부분 성공은 실패가 아님) 안내. [generationErrorCode]로 오류 종류(EMPTY_EXPERIENCE_SELECTION 등) 분기. */
     val generationError: String? = null,
     val generationErrorCode: String? = null,
@@ -84,8 +87,9 @@ data class ArtifactCreateUiState(
 }
 
 /**
- * 산출물 생성 진입 ViewModel. 재료 로드·선택 상태·폼 검증·생성 호출을 담당한다(단방향).
- * 부분 성공(200, 일부 *_FAILED)도 성공으로 받아 열람 화면이 항목 상태를 고지한다(가짜 성공 금지).
+ * 산출물 생성 진입 ViewModel. 재료 로드·선택 상태·폼 검증·생성 제출을 담당한다(단방향).
+ * 비동기 전환 후 제출(202)은 산출물을 즉시 주지 않으므로, 성공 시 [ArtifactCreateUiState.submitted]를 세워
+ * 화면이 산출물 목록으로 이동하게 한다(완료 확인은 목록의 폴링이 담당).
  */
 class ArtifactCreateViewModel(
     private val artifactApi: ArtifactApi,
@@ -153,7 +157,7 @@ class ArtifactCreateViewModel(
     /** "양식 자동(AI에 맡기기)" 선택. 구체 양식 선택은 해제된다(둘은 배타적). */
     fun selectAiTemplate() = _state.update { it.copy(useAiTemplate = true, selectedTemplateId = null) }
 
-    fun consumeGenerated() = _state.update { it.copy(generated = null) }
+    fun consumeSubmitted() = _state.update { it.copy(submitted = false) }
 
     fun dismissGenerationError() = _state.update { it.copy(generationError = null, generationErrorCode = null, generationAction = null) }
 
@@ -193,10 +197,10 @@ class ArtifactCreateViewModel(
         }
     }
 
-    private fun applyGenerationResult(result: ApiResult<GenerationResponse>) = _state.update {
+    private fun applyGenerationResult(result: ApiResult<GenerationJobResponse>) = _state.update {
         when (result) {
-            // 부분 성공 포함: 성공으로 받아 열람 화면으로 이동(항목 상태는 열람 화면이 고지).
-            is ApiResult.Success -> it.copy(generating = false, generated = result.value)
+            // 제출 성공(202): 작업이 만들어졌으므로 산출물 목록으로 이동해 진행 상황을 보게 한다(완료는 목록이 폴링).
+            is ApiResult.Success -> it.copy(generating = false, submitted = true)
             is ApiResult.Failure -> it.copy(
                 generating = false,
                 generationError = result.message,

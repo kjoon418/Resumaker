@@ -43,23 +43,25 @@ import watson.resumaker.ui.theme.RmTheme
 import watson.resumaker.ui.theme.pagePadding
 
 /**
- * 산출물 생성 진입 화면. 종류 선택 → 경험 다중 선택(필수) → 목표 선택(필수) → (이력서) 양식 선택(필수) → 생성.
- * 빈 경험묶음이면 ComingSoon 예방형 카피로 분기한다(수용 기준 8). 생성은 장시간(LLM)이라 버튼 로딩으로 고지.
+ * 산출물 생성 진입 화면. 종류 선택 → 경험 다중 선택(필수) → 목표 선택(필수) → (이력서) 양식 선택(필수) → 제출.
+ * 빈 경험묶음이면 ComingSoon 예방형 카피로 분기한다(수용 기준 8). 제출(202)은 빠르며, 완료 확인은 산출물
+ * 목록의 폴링이 담당한다 — 제출 성공 시 [onSubmitted]로 목록으로 이동한다.
  */
 @Composable
 fun ArtifactCreateScreen(
     viewModel: ArtifactCreateViewModel,
     onBack: () -> Unit,
-    onGenerated: (watson.resumaker.model.dto.GenerationResponse) -> Unit,
+    /** 제출(202) 성공 시 1회 호출. 호출자가 산출물 목록(Screen.ArtifactList)으로 이동한다. */
+    onSubmitted: () -> Unit,
     onRecordExperience: () -> Unit,
     onAddTarget: () -> Unit,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
 
-    LaunchedEffect(state.generated) {
-        state.generated?.let { response ->
-            viewModel.consumeGenerated()
-            onGenerated(response)
+    LaunchedEffect(state.submitted) {
+        if (state.submitted) {
+            viewModel.consumeSubmitted()
+            onSubmitted()
         }
     }
 
@@ -200,14 +202,14 @@ private fun CreateForm(
         }
 
         PrimaryButton(
-            text = if (state.generating) "만드는 중…" else "만들기",
+            text = if (state.generating) "시작하는 중…" else "만들기",
             onClick = onGenerate,
             enabled = state.canSubmit,
             loading = state.generating,
         )
         if (state.generating) {
             Text(
-                text = "AI가 경험을 바탕으로 초안을 작성하고 있어요. 수십 초 걸릴 수 있어요.",
+                text = "생성을 시작하고 있어요. 잠시 후 목록에서 진행 상황을 확인할 수 있어요.",
                 style = RmTextStyles.caption,
                 color = RmTheme.colors.textTertiary,
             )

@@ -124,7 +124,9 @@ class AppNavigator(
             Screen.TemplatePreset -> Screen.TemplateList
             Screen.TemplateInterpret -> Screen.TemplateList
             is Screen.Artifact -> Screen.Home
-            is Screen.ArtifactView -> Screen.Home
+            Screen.ArtifactList -> Screen.Home
+            // 산출물은 목록을 거쳐 열람하므로 열람의 상위는 목록(기존 Home에서 변경).
+            is Screen.ArtifactView -> Screen.ArtifactList
             is Screen.ArtifactVersions -> Screen.ArtifactView(screen.artifactId)
             else -> null
         }

@@ -153,8 +153,16 @@ class AppNavigatorTest {
     }
 
     @Test
-    fun popOnRootArtifactViewGoesToHome() {
+    fun popOnRootArtifactViewGoesToArtifactList() {
+        // 산출물은 목록을 거쳐 열람하므로, 열람 화면의 논리적 상위는 산출물 목록이다(#6).
         val nav = AppNavigator(Screen.ArtifactView(artifactId = "a-1"))
+        nav.pop()
+        assertEquals(Screen.ArtifactList, nav.current)
+    }
+
+    @Test
+    fun popOnRootArtifactListGoesToHome() {
+        val nav = AppNavigator(Screen.ArtifactList)
         nav.pop()
         assertEquals(Screen.Home, nav.current)
     }
@@ -184,7 +192,8 @@ class AppNavigatorTest {
         assertEquals(Screen.TemplateList, AppNavigator.parentOf(Screen.TemplatePreset))
         assertEquals(Screen.TemplateList, AppNavigator.parentOf(Screen.TemplateInterpret))
         assertEquals(Screen.Home, AppNavigator.parentOf(Screen.Artifact()))
-        assertEquals(Screen.Home, AppNavigator.parentOf(Screen.ArtifactView("a-1")))
+        assertEquals(Screen.Home, AppNavigator.parentOf(Screen.ArtifactList))
+        assertEquals(Screen.ArtifactList, AppNavigator.parentOf(Screen.ArtifactView("a-1")))
         assertEquals(Screen.ArtifactView("a-1"), AppNavigator.parentOf(Screen.ArtifactVersions("a-1")))
         // 루트 화면은 null.
         assertNull(AppNavigator.parentOf(Screen.Home))

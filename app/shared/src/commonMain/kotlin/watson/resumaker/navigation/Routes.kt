@@ -14,6 +14,7 @@ package watson.resumaker.navigation
  * - `/targets/new`       → TargetEdit(null)
  * - `/targets/{id}`      → TargetEdit(id)
  * - `/artifact`          → Artifact (생성 진입; hasExperiences 는 URL 비참여)
+ * - `/artifacts`         → ArtifactList (내 산출물 목록; 진행 중/완성 카드 + 폴링)
  * - `/artifacts/{id}`    → ArtifactView(id) (열람; transient initial 은 URL 비참여, 딥링크 시 null→GET 조회)
  * - `/artifacts/{id}/versions` → ArtifactVersions(id) (버전 기록·비교·복원; 딥링크 시 GET 으로 목록 조회)
  * - `/me`                → MyPage
@@ -41,6 +42,7 @@ object Routes {
         Screen.TemplatePreset -> "/resume-templates/presets"
         Screen.TemplateInterpret -> "/resume-templates/interpret"
         is Screen.Artifact -> "/artifact"
+        Screen.ArtifactList -> "/artifacts"
         is Screen.ArtifactView -> "/artifacts/${screen.artifactId}"
         is Screen.ArtifactVersions -> "/artifacts/${screen.artifactId}/versions"
         Screen.MyPage -> "/me"
@@ -68,6 +70,8 @@ object Routes {
             segments.size == 2 && segments[0] == "resume-templates" ->
                 if (segments[1] == "new") Screen.TemplateEdit(null) else Screen.TemplateEdit(segments[1])
             segments == listOf("artifact") -> Screen.Artifact()
+            // 내 산출물 목록: /artifacts(1세그먼트). 2세그먼트 열람·3세그먼트 버전과 구분된다.
+            segments == listOf("artifacts") -> Screen.ArtifactList
             // 버전 기록·비교 딥링크: /artifacts/{id}/versions. 2세그먼트 열람보다 먼저 매칭(더 구체적인 경로 우선).
             segments.size == 3 && segments[0] == "artifacts" && segments[2] == "versions" ->
                 Screen.ArtifactVersions(segments[1])

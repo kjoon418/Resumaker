@@ -78,6 +78,9 @@ class CoreValueFlowE2ETest {
     @Autowired
     private lateinit var objectMapper: ObjectMapper
 
+    @Autowired
+    private lateinit var generationJobWorker: watson.resumaker.generation.application.GenerationJobWorker
+
     @Test
     fun 기록_겨냥_생성_다듬기_활용의_핵심_흐름이_끝까지_동작한다() {
         // 1. 기록 — 가입(쿠키 발급) 후 경험 기록을 쌓는다.
@@ -87,14 +90,15 @@ class CoreValueFlowE2ETest {
         // 2. 겨냥 — 목표 정보를 입력한다.
         val targetId = createTarget(cookies)
 
-        // 3. 생성 — 양식 미지정(AI 생성 양식 폴백) 이력서 1차 생성(수용 기준 7). 모두 성공이면 201.
+        // 3. 생성 — 양식 미지정(AI 생성 양식 폴백) 이력서 1차 생성(수용 기준 7). 비동기: 제출(202) 후 워커가 처리하고
+        //    완료되면 산출물을 열람한다(generateResume 헬퍼가 제출→폴링→열람을 수행).
         val generated = generateResume(cookies, experienceId, targetId)
-        val artifactId = generated["artifactId"].asText()
-        val firstVersionId = generated["activeVersionId"].asText()
-        val firstSectionId = generated["sections"][0]["sectionId"].asText()
-        assertTrue(generated["sections"].size() > 0, "양식 섹션별 생성 항목이 있어야 한다.")
+        val artifactId = generated["id"].asText()
+        val firstVersionId = generated["activeVersion"]["versionId"].asText()
+        val firstSectionId = generated["activeVersion"]["sections"][0]["id"].asText()
+        assertTrue(generated["activeVersion"]["sections"].size() > 0, "양식 섹션별 생성 항목이 있어야 한다.")
         // 모든 생성 항목은 출처 경험 근거를 가진다(근거 없는 항목 0건 — 수용 기준 17·6).
-        generated["sections"].forEach { section ->
+        generated["activeVersion"]["sections"].forEach { section ->
             assertEquals("GENERATED", section["status"].asText())
             assertTrue(section["sourceExperienceIds"].any { it.asText() == experienceId })
         }
@@ -136,15 +140,18 @@ class CoreValueFlowE2ETest {
         val experienceId = createExperience(cookies)
         val targetId = createTarget(cookies)
 
-        val generated = postAuth(
+        val submitted = postAuth(
             "/artifacts/portfolio",
             cookies,
             PortfolioGenerationRequest(listOf(experienceId), targetId),
-        ).andExpect { status { isCreated() } }.andReturn().body()
+        ).andExpect { status { isAccepted() } }.andReturn().body()
+        val artifactId = awaitArtifactId(cookies, submitted["jobId"].asText())
+        val generated = getAuth("/artifacts/$artifactId", cookies)
+            .andExpect { status { isOk() } }.andReturn().body()
 
         assertEquals("PORTFOLIO", generated["kind"].asText())
-        assertEquals(1, generated["sections"].size())
-        assertEquals("EXPERIENCE_NARRATIVE", generated["sections"][0]["sectionKind"].asText())
+        assertEquals(1, generated["activeVersion"]["sections"].size())
+        assertEquals("EXPERIENCE_NARRATIVE", generated["activeVersion"]["sections"][0]["sectionKind"].asText())
     }
 
     @Test
@@ -154,7 +161,7 @@ class CoreValueFlowE2ETest {
         val first = signUp(email)
         val experienceId = createExperience(first)
         val targetId = createTarget(first)
-        val artifactId = generateResume(first, experienceId, targetId)["artifactId"].asText()
+        val artifactId = generateResume(first, experienceId, targetId)["id"].asText()
 
         // 로그아웃(토큰 폐기·쿠키 제거).
         postAuth("/auth/logout", first, body = null).andExpect { status { isNoContent() } }
@@ -175,7 +182,7 @@ class CoreValueFlowE2ETest {
         val owner = signUp(uniqueEmail())
         val experienceId = createExperience(owner)
         val targetId = createTarget(owner)
-        val artifactId = generateResume(owner, experienceId, targetId)["artifactId"].asText()
+        val artifactId = generateResume(owner, experienceId, targetId)["id"].asText()
 
         val stranger = signUp(uniqueEmail())
         getAuth("/artifacts/$artifactId", stranger).andExpect { status { isNotFound() } }
@@ -206,10 +213,10 @@ class CoreValueFlowE2ETest {
         val experienceId = createExperience(cookies)
         val targetId = createTarget(cookies)
         val generated = generateResume(cookies, experienceId, targetId)
-        val artifactId = generated["artifactId"].asText()
-        val firstVersionId = generated["activeVersionId"].asText()
-        val sectionId = generated["sections"][0]["sectionId"].asText()
-        val definitionKey = generated["sections"][0]["definitionKey"].asText()
+        val artifactId = generated["id"].asText()
+        val firstVersionId = generated["activeVersion"]["versionId"].asText()
+        val sectionId = generated["activeVersion"]["sections"][0]["id"].asText()
+        val definitionKey = generated["activeVersion"]["sections"][0]["definitionKey"].asText()
 
         // 근거 없는 수치("40%")를 포함해도 직접 편집은 검증되지 않으므로 그대로 GENERATED로 저장된다(§428).
         val editedContent = "응답 속도를 40% 개선한 경험을 제가 직접 풀어 썼어요."
@@ -270,14 +277,17 @@ class CoreValueFlowE2ETest {
         ).andExpect { status { isCreated() } }.andReturn().body()
         val templateId = created["id"].asText()
 
-        // 3. 확정한 양식으로 생성하면 사용자 지정 양식 경로(USER_SELECTED)로 적용되고, 양식 섹션 수만큼 항목이 만들어진다.
-        val generated = postAuth(
+        // 3. 확정한 양식으로 생성하면 사용자 지정 양식 경로가 적용되어, 양식 섹션 수만큼 항목이 만들어진다(비동기:
+        //    제출 202 → 워커 처리 → 산출물 열람). 확정 양식 적용 여부는 섹션 수가 확정 양식과 일치하는 것으로 확인한다.
+        val submitted = postAuth(
             "/artifacts/resume",
             cookies,
             ResumeGenerationRequest(experienceIds = listOf(experienceId), targetId = targetId, templateId = templateId),
-        ).andExpect { status { isCreated() } }.andReturn().body()
-        assertEquals("USER_SELECTED", generated["templateOrigin"].asText())
-        assertEquals(sectionRequests.size, generated["sections"].size())
+        ).andExpect { status { isAccepted() } }.andReturn().body()
+        val generatedArtifactId = awaitArtifactId(cookies, submitted["jobId"].asText())
+        val generated = getAuth("/artifacts/$generatedArtifactId", cookies)
+            .andExpect { status { isOk() } }.andReturn().body()
+        assertEquals(sectionRequests.size, generated["activeVersion"]["sections"].size())
     }
 
     // ----- 흐름 헬퍼(실제 엔드포인트를 거친다) -----
@@ -317,12 +327,39 @@ class CoreValueFlowE2ETest {
             ),
         ).andExpect { status { isCreated() } }.andReturn().body()["id"].asText()
 
-    private fun generateResume(cookies: Array<Cookie>, experienceId: String, targetId: String): JsonNode =
-        postAuth(
+    /**
+     * 비동기 생성: 제출(202+jobId) → 워커 1틱 구동(백그라운드 스케줄러 대신 결정적으로 처리) → 작업 폴링으로
+     * SUCCEEDED·artifactId 확인 → 산출물을 열람해 돌려준다. 반환 JsonNode는 산출물 열람 응답(ArtifactResponse)이다.
+     */
+    private fun generateResume(cookies: Array<Cookie>, experienceId: String, targetId: String): JsonNode {
+        val artifactId = submitResumeAndAwait(cookies, experienceId, targetId)
+        return getAuth("/artifacts/$artifactId", cookies)
+            .andExpect { status { isOk() } }.andReturn().body()
+    }
+
+    /** 이력서 제출 후 워커를 구동해 완료를 기다리고 artifactId를 돌려준다(양식 미지정 — AI 생성 양식 폴백). */
+    private fun submitResumeAndAwait(cookies: Array<Cookie>, experienceId: String, targetId: String): String {
+        val submitted = postAuth(
             "/artifacts/resume",
             cookies,
             ResumeGenerationRequest(experienceIds = listOf(experienceId), targetId = targetId, templateId = null),
-        ).andExpect { status { isCreated() } }.andReturn().body()
+        ).andExpect { status { isAccepted() } }.andReturn().body()
+        return awaitArtifactId(cookies, submitted["jobId"].asText())
+    }
+
+    /** 워커를 구동(틱)해 작업을 처리하고, 작업이 SUCCEEDED가 될 때까지 폴링해 artifactId를 돌려준다. */
+    private fun awaitArtifactId(cookies: Array<Cookie>, jobId: String): String {
+        repeat(20) {
+            generationJobWorker.poll()
+            val job = getAuth("/generation-jobs/$jobId", cookies)
+                .andExpect { status { isOk() } }.andReturn().body()
+            when (job["status"].asText()) {
+                "SUCCEEDED" -> return job["artifactId"].asText()
+                "FAILED" -> error("생성 작업이 실패했어요: ${job["errorCode"].asText()} / ${job["errorMessage"].asText()}")
+            }
+        }
+        error("생성 작업이 제한 시간 안에 완료되지 않았어요(jobId=$jobId).")
+    }
 
     // ----- MockMvc 저수준 헬퍼(쿠키 + CSRF 헤더 부착) -----
 

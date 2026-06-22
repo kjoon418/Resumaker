@@ -5,6 +5,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import watson.resumaker.feature.artifact.ArtifactCreateScreen
 import watson.resumaker.feature.artifact.ArtifactCreateViewModel
+import watson.resumaker.feature.artifact.ArtifactListScreen
+import watson.resumaker.feature.artifact.ArtifactListViewModel
 import watson.resumaker.feature.artifact.ArtifactScreen
 import watson.resumaker.feature.artifact.ArtifactVersionsScreen
 import watson.resumaker.feature.artifact.ArtifactVersionsViewModel
@@ -76,7 +78,9 @@ fun App(container: AppContainer = remember { AppContainer() }) {
             }
 
             Screen.Home -> {
-                val vm = remember { HomeViewModel(container.experienceApi, container.targetApi, container.templateApi) }
+                val vm = remember {
+                    HomeViewModel(container.experienceApi, container.targetApi, container.templateApi, container.artifactApi)
+                }
                 HomeScreen(
                     viewModel = vm,
                     onOpenExperiences = { navigator.switchRoot(Screen.ExperienceList) },
@@ -87,6 +91,8 @@ fun App(container: AppContainer = remember { AppContainer() }) {
                     onOpenTemplate = { navigator.push(Screen.TemplateEdit(it)) },
                     onCreateExperience = { navigator.push(Screen.ExperienceEdit(null)) },
                     onOpenArtifact = { hasExperiences -> navigator.push(Screen.Artifact(hasExperiences)) },
+                    onOpenArtifactList = { navigator.push(Screen.ArtifactList) },
+                    onOpenArtifactView = { artifactId -> navigator.push(Screen.ArtifactView(artifactId = artifactId)) },
                     onOpenMyPage = { navigator.switchRoot(Screen.MyPage) },
                     onSelectTab = { navigator.onHeaderTab(it) },
                 )
@@ -239,14 +245,23 @@ fun App(container: AppContainer = remember { AppContainer() }) {
                 ArtifactCreateScreen(
                     viewModel = vm,
                     onBack = { navigator.pop() },
-                    onGenerated = { response ->
-                        // 생성 직후엔 재조회 없이 응답을 그대로 표시한다(initial). 생성 진입을 닫고 열람으로 전환.
-                        navigator.replaceTop(
-                            Screen.ArtifactView(artifactId = response.artifactId, initial = response),
-                        )
+                    onSubmitted = {
+                        // 제출(202) 성공: 생성 진입을 닫고 산출물 목록으로 전환한다. 방금 제출한 작업이 목록 상단에
+                        // "생성 중"으로 보이고, 목록의 폴링으로 완료되면 완성 산출물로 전환된다.
+                        navigator.replaceTop(Screen.ArtifactList)
                     },
                     onRecordExperience = { navigator.switchRoot(Screen.ExperienceList) },
                     onAddTarget = { navigator.switchRoot(Screen.TargetList) },
+                )
+            }
+
+            Screen.ArtifactList -> {
+                val vm = remember { ArtifactListViewModel(container.artifactApi) }
+                ArtifactListScreen(
+                    viewModel = vm,
+                    onBack = { navigator.pop() },
+                    onOpenArtifact = { artifactId -> navigator.push(Screen.ArtifactView(artifactId = artifactId)) },
+                    onCreate = { navigator.push(Screen.Artifact()) },
                 )
             }
 

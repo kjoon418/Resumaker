@@ -52,6 +52,9 @@ sealed interface Screen {
      */
     data class Artifact(val hasExperiences: Boolean = true) : Screen
 
+    /** 내 산출물 목록(이력서·포트폴리오). 진행 중/실패 생성 작업과 완성 산출물을 함께 보여주고 폴링한다. */
+    data object ArtifactList : Screen
+
     /**
      * 산출물 열람. [artifactId]로 활성 버전을 조회·표시한다.
      * [initial]은 생성 직후 재조회를 피하기 위한 transient 생성 응답(URL 비참여, 딥링크 시 null).
