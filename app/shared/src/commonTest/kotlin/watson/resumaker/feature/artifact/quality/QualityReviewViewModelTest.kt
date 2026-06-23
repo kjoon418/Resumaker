@@ -48,9 +48,13 @@ class QualityReviewViewModelTest {
     private fun vm(api: FakeQualityApi = FakeQualityApi()) =
         QualityReviewViewModel(qualityApi = api, artifactId = "a-1", artifactKind = ArtifactKind.RESUME)
 
-    private fun autoFinding(id: String = "f-1", label: String = "강한 동사로 바꾸면 좋아요") = FindingDto(
+    private fun autoFinding(
+        id: String = "f-1",
+        label: String = "강한 동사로 바꾸면 좋아요",
+        sectionId: String = "s-1",
+    ) = FindingDto(
         findingId = id,
-        sectionId = "s-1",
+        sectionId = sectionId,
         definitionKey = "career",
         criterionId = "c-1",
         criterionLabel = label,
@@ -314,10 +318,15 @@ class QualityReviewViewModelTest {
     }
 
     @Test
-    fun `폴링 SUCCEEDED - 검증 실패로 제외된 후보 수가 올바르게 계산된다`() = runTest(dispatcher) {
-        // 2개 소견을 선택했는데 후보는 1개만 돌아왔다 → excluded = 1.
+    fun `폴링 SUCCEEDED - 서로 다른 두 섹션 중 한 후보만 돌아오면 제외 1`() = runTest(dispatcher) {
+        // 서로 다른 섹션(s-1, s-2)의 소견 2개를 선택했는데 후보는 1개만 돌아왔다 → excluded = 1.
         val api = FakeQualityApi(
-            reviewResult = ApiResult.Success(reviewResponse(autoFinding("f-1"), autoFinding("f-2", "또 다른 기준"))),
+            reviewResult = ApiResult.Success(
+                reviewResponse(
+                    autoFinding("f-1", sectionId = "s-1"),
+                    autoFinding("f-2", "또 다른 기준", sectionId = "s-2"),
+                ),
+            ),
             submitResult = ApiResult.Success(pendingJob()),
         )
         api.getJobSequence.add(ApiResult.Success(succeededJob(sampleCandidate("c-1"))))
@@ -333,6 +342,34 @@ class QualityReviewViewModelTest {
 
         assertEquals(QualityStep.CANDIDATES, vm.state.value.step)
         assertEquals(1, vm.state.value.excludedCandidateCount)
+    }
+
+    @Test
+    fun `폴링 SUCCEEDED - 한 섹션의 소견 여럿이라도 후보 1개면 제외 0(오고지 금지)`() = runTest(dispatcher) {
+        // 같은 섹션(s-1)에 소견 2개를 선택. 처치는 섹션당 1후보이므로 후보 1개가 정상 성공이고, 제외는 0이어야 한다.
+        // (요청 소견 수로 계산하면 정상 성공을 "원본 유지"로 오고지한다 — L2 회귀 방지.)
+        val api = FakeQualityApi(
+            reviewResult = ApiResult.Success(
+                reviewResponse(
+                    autoFinding("f-1", sectionId = "s-1"),
+                    autoFinding("f-2", "또 다른 기준", sectionId = "s-1"),
+                ),
+            ),
+            submitResult = ApiResult.Success(pendingJob()),
+        )
+        api.getJobSequence.add(ApiResult.Success(succeededJob(sampleCandidate("c-1"))))
+        val vm = vm(api)
+        vm.startReview()
+        testScheduler.advanceUntilIdle()
+
+        vm.submitImprovement()
+        testScheduler.advanceUntilIdle()
+
+        advanceTimeBy(QualityReviewViewModel.POLL_INTERVAL_MS + 100)
+        testScheduler.advanceUntilIdle()
+
+        assertEquals(QualityStep.CANDIDATES, vm.state.value.step)
+        assertEquals(0, vm.state.value.excludedCandidateCount)
     }
 
     // ── 후보 채택 ─────────────────────────────────────────────────────────────

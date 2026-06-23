@@ -27,6 +27,8 @@ import watson.resumaker.network.QualityApi
  */
 data class FindingUi(
     val findingId: String,
+    /** 이 소견이 가리키는 생성 항목. 처치는 항목(섹션) 단위로 1후보를 만들므로 제외 수 계산에 쓴다. */
+    val sectionId: String,
     val criterionLabel: String,
     val treatmentKind: TreatmentKind,
     val evidenceText: String?,
@@ -232,9 +234,15 @@ class QualityReviewViewModel(
                             job.status == QualityJobStatus.SUCCEEDED -> {
                                 val rawCandidates = job.candidates.orEmpty()
                                 val candidates = rawCandidates.map { it.toUi() }
-                                // 응답 candidates가 요청한 소견보다 적으면 검증 실패로 제외된 것.
-                                val requested = _state.value.selectedFindingIds.size
-                                val excluded = (requested - rawCandidates.size).coerceAtLeast(0)
+                                // 처치는 항목(섹션)당 1후보를 만든다. 따라서 "기대 후보 수"는 선택된 소견이 가리키는
+                                // 서로 다른 섹션 수이며, 그보다 후보가 적으면 검증 실패로 제외된 섹션이 있는 것이다.
+                                // (요청 소견 수로 비교하면 한 섹션에 소견이 여럿일 때 정상 성공을 오제외로 고지한다.)
+                                val current = _state.value
+                                val expectedSections = current.findings
+                                    .filter { it.findingId in current.selectedFindingIds }
+                                    .map { it.sectionId }
+                                    .toSet()
+                                val excluded = (expectedSections.size - rawCandidates.size).coerceAtLeast(0)
                                 _state.update {
                                     it.copy(
                                         step = QualityStep.CANDIDATES,
@@ -316,6 +324,7 @@ class QualityReviewViewModel(
 
     private fun FindingDto.toUi() = FindingUi(
         findingId = findingId,
+        sectionId = sectionId,
         criterionLabel = criterionLabel,
         treatmentKind = treatmentKind,
         evidenceText = evidenceText,
