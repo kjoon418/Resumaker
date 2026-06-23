@@ -81,6 +81,10 @@ fun AppHeader(
                     text = "Resumaker",
                     style = RmTextStyles.headingS.copy(fontWeight = FontWeight.Bold),
                     color = colors.primary,
+                    // 로고 클릭 → 홈. 별도 콜백을 더하지 않고 홈 탭 선택과 동일 경로(switchRoot(Home))를 재사용한다.
+                    modifier = Modifier
+                        .pressScale(onClick = { onSelectTab(HeaderTab.HOME) })
+                        .semantics { contentDescription = "홈으로" },
                 )
                 // M-6: 탭이 4개(홈/경험/목표/양식)로 늘어 Compact(<600px)에서 오버플로 위험이 있다.
                 // Compact에서는 탭 행을 가로 스크롤 가능하게 해 라벨 잘림 없이 모든 탭을 노출한다
