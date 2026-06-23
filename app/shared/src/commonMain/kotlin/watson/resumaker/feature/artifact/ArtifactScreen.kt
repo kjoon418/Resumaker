@@ -59,6 +59,8 @@ fun ArtifactScreen(
     viewModel: ArtifactViewModel,
     onBack: () -> Unit,
     onViewVersions: () -> Unit = {},
+    /** 품질 점검 진입(RESUME 전용, QC10). 화면이 RESUME 종류일 때만 버튼을 노출한다. */
+    onStartQualityReview: () -> Unit = {},
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -142,6 +144,14 @@ fun ArtifactScreen(
                     text = "버전 기록·비교 보기",
                     onClick = onViewVersions,
                 )
+
+                // 품질 점검 진입(QC10): RESUME 전용. 포트폴리오는 진입점을 노출하지 않는다.
+                if (state.kind == ArtifactKind.RESUME) {
+                    GhostButton(
+                        text = "품질 점검",
+                        onClick = onStartQualityReview,
+                    )
+                }
 
                 state.sections.forEach { section ->
                     SectionCard(

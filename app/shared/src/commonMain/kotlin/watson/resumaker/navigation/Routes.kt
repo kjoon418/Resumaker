@@ -47,6 +47,7 @@ object Routes {
         Screen.ArtifactList -> "/artifacts"
         is Screen.ArtifactView -> "/artifacts/${screen.artifactId}"
         is Screen.ArtifactVersions -> "/artifacts/${screen.artifactId}/versions"
+        is Screen.ArtifactQualityReview -> "/artifacts/${screen.artifactId}/quality-review"
         Screen.MyPage -> "/me"
     }
 
@@ -80,6 +81,9 @@ object Routes {
             // 버전 기록·비교 딥링크: /artifacts/{id}/versions. 2세그먼트 열람보다 먼저 매칭(더 구체적인 경로 우선).
             segments.size == 3 && segments[0] == "artifacts" && segments[2] == "versions" ->
                 Screen.ArtifactVersions(segments[1])
+            // 품질 점검·개선 딥링크: /artifacts/{id}/quality-review.
+            segments.size == 3 && segments[0] == "artifacts" && segments[2] == "quality-review" ->
+                Screen.ArtifactQualityReview(segments[1])
             // 산출물 열람 딥링크: transient initial은 URL에 없으므로 null로 복원해 화면이 GET으로 조회한다.
             segments.size == 2 && segments[0] == "artifacts" -> Screen.ArtifactView(segments[1])
             segments == listOf("me") -> Screen.MyPage

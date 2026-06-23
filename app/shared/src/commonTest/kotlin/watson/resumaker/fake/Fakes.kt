@@ -22,10 +22,13 @@ import watson.resumaker.model.dto.TemplateResponse
 import watson.resumaker.model.dto.UpdateExperienceRequest
 import watson.resumaker.model.dto.UpdateTargetRequest
 import watson.resumaker.model.dto.UpdateTemplateRequest
+import watson.resumaker.model.dto.QualityImprovementJobResponse
+import watson.resumaker.model.dto.QualityReviewResponse
 import watson.resumaker.network.AccountApi
 import watson.resumaker.network.ApiResult
 import watson.resumaker.network.ArtifactApi
 import watson.resumaker.network.ExperienceApi
+import watson.resumaker.network.QualityApi
 import watson.resumaker.network.TargetApi
 import watson.resumaker.network.TemplateApi
 import watson.resumaker.network.TemplateInterpretApi
@@ -372,6 +375,68 @@ class FakeArtifactApi(
         lastRestore = artifactId to versionId
         restoreGate?.await()
         return restoreResult ?: ApiResult.Failure("no result")
+    }
+}
+
+/** 결과를 미리 지정하는 fake QualityApi. 호출 인자를 기록해 검증한다. */
+class FakeQualityApi(
+    var reviewResult: ApiResult<QualityReviewResponse> = ApiResult.Failure("no result"),
+    var submitResult: ApiResult<QualityImprovementJobResponse> = ApiResult.Failure("no result"),
+    var getJobResult: ApiResult<QualityImprovementJobResponse> = ApiResult.Failure("no result"),
+    var adoptResult: ApiResult<ArtifactResponse> = ApiResult.Failure("no result"),
+    /**
+     * 호출마다 다른 getImprovementJob 결과를 돌려주기 위한 큐(폴링 전환 테스트용). 비어 있지 않으면 매 호출 앞에서
+     * 하나씩 꺼내 [getJobResult]를 갱신한 뒤 반환한다. 비면 마지막 [getJobResult]를 계속 반환한다.
+     */
+    var getJobSequence: ArrayDeque<ApiResult<QualityImprovementJobResponse>> = ArrayDeque(),
+) : QualityApi {
+    var reviewCount = 0
+        private set
+    var submitCount = 0
+        private set
+    var getJobCount = 0
+        private set
+    var adoptCount = 0
+        private set
+
+    var lastSubmitFindingIds: List<String>? = null
+    var lastAdoptCandidateIds: List<String>? = null
+    var lastAdoptJobId: String? = null
+
+    override suspend fun reviewQuality(artifactId: String): ApiResult<QualityReviewResponse> {
+        reviewCount++
+        return reviewResult
+    }
+
+    override suspend fun submitImprovement(
+        artifactId: String,
+        findingIds: List<String>,
+    ): ApiResult<QualityImprovementJobResponse> {
+        submitCount++
+        lastSubmitFindingIds = findingIds
+        return submitResult
+    }
+
+    override suspend fun getImprovementJob(
+        artifactId: String,
+        jobId: String,
+    ): ApiResult<QualityImprovementJobResponse> {
+        getJobCount++
+        if (getJobSequence.isNotEmpty()) {
+            getJobResult = getJobSequence.removeFirst()
+        }
+        return getJobResult
+    }
+
+    override suspend fun adoptCandidates(
+        artifactId: String,
+        jobId: String,
+        candidateIds: List<String>,
+    ): ApiResult<ArtifactResponse> {
+        adoptCount++
+        lastAdoptJobId = jobId
+        lastAdoptCandidateIds = candidateIds
+        return adoptResult
     }
 }
 

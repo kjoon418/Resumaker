@@ -2,7 +2,9 @@ package watson.resumaker
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import watson.resumaker.feature.artifact.ArtifactCreateScreen
 import watson.resumaker.feature.artifact.ArtifactCreateViewModel
 import watson.resumaker.feature.artifact.ArtifactListScreen
@@ -11,6 +13,11 @@ import watson.resumaker.feature.artifact.ArtifactScreen
 import watson.resumaker.feature.artifact.ArtifactVersionsScreen
 import watson.resumaker.feature.artifact.ArtifactVersionsViewModel
 import watson.resumaker.feature.artifact.ArtifactViewModel
+import watson.resumaker.feature.artifact.quality.QualityImprovementScreen
+import watson.resumaker.feature.artifact.quality.QualityReviewScreen
+import watson.resumaker.feature.artifact.quality.QualityReviewViewModel
+import watson.resumaker.feature.artifact.quality.QualityStep
+import watson.resumaker.model.type.ArtifactKind
 import watson.resumaker.feature.auth.SessionScreen
 import watson.resumaker.feature.auth.SessionViewModel
 import watson.resumaker.feature.experience.ExperienceEditScreen
@@ -297,7 +304,40 @@ fun App(container: AppContainer = remember { AppContainer() }) {
                     viewModel = vm,
                     onBack = { navigator.pop() },
                     onViewVersions = { navigator.push(Screen.ArtifactVersions(screen.artifactId)) },
+                    onStartQualityReview = { navigator.push(Screen.ArtifactQualityReview(screen.artifactId)) },
                 )
+            }
+
+            is Screen.ArtifactQualityReview -> {
+                // ViewModel을 단일 인스턴스로 공유: 1단계(QualityReviewScreen)와 2단계(QualityImprovementScreen)가
+                // 같은 인스턴스를 통해 상태를 이어받는다. artifactKind는 RESUME 전용 진입점(QC10)이 보장하므로 고정.
+                val vm = remember(screen.artifactId) {
+                    QualityReviewViewModel(
+                        qualityApi = container.qualityApi,
+                        artifactId = screen.artifactId,
+                        artifactKind = ArtifactKind.RESUME,
+                    )
+                }
+                // 단계 기반 렌더링: CANDIDATES 단계까지는 1단계, 이후는 2단계를 보여준다.
+                // LaunchedEffect 대신 state.step을 직접 읽어 Compose recomposition으로 자연스럽게 전환한다.
+                val qualityState by vm.state.collectAsStateWithLifecycle()
+                if (qualityState.step == QualityStep.CANDIDATES || qualityState.step == QualityStep.ADOPTED) {
+                    QualityImprovementScreen(
+                        viewModel = vm,
+                        onBack = { navigator.pop() },
+                        onAdopted = { navigator.pop() },
+                    )
+                } else {
+                    QualityReviewScreen(
+                        viewModel = vm,
+                        onBack = { navigator.pop() },
+                        onProceedToImprovement = { /* state.step 전환이 recomposition을 트리거한다 */ },
+                        onOpenExperience = { experienceId ->
+                            if (experienceId != null) navigator.push(Screen.ExperienceEdit(experienceId))
+                            else navigator.push(Screen.ExperienceList)
+                        },
+                    )
+                }
             }
 
             is Screen.ArtifactVersions -> {

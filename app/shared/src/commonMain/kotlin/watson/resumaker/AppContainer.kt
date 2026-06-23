@@ -13,6 +13,8 @@ import watson.resumaker.network.TemplateApi
 import watson.resumaker.network.TemplateApiImpl
 import watson.resumaker.network.TemplateInterpretApi
 import watson.resumaker.network.TemplateInterpretApiImpl
+import watson.resumaker.network.QualityApi
+import watson.resumaker.network.QualityApiImpl
 import watson.resumaker.network.TemplatePresetApi
 import watson.resumaker.network.TemplatePresetApiImpl
 import watson.resumaker.network.configuredApiBaseUrl
@@ -45,6 +47,7 @@ class AppContainer(
     val templatePresetApi: TemplatePresetApi = TemplatePresetApiImpl(apiClient)
     val templateInterpretApi: TemplateInterpretApi = TemplateInterpretApiImpl(apiClient)
     val artifactApi: ArtifactApi = ArtifactApiImpl(apiClient)
+    val qualityApi: QualityApi = QualityApiImpl(apiClient)
 
     /** 세션 만료(비자발적 401) 신호. App이 관찰해 로그인 화면으로 리다이렉트한다. */
     val sessionExpirations: SharedFlow<Unit> get() = apiClient.sessionExpirations

@@ -87,3 +87,16 @@ enum class TemplateOrigin {
     AI_FALLBACK_DEFAULT,
     NONE,
 }
+
+/**
+ * 개선 소견의 처치 종류(서버 `quality.domain.TreatmentKind`와 1:1).
+ * - AUTO_REWRITE  : 사실을 불변으로 둔 채 표현·구조·강조·간결만 다듬는 자동 적용 후보를 생성한다.
+ * - SUGGESTION    : 사용자 액션이 필요한 보강 안내. 텍스트를 바꾸지 않고 경험 보강으로 유도한다.
+ * - OUT_OF_SCOPE  : 서식·접근성(R1/AP14) 등 MVP 자동 개선 범위 밖. 화면에 노출하지 않는다.
+ */
+@Serializable
+enum class TreatmentKind {
+    AUTO_REWRITE,
+    SUGGESTION,
+    OUT_OF_SCOPE,
+}

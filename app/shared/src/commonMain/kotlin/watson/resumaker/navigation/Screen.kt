@@ -75,6 +75,13 @@ sealed interface Screen {
      */
     data class ArtifactVersions(val artifactId: String) : Screen
 
+    /**
+     * 품질 점검·개선(RESUME 전용, QC10). 1단계(소견 확인)와 2단계(후보 비교·채택)를 동일 화면 스택 안에서
+     * 처리한다. ViewModel을 공유해 상태를 이어받는다.
+     * [artifactId]로 품질 점검을 요청하고 개선 결과를 채택한다.
+     */
+    data class ArtifactQualityReview(val artifactId: String) : Screen
+
     /** 마이페이지. */
     data object MyPage : Screen
 }
