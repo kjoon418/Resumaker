@@ -35,6 +35,7 @@ import watson.resumaker.ui.component.ContentWidth
 import watson.resumaker.ui.component.ErrorBanner
 import watson.resumaker.ui.component.HeaderTab
 import watson.resumaker.ui.component.PageHeader
+import watson.resumaker.ui.component.headerWidthForTab
 import watson.resumaker.ui.component.PrimaryButton
 import watson.resumaker.ui.component.SegmentedToggle
 import watson.resumaker.ui.component.SkeletonList
@@ -74,7 +75,8 @@ fun ArtifactCreateScreen(
     }
 
     AppScaffold(
-        contentWidth = ContentWidth.NARROW,
+        contentWidth = ContentWidth.NARROW,               // 폼 가독폭(760) 유지
+        headerWidth = headerWidthForTab(selectedTab),    // 탭 목적지 헤더 폭 정책(공유 크롬 일치)
         header = { windowSize ->
             if (selectedTab != null) {
                 AppHeader(

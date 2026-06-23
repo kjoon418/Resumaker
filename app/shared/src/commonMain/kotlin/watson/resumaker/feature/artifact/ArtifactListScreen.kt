@@ -46,6 +46,7 @@ import watson.resumaker.ui.component.PageHeader
 import watson.resumaker.ui.component.RmCard
 import watson.resumaker.ui.component.SkeletonList
 import watson.resumaker.ui.component.TextLink
+import watson.resumaker.ui.component.headerWidthForTab
 import watson.resumaker.ui.theme.RmIcons
 import watson.resumaker.ui.theme.RmRadius
 import watson.resumaker.ui.theme.RmSize
@@ -83,7 +84,8 @@ fun ArtifactListScreen(
 
     AppScaffold(
         snackbarHostState = snackbarHostState,
-        contentWidth = ContentWidth.NARROW,
+        contentWidth = ContentWidth.WIDE,
+        headerWidth = headerWidthForTab(selectedTab), // 탭 목적지 헤더 폭 정책(공유 크롬 일치)
         header = { windowSize ->
             if (selectedTab != null) {
                 AppHeader(

@@ -50,7 +50,8 @@ enum class HeaderTab(val label: String) {
 /**
  * 디자인 시스템 §5.6/§7 AppHeader(WX-7/9). 전체폭 64dp 웹 헤더.
  * 좌측 로고 + 중앙(좌측 정렬) 홈/경험/목표 탭 + 우측 끝 계정(마이) 아이콘.
- * 콘텐츠는 [LocalContentMaxWidth](본문 폭)로 중앙 제한해 본문 컨테이너와 정렬을 맞춘다.
+ * 헤더는 [LocalHeaderMaxWidth](헤더 전용 폭)로 중앙 제한한다. 본문 폭([LocalContentMaxWidth])과 분리해,
+ * 본문이 NARROW(폼)여도 탭 목적지 간 헤더 폭이 튀지 않게 한다.
  * 헤더 막대 자체는 전체폭 surface + 하단 헤어라인 보더.
  *
  * [selected]가 null이면(세션 등) 탭 강조 없음. Compact 구간에서는 탭 라벨을 숨기지 않고
@@ -66,12 +67,12 @@ fun AppHeader(
     modifier: Modifier = Modifier,
 ) {
     val colors = RmTheme.colors
-    val contentMaxWidth = LocalContentMaxWidth.current
+    val headerMaxWidth = LocalHeaderMaxWidth.current
     Column(modifier = modifier.fillMaxWidth().background(colors.surface)) {
         Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
             Row(
                 modifier = Modifier
-                    .widthIn(max = contentMaxWidth)
+                    .widthIn(max = headerMaxWidth)
                     .fillMaxWidth()
                     .height(RmSize.headerHeight)
                     .padding(horizontal = horizontalPadding),
@@ -160,6 +161,12 @@ private fun HeaderNavItem(
         )
     }
 }
+
+/**
+ * 탭 목적지의 헤더 폭 정책(WX-7): 공유 크롬은 탭마다 동일해야 하므로 항상 WIDE.
+ * selectedTab=null(PageHeader 경로)이면 헤더 폭 정책이 적용되지 않으므로 기본 WIDE를 반환한다.
+ */
+fun headerWidthForTab(@Suppress("UNUSED_PARAMETER") tab: HeaderTab?): ContentWidth = ContentWidth.WIDE
 
 @Preview
 @Composable

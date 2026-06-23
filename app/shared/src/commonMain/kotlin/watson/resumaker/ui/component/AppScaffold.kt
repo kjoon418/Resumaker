@@ -24,7 +24,7 @@ import watson.resumaker.ui.theme.WindowSize
 import watson.resumaker.ui.theme.windowSizeFor
 
 /**
- * 콘텐츠 컨테이너 폭 종류(WX-1). [WIDE]=리스트/홈(1120dp), [NARROW]=폼·세션(640dp).
+ * 콘텐츠 컨테이너 폭 종류(WX-1). [WIDE]=리스트/홈(1120dp), [NARROW]=폼·세션(760dp).
  */
 enum class ContentWidth(val maxWidth: Dp) {
     WIDE(RmSize.contentMaxWide),
@@ -37,6 +37,13 @@ enum class ContentWidth(val maxWidth: Dp) {
  * 화면이 폭을 한 곳([AppScaffold.contentWidth])에서만 지정하도록 해 헤더/본문 폭이 어긋나는 것을 막는다.
  */
 val LocalContentMaxWidth = staticCompositionLocalOf { RmSize.contentMaxWide }
+
+/**
+ * 헤더(공유 크롬)의 max-width 단일 출처. 본문 폭([LocalContentMaxWidth])과 **의도적으로 분리**한다.
+ * 탭 목적지는 본문이 WIDE/NARROW 중 무엇을 고르든 헤더 폭은 항상 동일해야 탭 전환 시 공유 크롬이
+ * 튀지 않는다(폭 불일치 회귀 방지). 기본값은 리스트/홈 기준 WIDE.
+ */
+val LocalHeaderMaxWidth = staticCompositionLocalOf { RmSize.contentMaxWide }
 
 /**
  * 디자인 시스템 §7 웹 반응형 스캐폴드(WX-1/7/9). 전체폭 sticky 헤더 + 중앙 콘텐츠 컨테이너 구조.
@@ -52,6 +59,12 @@ fun AppScaffold(
     modifier: Modifier = Modifier,
     snackbarHostState: SnackbarHostState = remember { SnackbarHostState() },
     contentWidth: ContentWidth = ContentWidth.WIDE,
+    /**
+     * 헤더 컨테이너 폭. 본문([contentWidth])과 분리해 지정한다. 탭 목적지(AppHeader 사용)는
+     * 본문이 NARROW여도 헤더는 항상 WIDE로 두어 탭 전환 간 공유 크롬 폭을 고정한다.
+     * 기본값 WIDE. PageHeader(폼) 화면은 본문과 같은 폭을 쓰고 싶으면 contentWidth와 동일하게 넘긴다.
+     */
+    headerWidth: ContentWidth = ContentWidth.WIDE,
     header: (@Composable (WindowSize) -> Unit)? = null,
     floatingBottom: (@Composable () -> Unit)? = null,
     content: @Composable (Modifier, WindowSize) -> Unit,
@@ -63,7 +76,10 @@ fun AppScaffold(
             .background(colors.background),
     ) {
         val windowSize = windowSizeFor(maxWidth)
-        CompositionLocalProvider(LocalContentMaxWidth provides contentWidth.maxWidth) {
+        CompositionLocalProvider(
+            LocalContentMaxWidth provides contentWidth.maxWidth,
+            LocalHeaderMaxWidth provides headerWidth.maxWidth,
+        ) {
             Column(modifier = Modifier.fillMaxSize()) {
                 if (header != null) {
                     header(windowSize)
