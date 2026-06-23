@@ -60,9 +60,12 @@ services:
       DB_PASSWORD: ${DB_PASSWORD:-resumaker}
       # 프런트(브라우저) 오리진 허용. 배포 시 실제 도메인으로 좁힌다.
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:*,http://127.0.0.1:*}
-      # AI 생성/양식 해석용. 이미지에 claude CLI가 설치돼 있고, 인증은 이 키로 한다(없으면 AI 기능만 실패).
+      # AI 생성/양식 해석용. 이미지에 claude CLI가 설치돼 있다. 인증은 둘 중 하나(둘 다 비우면 AI 기능만 실패):
+      #  - CLAUDE_CODE_OAUTH_TOKEN: Claude 구독(Pro/Max) 토큰(`claude setup-token`). 종량 API 잔액을 쓰지 않음 → 개발 권장.
+      #  - ANTHROPIC_API_KEY: 종량 API 키(잔액 차감). 구독 토큰을 쓸 땐 비워 둔다(키가 있으면 CLI가 종량 API를 택함).
       CLAUDE_CLI_MODEL: ${CLAUDE_CLI_MODEL:-claude-sonnet-4-5}
       CLAUDE_CLI_TIMEOUT: ${CLAUDE_CLI_TIMEOUT:-120s}
+      CLAUDE_CODE_OAUTH_TOKEN: ${CLAUDE_CODE_OAUTH_TOKEN:-}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
     ports:
       - '${SERVER_PORT:-8082}:8082'
