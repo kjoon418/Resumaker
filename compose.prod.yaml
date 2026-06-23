@@ -1,0 +1,44 @@
+# 배포용 override — 기존 compose.yaml 위에 겹쳐 쓴다.
+#
+#   docker compose -f compose.yaml -f compose.prod.yaml --env-file .env.prod pull
+#   docker compose -f compose.yaml -f compose.prod.yaml --env-file .env.prod up -d --no-build
+#
+# 핵심 차이(로컬 대비):
+#   - 이미지는 Artifact Registry에서 pull(.env.prod의 BACKEND_IMAGE/FRONTEND_IMAGE). VM에서 빌드하지 않음(--no-build).
+#   - 모든 서비스 restart: unless-stopped(재부팅·크래시 자동 복구).
+#   - e2-micro(1GB) 보호용 JVM 힙 제한(JAVA_TOOL_OPTIONS).
+#   - cloudflared로 HTTPS 종단(외부 포트 개방 불필요).
+#
+# 참고: 베이스 compose.yaml의 backend/frontend는 호스트 포트(8082/8081)를 publish하지만,
+#       GCP 방화벽에서 인그레스를 열지 않으므로 인터넷에서 직접 닿지 않는다. 외부 접근은 전부 cloudflared 경유.
+
+services:
+  postgres:
+    restart: unless-stopped
+
+  redis:
+    restart: unless-stopped
+
+  backend:
+    restart: unless-stopped
+    environment:
+      # e2-micro RAM 1GB 보호: JVM 힙·메타스페이스 상한. JAVA_TOOL_OPTIONS는 JVM이 자동 인식한다.
+      JAVA_TOOL_OPTIONS: ${JAVA_TOOL_OPTIONS:--Xmx320m -XX:MaxMetaspaceSize=128m}
+
+  frontend:
+    restart: unless-stopped
+
+  # ── Cloudflare Tunnel(토큰 방식) ──
+  # Zero Trust 대시보드에서 터널을 만들고 Public Hostname 두 개를 매핑한 뒤, 발급된 토큰을 .env.prod의 TUNNEL_TOKEN에 넣는다:
+  #   app.<도메인>  → http://frontend:80     (이 compose 네트워크 안의 서비스명으로 라우팅)
+  #   api.<도메인>  → http://backend:8082
+  # 도메인이 아예 없으면 이 서비스를 비우고, 임시로 `cloudflared tunnel --url http://localhost:8081`(quick tunnel)로 대체 가능(데모 한정·URL 비고정).
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${TUNNEL_TOKEN:-}
+    depends_on:
+      - frontend
+      - backend
