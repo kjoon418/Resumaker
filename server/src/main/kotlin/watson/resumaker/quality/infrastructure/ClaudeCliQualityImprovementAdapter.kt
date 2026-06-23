@@ -58,6 +58,7 @@ class ClaudeCliQualityImprovementAdapter(
         sb.appendLine("## 개선 방향(아래 점을 개선하되, 사실은 불변)")
         input.criteria.forEach { sb.appendLine("- $it") }
         sb.appendLine("- 위 원본의 수치·고유명사·성과는 **그대로 보존**하세요(누락·변형 금지). 표현·구조·강조·간결만 다듬으세요.")
+        sb.appendLine("- 특히 **고유명사(회사명·제품명·기술명·프로젝트명·팀명)** 는 한글이든 영문이든 원문 표기 그대로 남기세요. 일반어로 바꾸거나(예: \"카카오페이\"→\"한 핀테크\") 삭제·축약하지 마세요.")
         sb.appendLine()
 
         sb.appendLine("## 출력")

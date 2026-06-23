@@ -1,6 +1,7 @@
 package watson.resumaker.quality.application
 
 import org.springframework.stereotype.Component
+import watson.resumaker.generation.application.ExperienceSnapshot
 import watson.resumaker.generation.application.FactTokenExtractor
 
 /**
@@ -14,6 +15,15 @@ import watson.resumaker.generation.application.FactTokenExtractor
  * 원본의 정규화 토큰이 후보 집합에 모두 포함되면 보존(통과). 하나라도 빠지면(누락·변형) 실패. 검증기와 같은 추출
  * 규칙을 공유하므로(추출 일원화), 보존 검증이 검증기보다 느슨해 "흘린 사실"을 놓치는 일이 없다.
  *
+ * ## skillTags 사전 보강(M2 — 한글 고유명사 사각 완화)
+ * [FactTokenExtractor]는 따옴표 없는 **순수 한글 고유명사**(한글 기술명·회사명 등)를 결정적으로 추출하지 못한다
+ * (일반 한글 명사와 구별 불가 — 추출기 주석 참고). 그래서 다듬기가 한글 기술명("스프링부트"·"카프카")을 누락·변형해도
+ * 위 사실 토큰 비교로는 못 잡는다. 보존 검증은 **원본(이미 근거 통과)과 출처 경험을 둘 다 갖고 있으므로**, 사용자가
+ * 직접 선언한 [ExperienceSnapshot.skillTags]를 **고유명사 사전**으로 써서 이 사각을 보완한다: 원본에 등장한 skillTag가
+ * 후보에서 사라지면 보존 실패로 본다. skillTag는 사용자가 명시한 값이라 거짓 양성 위험이 거의 없고, 검증을 **더 엄격하게**
+ * 만들 뿐이라(느슨해지지 않으므로) 공유 추출기·1차 생성 검증을 건드리지 않는다. 보존 검증의 거짓 양성은 "원본 유지"라는
+ * 안전한 실패라서, 과보존 쪽으로 편향해도 해가 없다.
+ *
  * 순수·결정적이며 외부 호출이 없다(같은 입력 → 같은 결과).
  */
 @Component
@@ -22,16 +32,41 @@ class FactTokenPreservationValidator(
 ) {
 
     /**
-     * 후보가 원본의 사실 토큰을 모두 보존하는지 판정한다.
+     * 후보가 원본의 사실 토큰(+ 원본에 등장한 skillTag 고유명사)을 모두 보존하는지 판정한다.
      *
+     * @param experiences 항목 출처 경험. skillTags를 한글 고유명사 보강 사전으로 쓴다(M2). 비우면 사실 토큰만 본다.
      * @return 보존됐으면 true. 빠진 토큰이 하나라도 있으면 false.
      */
-    fun preserves(original: String, candidate: String): Boolean = missingTokens(original, candidate).isEmpty()
+    fun preserves(
+        original: String,
+        candidate: String,
+        experiences: List<ExperienceSnapshot> = emptyList(),
+    ): Boolean = missingTokens(original, candidate, experiences).isEmpty()
 
     /** 후보에서 누락·변형돼 사라진 원본 사실 토큰의 정규화 값 목록(디버깅·표시용). 비어 있으면 보존. */
-    fun missingTokens(original: String, candidate: String): List<String> {
+    fun missingTokens(
+        original: String,
+        candidate: String,
+        experiences: List<ExperienceSnapshot> = emptyList(),
+    ): List<String> {
         val originalNormalized = extractor.extract(original).map { it.normalized }.toSet()
         val candidateNormalized = extractor.extract(candidate).map { it.normalized }.toSet()
-        return (originalNormalized - candidateNormalized).toList()
+        val missingFactTokens = originalNormalized - candidateNormalized
+
+        // M2: 사용자 선언 skillTags를 고유명사 사전으로. 원본에 있던 태그가 후보에서 사라지면 누락으로 본다.
+        // 추출기의 경계 포함 매칭(라틴 끝은 단어경계, 한글 끝은 위치 무관)을 재사용해 짧은 토큰 오매칭을 막는다.
+        val normalizedOriginal = extractor.normalizeForNoun(original)
+        val normalizedCandidate = extractor.normalizeForNoun(candidate)
+        val missingSkillTags = experiences
+            .flatMap { it.skillTags }
+            .map { extractor.normalizeForNoun(it) }
+            .filter { it.isNotBlank() }
+            .distinct()
+            .filter { tag ->
+                extractor.containsQuotedPhrase(normalizedOriginal, tag) &&
+                    !extractor.containsQuotedPhrase(normalizedCandidate, tag)
+            }
+
+        return (missingFactTokens + missingSkillTags).distinct()
     }
 }
