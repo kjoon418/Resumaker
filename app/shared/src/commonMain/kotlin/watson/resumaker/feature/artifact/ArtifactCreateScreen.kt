@@ -28,10 +28,12 @@ import watson.resumaker.model.dto.TargetResponse
 import watson.resumaker.model.dto.TemplateResponse
 import watson.resumaker.model.type.ArtifactKind
 import watson.resumaker.model.type.StrategyStatus
+import watson.resumaker.ui.component.AppHeader
 import watson.resumaker.ui.component.AppScaffold
 import watson.resumaker.ui.component.ComingSoon
 import watson.resumaker.ui.component.ContentWidth
 import watson.resumaker.ui.component.ErrorBanner
+import watson.resumaker.ui.component.HeaderTab
 import watson.resumaker.ui.component.PageHeader
 import watson.resumaker.ui.component.PrimaryButton
 import watson.resumaker.ui.component.SegmentedToggle
@@ -52,7 +54,11 @@ import watson.resumaker.ui.theme.pagePadding
 @Composable
 fun ArtifactCreateScreen(
     viewModel: ArtifactCreateViewModel,
+    /** non-null이면 탭 목적지(switchRoot)로 진입한 것이므로 AppHeader(탭)를, null이면 PageHeader(뒤로가기)를 그린다. */
+    selectedTab: HeaderTab? = null,
     onBack: () -> Unit,
+    onSelectTab: (HeaderTab) -> Unit = {},
+    onOpenMyPage: () -> Unit = {},
     /** 제출(202) 성공 시 1회 호출. 호출자가 산출물 목록(Screen.ArtifactList)으로 이동한다. */
     onSubmitted: () -> Unit,
     onRecordExperience: () -> Unit,
@@ -70,11 +76,21 @@ fun ArtifactCreateScreen(
     AppScaffold(
         contentWidth = ContentWidth.NARROW,
         header = { windowSize ->
-            PageHeader(
-                title = "이력서·포트폴리오 만들기",
-                horizontalPadding = windowSize.pagePadding(),
-                onBack = onBack,
-            )
+            if (selectedTab != null) {
+                AppHeader(
+                    selected = selectedTab,
+                    onSelectTab = onSelectTab,
+                    onOpenAccount = onOpenMyPage,
+                    windowSize = windowSize,
+                    horizontalPadding = windowSize.pagePadding(),
+                )
+            } else {
+                PageHeader(
+                    title = "이력서·포트폴리오 만들기",
+                    horizontalPadding = windowSize.pagePadding(),
+                    onBack = onBack,
+                )
+            }
         },
     ) { contentModifier, windowSize ->
         val pad = windowSize.pagePadding()

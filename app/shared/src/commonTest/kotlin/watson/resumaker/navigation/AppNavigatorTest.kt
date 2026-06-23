@@ -56,6 +56,33 @@ class AppNavigatorTest {
     }
 
     @Test
+    fun switchRootToArtifactResetsStackToSingleRoot() {
+        // 헤더 '만들기' 탭(switchRoot(Screen.Artifact))은 push 단계가 쌓여 있어도
+        // 스택을 단일 루트로 리셋한다 — 진입 후 뒤로가기 불가.
+        val nav = AppNavigator(Screen.Home)
+        nav.push(Screen.ExperienceList)
+        nav.push(Screen.ExperienceEdit("a"))
+
+        nav.switchRoot(Screen.Artifact())
+
+        assertEquals(Screen.Artifact(), nav.current)
+        assertFalse(nav.canGoBack)
+    }
+
+    @Test
+    fun switchRootToArtifactListResetsStackToSingleRoot() {
+        // 헤더 '산출물' 탭(switchRoot(Screen.ArtifactList))도 동일하게 단일 루트로 리셋한다.
+        val nav = AppNavigator(Screen.Home)
+        nav.push(Screen.ExperienceList)
+        nav.push(Screen.ExperienceEdit("a"))
+
+        nav.switchRoot(Screen.ArtifactList)
+
+        assertEquals(Screen.ArtifactList, nav.current)
+        assertFalse(nav.canGoBack)
+    }
+
+    @Test
     fun syncFromPathReflectsBrowserNavigation() {
         // WX-8: popstate 경로를 현재 화면에 반영.
         val nav = AppNavigator(Screen.Home)

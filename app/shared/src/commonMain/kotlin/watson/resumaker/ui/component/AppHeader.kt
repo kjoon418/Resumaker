@@ -35,14 +35,16 @@ import watson.resumaker.ui.theme.pressScale
 /**
  * 헤더 내비 목적지(WX-7). 마이는 우측 계정 메뉴로 분리하므로 탭에서 제외.
  *
- * IA 검토 필요: FU-A로 4번째 탭(양식)을 신설했다. 탭 4개의 배치·라벨·우선순위와 Compact 구간
- * 수용 가능성은 최종 디자이너 리뷰 대상이다. 우선 가장 일관된 형태(홈/경험/목표/양식 순)로 구현한다.
+ * IA 검토 필요: 만들기·산출물을 더해 탭이 6개가 됐다. 탭 6개의 배치·라벨·우선순위와 Compact 구간
+ * 수용 가능성은 최종 디자이너 리뷰 대상이다. 우선 가장 일관된 형태(홈/경험/목표/양식/만들기/산출물 순)로 구현한다.
  */
 enum class HeaderTab(val label: String) {
     HOME("홈"),
     EXPERIENCE("경험"),
     TARGET("목표"),
     TEMPLATE("양식"),
+    CREATE("만들기"),
+    ARTIFACT("산출물"),
 }
 
 /**

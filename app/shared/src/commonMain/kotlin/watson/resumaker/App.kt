@@ -258,6 +258,9 @@ fun App(container: AppContainer = remember { AppContainer() }) {
                 }
                 ArtifactCreateScreen(
                     viewModel = vm,
+                    selectedTab = HeaderTab.CREATE,
+                    onSelectTab = { navigator.onHeaderTab(it) },
+                    onOpenMyPage = { navigator.switchRoot(Screen.MyPage) },
                     onBack = { navigator.pop() },
                     onSubmitted = {
                         // 제출(202) 성공: 생성 진입을 닫고 산출물 목록으로 전환한다. 방금 제출한 작업이 목록 상단에
@@ -273,6 +276,9 @@ fun App(container: AppContainer = remember { AppContainer() }) {
                 val vm = remember { ArtifactListViewModel(container.artifactApi) }
                 ArtifactListScreen(
                     viewModel = vm,
+                    selectedTab = HeaderTab.ARTIFACT,
+                    onSelectTab = { navigator.onHeaderTab(it) },
+                    onOpenMyPage = { navigator.switchRoot(Screen.MyPage) },
                     onBack = { navigator.pop() },
                     onOpenArtifact = { artifactId -> navigator.push(Screen.ArtifactView(artifactId = artifactId)) },
                     onCreate = { navigator.push(Screen.Artifact()) },
@@ -320,10 +326,12 @@ fun App(container: AppContainer = remember { AppContainer() }) {
     }
 }
 
-/** 헤더 내비 탭(홈/경험/목표/양식) → 루트 화면 전환(WX-7). */
+/** 헤더 내비 탭(홈/경험/목표/양식/만들기/산출물) → 루트 화면 전환(WX-7). */
 private fun AppNavigator.onHeaderTab(tab: HeaderTab) = when (tab) {
     HeaderTab.HOME -> switchRoot(Screen.Home)
     HeaderTab.EXPERIENCE -> switchRoot(Screen.ExperienceList)
     HeaderTab.TARGET -> switchRoot(Screen.TargetList)
     HeaderTab.TEMPLATE -> switchRoot(Screen.TemplateList)
+    HeaderTab.CREATE -> switchRoot(Screen.Artifact())
+    HeaderTab.ARTIFACT -> switchRoot(Screen.ArtifactList)
 }
