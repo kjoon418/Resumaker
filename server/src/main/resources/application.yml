@@ -36,11 +36,21 @@ spring:
 resumaker:
   cors:
     allowed-origin-patterns: ${CORS_ALLOWED_ORIGINS:http://localhost:*,http://127.0.0.1:*}
-  # 산출물 AI 생성/해석은 개발 단계 비용 0을 위해 Anthropic API가 아닌 Claude CLI 셸 호출로 한다(구현 설계 §12).
-  # 모델·타임아웃·실행 경로만 외부화한다(기본값은 ClaudeCliProperties에 정의). 프롬프트·결과는 로깅하지 않는다.
+  # AI 호출 공급자. cli=Claude CLI 셸 호출(로컬: 구독 토큰으로 비용 0). api=Anthropic Messages API 직접 호출
+  # (운영: claude CLI 프로세스를 안 띄워 e2-micro 메모리 부담 0). 차이는 env(LLM_PROVIDER)로만 가른다.
+  llm:
+    provider: ${LLM_PROVIDER:cli}
+  # provider=cli 경로 설정. 모델·타임아웃·실행 경로만 외부화한다(기본값은 ClaudeCliProperties). 프롬프트·결과는 로깅하지 않는다.
   claude-cli:
     executable-path: ${CLAUDE_CLI_PATH:claude}
     model: ${CLAUDE_CLI_MODEL:claude-sonnet-4-5}
+    timeout: ${CLAUDE_CLI_TIMEOUT:120s}
+  # provider=api 경로 설정. 구조화 출력은 tool use 강제로 얻는다. 종량 API 키만 유효(구독 토큰 불가). api-key 미설정 시
+  # provider=api로 호출하면 401로 실패한다. 모델·타임아웃은 CLI와 같은 env를 재사용해 운영 설정 표면을 좁힌다.
+  anthropic-api:
+    api-key: ${ANTHROPIC_API_KEY:}
+    model: ${CLAUDE_CLI_MODEL:claude-sonnet-4-5}
+    max-tokens: ${ANTHROPIC_MAX_TOKENS:16000}
     timeout: ${CLAUDE_CLI_TIMEOUT:120s}
   # 산출물당 보관 버전 수 상한(도메인 이해 §398, 수용 기준 11). 새 버전 추가 경로(재생성·직접 편집)에서
   # 영속과 같은 트랜잭션 안에 가장 오래된 비활성 버전부터 정리한다(활성은 제외). 운영에서 수치만 조정한다.

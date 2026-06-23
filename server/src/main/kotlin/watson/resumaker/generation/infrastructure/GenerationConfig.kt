@@ -17,6 +17,8 @@ import java.time.Clock
 @Configuration
 @EnableConfigurationProperties(
     ClaudeCliProperties::class,
+    LlmProperties::class,
+    AnthropicApiProperties::class,
     ArtifactVersioningProperties::class,
     GenerationQuotaProperties::class,
     GenerationJobProperties::class,

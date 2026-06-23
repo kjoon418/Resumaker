@@ -32,6 +32,10 @@ class ClaudeCliClient(
     private val processRunner: ProcessRunner,
     private val properties: ClaudeCliProperties,
     private val objectMapper: ObjectMapper,
+    // 아래 셋은 provider=api 분기에서만 쓴다. 단위 테스트(CLI 경로)는 기본값으로 생성하므로 영향이 없다.
+    private val llmProperties: LlmProperties = LlmProperties(),
+    private val anthropicApiProperties: AnthropicApiProperties = AnthropicApiProperties(),
+    private val httpJsonClient: HttpJsonClient? = null,
 ) {
 
     /**
@@ -43,6 +47,12 @@ class ClaudeCliClient(
      * @throws ClaudeCliException 호출/파싱 실패의 모든 경우.
      */
     fun complete(prompt: String, jsonSchema: String): JsonNode {
+        // provider=api면 claude CLI 프로세스를 띄우지 않고 Anthropic Messages API를 직접 호출한다(운영 저메모리).
+        // 계약(반환 JsonNode·예외 타입 ClaudeCliException)은 동일하므로 호출 어댑터는 분기를 알 필요가 없다.
+        if (llmProperties.provider.equals("api", ignoreCase = true)) {
+            return completeViaApi(prompt, jsonSchema)
+        }
+
         val command = listOf(
             properties.executablePath,
             "-p",
@@ -125,9 +135,91 @@ class ClaudeCliClient(
         }
     }
 
+    /**
+     * Anthropic Messages API 직접 호출 경로. 구조화 출력은 **tool use 강제**로 얻는다: 스키마를 단일 tool의
+     * input_schema로 싣고 tool_choice로 그 tool을 강제하면, 응답 content의 `tool_use.input`에 스키마에 맞는 파싱된
+     * JSON이 담긴다(이미 객체/배열). 이를 그대로 반환해 CLI 경로의 `structured_output`과 동일한 계약을 만족한다.
+     *
+     * 실패(타임아웃·연결 실패·비정상 상태코드·envelope 파싱 불가·tool_use 부재)는 모두 [ClaudeCliException]으로
+     * 전파한다(호출 어댑터가 graceful 폴백·503 매핑으로 처리, 기존 흐름과 동일). 본문(프롬프트·결과)·API 키는 로깅하지 않는다.
+     */
+    private fun completeViaApi(prompt: String, jsonSchema: String): JsonNode {
+        val http = httpJsonClient
+            ?: throw ClaudeCliException("HTTP 클라이언트가 구성되지 않았어요(provider=api인데 주입 누락).")
+
+        val schemaNode = try {
+            objectMapper.readTree(jsonSchema)
+        } catch (e: Exception) {
+            throw ClaudeCliException("출력 스키마를 해석할 수 없어요(JSON 파싱 실패).", e)
+        }
+
+        val requestBody = objectMapper.writeValueAsString(
+            mapOf(
+                "model" to anthropicApiProperties.model,
+                "max_tokens" to anthropicApiProperties.maxTokens,
+                // 단일 tool을 강제 호출시켜 구조화 출력을 받는다.
+                "tool_choice" to mapOf("type" to "tool", "name" to STRUCTURED_OUTPUT_TOOL_NAME),
+                "tools" to listOf(
+                    mapOf(
+                        "name" to STRUCTURED_OUTPUT_TOOL_NAME,
+                        "description" to "주어진 스키마에 정확히 맞는 구조화 결과를 반환한다.",
+                        "input_schema" to schemaNode,
+                    ),
+                ),
+                "messages" to listOf(mapOf("role" to "user", "content" to prompt)),
+            ),
+        )
+
+        val headers = mapOf(
+            "x-api-key" to anthropicApiProperties.apiKey,
+            "anthropic-version" to anthropicApiProperties.version,
+            "content-type" to "application/json",
+        )
+
+        val response = try {
+            http.postJson(anthropicApiProperties.baseUrl, headers, requestBody, anthropicApiProperties.timeout)
+        } catch (e: HttpJsonTimeoutException) {
+            throw ClaudeCliException("Anthropic API 호출이 제한 시간을 초과했어요.", e)
+        } catch (e: HttpJsonExecutionException) {
+            throw ClaudeCliException("Anthropic API를 호출하지 못했어요.", e)
+        }
+
+        if (response.statusCode !in 200..299) {
+            // 본문은 사용자 콘텐츠를 포함할 수 있어 싣지 않고 상태코드만 남긴다(로깅/예외 정책).
+            throw ClaudeCliException("Anthropic API가 오류 상태를 반환했어요(코드 ${response.statusCode}).")
+        }
+
+        val envelope = try {
+            objectMapper.readTree(response.body)
+        } catch (e: Exception) {
+            throw ClaudeCliException("Anthropic API 응답을 해석할 수 없어요(JSON 파싱 실패).", e)
+        }
+
+        if (envelope == null || !envelope.isObject) {
+            throw ClaudeCliException("Anthropic API 응답 형식이 올바르지 않아요(객체가 아님).")
+        }
+
+        // content 배열에서 tool_use 블록을 찾아 그 input(파싱된 구조화 JSON)을 반환한다.
+        val content = envelope.get("content")
+        if (content != null && content.isArray) {
+            for (block in content) {
+                if (block.path("type").asText() == "tool_use") {
+                    val input = block.get("input")
+                    if (input != null && (input.isObject || input.isArray)) {
+                        return input
+                    }
+                }
+            }
+        }
+        throw ClaudeCliException("Anthropic API 응답에 구조화 결과(tool_use)가 없어요.")
+    }
+
     companion object {
         /** 예외 메시지에 포함할 stderr 최대 길이(운영 진단용, 앞부분만). */
         private const val MAX_STDERR_DIAGNOSTIC_LENGTH = 500
+
+        /** 구조화 출력을 강제하기 위한 가상 tool 이름(API 경로). */
+        private const val STRUCTURED_OUTPUT_TOOL_NAME = "structured_output"
     }
 }
 
