@@ -57,17 +57,18 @@
 
 > **순서 주의:** `gcloud services enable`(API 활성화)은 **로그인 + 프로젝트 지정 + 결제 연결**이 먼저 돼 있어야 동작한다. 아래 1→5 순서를 지킬 것.
 > **터미널:** 모든 `gcloud` 명령은 **로컬 터미널(Windows면 PowerShell, 또는 설치 시 추가되는 "Google Cloud SDK Shell")** 에서 실행. 로컬 설치 없이 하려면 GCP 콘솔의 브라우저 **Cloud Shell**에서 동일하게 실행해도 된다.
-> ⚠️ **PowerShell에선 줄바꿈 `\`(역슬래시)가 안 먹힌다.** 여러 줄 명령은 **한 줄로 붙여 쓰거나** 백틱(`` ` ``)으로 이어라.
+> ⚠️ **이 문서의 명령은 두 종류다.** ` ```powershell `로 표시된 블록은 **로컬 Windows PowerShell**에서, ` ```bash `로 표시된 블록은 **VM에 SSH로 접속한 뒤(Debian)** 실행한다. 헷갈리면 라벨을 보면 된다.
+> ⚠️ **PowerShell에선 줄바꿈 `\`(역슬래시)가 안 먹힌다.** 그래서 로컬 명령은 전부 **한 줄**로 적어 뒀다(그대로 복붙). 직접 여러 줄로 쪼개야 하면 `\` 대신 줄 끝에 백틱(`` ` ``)을 쓴다. 반대로 VM(bash) 블록의 `\`·`&&`는 정상 동작한다.
 
 - [ ] **1. gcloud CLI 설치**(Windows): Google Cloud SDK 설치 후 **새 PowerShell 창**에서 `gcloud --version`으로 인식 확인.
 - [ ] **2. 결제 계정 연결**: Always Free도 프로젝트에 **결제 계정이 연결돼 있어야** 함. GCP 콘솔 → 결제에서 카드 등록·프로젝트 연결(브라우저). (무료 한도 내면 청구 0)
-- [ ] **3. 로그인 + 프로젝트 지정**:
-  ```bash
+- [ ] **3. 로그인 + 프로젝트 지정**(로컬 PowerShell):
+  ```powershell
   gcloud auth login                          # ← 대화형(브라우저). 세션에선 `! gcloud auth login`
   gcloud config set project <YOUR_PROJECT_ID>
   ```
-- [ ] **4. API 활성화** (위 3까지 끝난 뒤라야 통과):
-  ```bash
+- [ ] **4. API 활성화** (위 3까지 끝난 뒤라야 통과 / 로컬 PowerShell):
+  ```powershell
   gcloud services enable compute.googleapis.com artifactregistry.googleapis.com cloudbuild.googleapis.com
   ```
 - [ ] **5. Anthropic API 키 발급**: https://console.anthropic.com → API Keys에서 키 생성, 결제수단/잔액 등록. 키 문자열 안전 보관(나중에 `.env.prod`에 입력).
@@ -75,12 +76,12 @@
 
 ### Phase 1 — 이미지 빌드 & 푸시 (Cloud Build → Artifact Registry)
 > `cloudbuild.yaml`은 **작성 완료**(저장소 루트). 당신은 레지스트리 1회 생성 + 빌드 실행만.
-- [ ] Artifact Registry 저장소 생성(1회). PowerShell이면 한 줄로:
-  ```bash
+- [ ] Artifact Registry 저장소 생성(1회 / 로컬 PowerShell):
+  ```powershell
   gcloud artifacts repositories create resumaker --repository-format=docker --location=us-central1
   ```
-- [ ] 빌드·푸시 실행(코드 변경 때마다):
-  ```bash
+- [ ] 빌드·푸시 실행(코드 변경 때마다 / 로컬 PowerShell):
+  ```powershell
   gcloud builds submit --config cloudbuild.yaml .
   # 태그 지정 시:  gcloud builds submit --config cloudbuild.yaml --substitutions=_TAG=v1 .
   ```
@@ -88,26 +89,24 @@
   > 푸시 권한 오류 시: 빌드 서비스 계정(`<번호>-compute@developer.gserviceaccount.com`)에 `roles/artifactregistry.writer` 부여(명령은 `cloudbuild.yaml` 주석에 있음).
 
 ### Phase 2 — VM 생성
-- [ ] **반드시 무료 리전**(`us-west1`/`us-central1`/`us-east1`) 중 하나에 `e2-micro` 생성:
-  ```bash
-  gcloud compute instances create resumaker \
-    --zone=us-central1-a --machine-type=e2-micro \
-    --image-family=debian-12 --image-project=debian-cloud \
-    --boot-disk-size=30GB
+- [ ] **반드시 무료 리전**(`us-west1`/`us-central1`/`us-east1`) 중 하나에 `e2-micro` 생성(로컬 PowerShell, 한 줄):
+  ```powershell
+  gcloud compute instances create resumaker --zone=us-central1-a --machine-type=e2-micro --image-family=debian-12 --image-project=debian-cloud --boot-disk-size=30GB
   ```
   > 외부 포트는 열지 않는다(Cloudflare Tunnel이 아웃바운드로 연결). 80/443/8082 방화벽 개방 불필요 → 공격면 축소.
-- [ ] SSH 접속 확인: `gcloud compute ssh resumaker --zone=us-central1-a`
+- [ ] SSH 접속 확인(로컬 PowerShell): `gcloud compute ssh resumaker --zone=us-central1-a`
 
 ### Phase 3 — VM 부트스트랩 (Docker + 실행)
 > 스크립트·설정 파일 **작성 완료**: `compose.prod.yaml`, `.env.prod.example`, `scripts/deploy/vm-setup.sh`, `scripts/deploy/deploy.sh`. 당신은 VM에 파일 복사 → 셋업 실행 → 시크릿 입력 → 배포.
 
-- [ ] **필요한 파일만 VM으로 복사**(이미지는 prebuilt라 전체 소스 불필요). 로컬에서:
-  ```bash
-  gcloud compute scp --zone=us-central1-a --recurse \
-    compose.yaml compose.prod.yaml .env.prod.example scripts resumaker:~/resumaker/
+- [ ] **필요한 파일만 VM으로 복사**(이미지는 prebuilt라 전체 소스 불필요). 로컬 PowerShell(저장소 루트에서 실행). **대상 폴더를 먼저 만든다** — Windows gcloud는 `pscp`를 쓰는데, 여러 항목을 한 대상으로 복사할 땐 그 폴더가 원격에 미리 있어야 한다(없으면 `not a directory` 오류). 또한 **scp 대상엔 `~/`(틸드)를 쓰지 말 것** — `pscp.exe`가 틸드를 확장하지 못해 같은 오류가 난다. 상대경로 `resumaker/`(원격 홈 기준)를 쓴다:
+  ```powershell
+  gcloud compute ssh resumaker --zone=us-central1-a --command="mkdir -p ~/resumaker"
+  gcloud compute scp --zone=us-central1-a --recurse compose.yaml compose.prod.yaml .env.prod.example scripts resumaker:resumaker/
   ```
+  > 그래도 `not a directory`면 틸드 대신 절대경로(`resumaker:/home/<원격사용자>/resumaker/`)로. 원격 사용자명은 `gcloud compute ssh resumaker --zone=us-central1-a --command="whoami"` 로 확인.
   > Windows 체크아웃이라 줄바꿈(CRLF) 깨질 수 있음 → VM에서 한 번: `sed -i 's/\r$//' ~/resumaker/scripts/deploy/*.sh`
-- [ ] **VM 1회 셋업**(Docker + 2GB 스왑 + Artifact Registry 인증). VM SSH 후:
+- [ ] **VM 1회 셋업**(Docker + 2GB 스왑 + Artifact Registry 인증). VM SSH 후(아래는 VM의 bash):
   ```bash
   cd ~/resumaker && bash scripts/deploy/vm-setup.sh
   ```
