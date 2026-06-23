@@ -1,5 +1,6 @@
 package watson.resumaker.quality.presentation
 
+import com.fasterxml.jackson.databind.ObjectMapper
 import org.junit.jupiter.api.Test
 import org.mockito.kotlin.any
 import org.mockito.kotlin.doThrow
@@ -7,17 +8,21 @@ import org.mockito.kotlin.whenever
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest
 import org.springframework.context.annotation.Import
+import org.springframework.http.MediaType
 import org.springframework.test.context.bean.override.mockito.MockitoBean
 import org.springframework.test.web.servlet.MockMvc
+import org.springframework.test.web.servlet.get
 import org.springframework.test.web.servlet.post
 import watson.resumaker.account.application.CurrentUserProvider
 import watson.resumaker.account.domain.UserId
 import watson.resumaker.artifact.domain.SectionId
 import watson.resumaker.common.domain.DomainValidationException
 import watson.resumaker.common.domain.ResourceNotFoundException
+import watson.resumaker.quality.application.QualityImprovementJobService
 import watson.resumaker.quality.application.QualityReviewService
 import watson.resumaker.quality.domain.Finding
 import watson.resumaker.quality.domain.QualityCriterion
+import watson.resumaker.quality.domain.QualityImprovementJobStatus
 import watson.resumaker.quality.domain.QualityReport
 import watson.resumaker.quality.domain.SuggestionGuide
 import watson.resumaker.quality.domain.TreatmentKind
@@ -26,7 +31,7 @@ import java.util.UUID
 
 /**
  * [QualityController] @WebMvcTest. 서비스·매퍼는 슬라이스로 로드하고, 전역 예외 핸들러가 함께 로드돼 거절 매핑을
- * 검증한다. 진단(품질 점검)만 본다(처치·채택은 후속 커밋).
+ * 검증한다. 진단·처치 접수·처치 조회를 본다(채택은 후속 커밋).
  *
  * 검증: 200 + 소견 목록, QC10 포트폴리오 거절(400), QC8 소유 격리(404).
  */
@@ -37,8 +42,14 @@ class QualityControllerTest {
     @Autowired
     private lateinit var mockMvc: MockMvc
 
+    @Autowired
+    private lateinit var objectMapper: ObjectMapper
+
     @MockitoBean
     private lateinit var reviewService: QualityReviewService
+
+    @MockitoBean
+    private lateinit var improvementJobService: QualityImprovementJobService
 
     @MockitoBean
     private lateinit var currentUserProvider: CurrentUserProvider
@@ -119,5 +130,102 @@ class QualityControllerTest {
                 status { isNotFound() }
                 jsonPath("$.code") { value("NOT_FOUND") }
             }
+    }
+
+    @Test
+    fun 품질_개선_접수는_202와_jobId를_반환한다() {
+        // given — AUTO_REWRITE 소견을 골라 접수하면 PENDING 작업이 만들어진다.
+        val jobId = UUID.randomUUID().toString()
+        whenever(currentUserProvider.currentUserId()).thenReturn(UserId(UUID.randomUUID()))
+        whenever(improvementJobService.submit(any(), any(), any())).thenReturn(
+            QualityImprovementJobResponse(
+                jobId = jobId,
+                status = QualityImprovementJobStatus.PENDING,
+                candidates = null,
+                errorCode = null,
+                errorMessage = null,
+                createdAt = "2026-06-22T00:00:00Z",
+            ),
+        )
+        val request = QualityImprovementRequest(findingIds = listOf("${sectionId.value}:I1"))
+
+        // when and then
+        mockMvc.post("/artifacts/$artifactId/quality-improvements") {
+            contentType = MediaType.APPLICATION_JSON
+            content = objectMapper.writeValueAsString(request)
+        }.andExpect {
+            status { isAccepted() }
+            jsonPath("$.jobId") { value(jobId) }
+            jsonPath("$.status") { value("PENDING") }
+        }
+    }
+
+    @Test
+    fun 빈_소견_목록_접수는_400을_반환한다() {
+        // given (형식 검증) — findingIds 비어 있으면 @NotEmpty로 거부.
+        whenever(currentUserProvider.currentUserId()).thenReturn(UserId(UUID.randomUUID()))
+        val request = QualityImprovementRequest(findingIds = emptyList())
+
+        // when and then
+        mockMvc.post("/artifacts/$artifactId/quality-improvements") {
+            contentType = MediaType.APPLICATION_JSON
+            content = objectMapper.writeValueAsString(request)
+        }.andExpect {
+            status { isBadRequest() }
+            jsonPath("$.field") { value("findingIds") }
+        }
+    }
+
+    @Test
+    fun 품질_개선_작업_조회는_200과_후보를_반환한다() {
+        // given — 성공한 작업의 후보를 비교용으로 내려준다.
+        val jobId = UUID.randomUUID()
+        whenever(currentUserProvider.currentUserId()).thenReturn(UserId(UUID.randomUUID()))
+        whenever(improvementJobService.get(any(), any())).thenReturn(
+            QualityImprovementJobResponse(
+                jobId = jobId.toString(),
+                status = QualityImprovementJobStatus.SUCCEEDED,
+                candidates = listOf(
+                    CandidateDto(
+                        candidateId = UUID.randomUUID().toString(),
+                        sectionId = sectionId.value.toString(),
+                        definitionKey = "section-0-요약",
+                        originalContent = "결제를 담당했다.",
+                        candidateContent = "결제 시스템을 설계·운영했어요.",
+                        appliedCriterionIds = listOf("I1"),
+                    ),
+                ),
+                errorCode = null,
+                errorMessage = null,
+                createdAt = "2026-06-22T00:00:00Z",
+            ),
+        )
+
+        // when and then
+        mockMvc.get("/artifacts/$artifactId/quality-improvements/$jobId")
+            .andExpect {
+                status { isOk() }
+                jsonPath("$.status") { value("SUCCEEDED") }
+                jsonPath("$.candidates[0].candidateContent") { value("결제 시스템을 설계·운영했어요.") }
+                jsonPath("$.candidates[0].appliedCriterionIds[0]") { value("I1") }
+            }
+    }
+
+    @Test
+    fun 자동적용_소견이_없는_접수는_400을_반환한다() {
+        // given — 개선 제안만 골라 접수하면 서비스가 거절(DomainValidationException → 400).
+        whenever(currentUserProvider.currentUserId()).thenReturn(UserId(UUID.randomUUID()))
+        doThrow(DomainValidationException("다듬을 수 있는 소견이 없어요. 품질 점검을 다시 해 주세요."))
+            .whenever(improvementJobService).submit(any(), any(), any())
+        val request = QualityImprovementRequest(findingIds = listOf("${sectionId.value}:I4"))
+
+        // when and then
+        mockMvc.post("/artifacts/$artifactId/quality-improvements") {
+            contentType = MediaType.APPLICATION_JSON
+            content = objectMapper.writeValueAsString(request)
+        }.andExpect {
+            status { isBadRequest() }
+            jsonPath("$.code") { value("INVALID_REQUEST") }
+        }
     }
 }
