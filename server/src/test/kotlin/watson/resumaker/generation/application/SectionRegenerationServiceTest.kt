@@ -74,6 +74,8 @@ class SectionRegenerationServiceTest {
             }
         }
         override fun recordRegeneration(ownerId: UserId, sectionId: SectionId) { regenerationRecorded++ }
+        override fun checkQualityImprovement(ownerId: UserId) {}
+        override fun recordQualityImprovement(ownerId: UserId) {}
     }
 
     private val quotaGuard = RecordingQuotaGuard()

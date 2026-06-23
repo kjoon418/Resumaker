@@ -589,4 +589,81 @@ class ArtifactTest {
             )
         }.isInstanceOf(DomainValidationException::class.java)
     }
+
+    // ── adoptSections 일괄 채택 도메인 테스트(품질 개선 일괄 채택, QC5) ──────────
+
+    @Test
+    fun adoptSections는_여러_항목을_한_버전_전이로_교체하고_활성을_전환한다() {
+        // given (QC5 — 일괄 채택은 한 번의 버전 전이) — 두 항목을 동시에 채택.
+        val artifact = resume(
+            listOf(
+                section("summary", SectionKind.SUMMARY, "원래 요약"),
+                section("career", SectionKind.CAREER, "원래 경력"),
+            ),
+        )
+        val active = artifact.activeVersion()
+        val summaryId = active.sections.first { it.definitionKey == "summary" }.id
+        val careerId = active.sections.first { it.definitionKey == "career" }.id
+
+        // when — 두 항목을 한 번에 채택.
+        val newVersion = artifact.adoptSections(
+            mapOf(
+                summaryId to SectionContent.of("다듬은 요약"),
+                careerId to SectionContent.of("다듬은 경력"),
+            ),
+            baseTime.plusSeconds(60),
+        )
+
+        // then — 버전은 딱 1개만 늘어난다(폭증 없음), 두 항목 모두 교체·활성 전환.
+        assertThat(artifact.versions).hasSize(2)
+        assertThat(artifact.activeVersion()).isEqualTo(newVersion)
+        assertThat(newVersion.sections.first { it.definitionKey == "summary" }.content.value).isEqualTo("다듬은 요약")
+        assertThat(newVersion.sections.first { it.definitionKey == "career" }.content.value).isEqualTo("다듬은 경력")
+        assertThat(newVersion.sections.all { it.status == SectionStatus.GENERATED }).isTrue()
+    }
+
+    @Test
+    fun adoptSections는_채택하지_않은_항목을_그대로_복제한다() {
+        // given (QC5 — 미채택 불변) — summary만 채택, career는 유지.
+        val artifact = resume(
+            listOf(
+                section("summary", SectionKind.SUMMARY, "원래 요약"),
+                section("career", SectionKind.CAREER, "원래 경력"),
+            ),
+        )
+        val summaryId = artifact.activeVersion().sections.first { it.definitionKey == "summary" }.id
+
+        // when
+        val newVersion = artifact.adoptSections(
+            mapOf(summaryId to SectionContent.of("다듬은 요약")),
+            baseTime.plusSeconds(60),
+        )
+
+        // then — career는 그대로, 직전 버전도 불변.
+        assertThat(newVersion.sections.first { it.definitionKey == "career" }.content.value).isEqualTo("원래 경력")
+        val previous = artifact.versions.minByOrNull { it.createdAt }!!
+        assertThat(previous.sections.first { it.definitionKey == "summary" }.content.value).isEqualTo("원래 요약")
+    }
+
+    @Test
+    fun adoptSections는_빈_채택이면_거부된다() {
+        // given
+        val artifact = resume(listOf(section("summary", SectionKind.SUMMARY, "요약")))
+
+        // when and then
+        assertThatThrownBy {
+            artifact.adoptSections(emptyMap(), baseTime)
+        }.isInstanceOf(DomainValidationException::class.java)
+    }
+
+    @Test
+    fun adoptSections는_활성_버전에_없는_항목을_채택하면_거부된다() {
+        // given
+        val artifact = resume(listOf(section("summary", SectionKind.SUMMARY, "요약")))
+
+        // when and then
+        assertThatThrownBy {
+            artifact.adoptSections(mapOf(SectionId(UUID.randomUUID()) to SectionContent.of("x")), baseTime)
+        }.isInstanceOf(DomainValidationException::class.java)
+    }
 }

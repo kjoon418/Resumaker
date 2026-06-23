@@ -27,4 +27,12 @@ class AllowingGenerationQuotaGuard : GenerationQuotaGuard {
     override fun recordRegeneration(ownerId: UserId, sectionId: SectionId) {
         // no-op.
     }
+
+    override fun checkQualityImprovement(ownerId: UserId) {
+        // no-op: 항상 허용.
+    }
+
+    override fun recordQualityImprovement(ownerId: UserId) {
+        // no-op.
+    }
 }

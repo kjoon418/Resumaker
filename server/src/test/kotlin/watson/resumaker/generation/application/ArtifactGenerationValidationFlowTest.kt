@@ -72,6 +72,8 @@ class ArtifactGenerationValidationFlowTest {
         override fun recordInitialGeneration(ownerId: UserId) {}
         override fun checkRegeneration(ownerId: UserId, sectionId: watson.resumaker.artifact.domain.SectionId) {}
         override fun recordRegeneration(ownerId: UserId, sectionId: watson.resumaker.artifact.domain.SectionId) {}
+        override fun checkQualityImprovement(ownerId: UserId) {}
+        override fun recordQualityImprovement(ownerId: UserId) {}
     }
 
     /**

@@ -66,6 +66,8 @@ class ArtifactGenerationServiceTest {
         override fun recordInitialGeneration(ownerId: UserId) { initialRecorded++ }
         override fun checkRegeneration(ownerId: UserId, sectionId: watson.resumaker.artifact.domain.SectionId) {}
         override fun recordRegeneration(ownerId: UserId, sectionId: watson.resumaker.artifact.domain.SectionId) { regenerationRecorded++ }
+        override fun checkQualityImprovement(ownerId: UserId) {}
+        override fun recordQualityImprovement(ownerId: UserId) {}
     }
 
     private val quotaGuard = RecordingQuotaGuard()

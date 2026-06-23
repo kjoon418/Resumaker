@@ -5,6 +5,7 @@ import org.springframework.transaction.annotation.Transactional
 import watson.resumaker.account.domain.UserId
 import watson.resumaker.common.domain.DomainValidationException
 import watson.resumaker.common.domain.ResourceNotFoundException
+import watson.resumaker.generation.application.GenerationQuotaGuard
 import watson.resumaker.quality.domain.QualityImprovementJob
 import watson.resumaker.quality.domain.QualityImprovementJobId
 import watson.resumaker.quality.domain.TreatmentKind
@@ -33,12 +34,16 @@ class QualityImprovementJobService(
     private val reviewService: QualityReviewService,
     private val jobRepository: QualityImprovementJobRepository,
     private val candidateRepository: QualityCandidateRepository,
+    private val quotaGuard: GenerationQuotaGuard,
     private val mapper: QualityImprovementJobMapper,
     private val clock: Clock,
 ) {
 
     @Transactional
     fun submit(ownerId: UserId, artifactId: UUID, findingIds: List<String>): QualityImprovementJobResponse {
+        // 접수 사전 점검(빠른 실패): 별도 일일 한도를 이미 넘었으면 작업을 만들지 않고 즉시 429로 막는다(§5.1-3).
+        // 실제 차감은 워커가 후보를 영속한 뒤(작업 성공 시) 한다(QC7 — 전 항목 실패 시 미차감).
+        quotaGuard.checkQualityImprovement(ownerId)
         // 진단을 다시 돌려 요청 소견을 검증한다(이력서 가드 QC10·소유 격리 QC8를 review가 강제).
         val report = reviewService.review(ownerId, artifactId)
         val requested = findingIds.toSet()

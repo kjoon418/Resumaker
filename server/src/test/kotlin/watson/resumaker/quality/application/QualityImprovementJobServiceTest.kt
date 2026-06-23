@@ -12,6 +12,7 @@ import org.mockito.kotlin.whenever
 import watson.resumaker.account.domain.UserId
 import watson.resumaker.artifact.domain.SectionId
 import watson.resumaker.common.domain.DomainValidationException
+import watson.resumaker.common.domain.QuotaExceededException
 import watson.resumaker.quality.domain.Finding
 import watson.resumaker.quality.domain.QualityCriterion
 import watson.resumaker.quality.domain.QualityImprovementJob
@@ -37,9 +38,10 @@ class QualityImprovementJobServiceTest {
     private val reviewService: QualityReviewService = mock()
     private val jobRepository: QualityImprovementJobRepository = mock()
     private val candidateRepository: QualityCandidateRepository = mock()
+    private val quotaGuard: watson.resumaker.generation.application.GenerationQuotaGuard = mock()
     private val mapper = QualityImprovementJobMapper()
     private val clock: Clock = Clock.fixed(Instant.parse("2026-06-22T00:00:00Z"), ZoneOffset.UTC)
-    private val service = QualityImprovementJobService(reviewService, jobRepository, candidateRepository, mapper, clock)
+    private val service = QualityImprovementJobService(reviewService, jobRepository, candidateRepository, quotaGuard, mapper, clock)
 
     private val ownerId = UserId(UUID.randomUUID())
     private val artifactId = UUID.randomUUID()
@@ -84,6 +86,19 @@ class QualityImprovementJobServiceTest {
         // when and then — 400(DomainValidationException), 작업 미생성.
         assertThatThrownBy { service.submit(ownerId, artifactId, listOf(suggestFindingId)) }
             .isInstanceOf(DomainValidationException::class.java)
+        verify(jobRepository, never()).save(any())
+    }
+
+    @Test
+    fun 일일_한도를_넘으면_접수_사전점검에서_막힌다() {
+        // given (§5.1-3) — 접수 사전 점검이 한도 초과로 던진다(진단·작업 생성에 도달하지 않는다).
+        whenever(quotaGuard.checkQualityImprovement(ownerId))
+            .thenThrow(QuotaExceededException("한도 초과", code = "QUALITY_IMPROVEMENT_QUOTA_EXCEEDED"))
+
+        // when and then
+        assertThatThrownBy { service.submit(ownerId, artifactId, listOf(autoFindingId)) }
+            .isInstanceOf(QuotaExceededException::class.java)
+        verify(reviewService, never()).review(any(), any())
         verify(jobRepository, never()).save(any())
     }
 }

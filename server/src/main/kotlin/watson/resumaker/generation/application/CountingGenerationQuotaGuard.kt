@@ -35,6 +35,7 @@ class CountingGenerationQuotaGuard(
     private val userRepository: UserRepository,
     private val counterRepository: GenerationQuotaCounterRepository,
     private val properties: GenerationQuotaProperties,
+    private val qualityProperties: watson.resumaker.quality.infrastructure.QualityQuotaProperties,
     private val clock: Clock,
 ) : GenerationQuotaGuard {
 
@@ -70,6 +71,23 @@ class CountingGenerationQuotaGuard(
 
     override fun recordRegeneration(ownerId: UserId, sectionId: SectionId) {
         incrementOrInsert(regenerationScopeKey(sectionId), todayFor(ownerId))
+    }
+
+    override fun checkQualityImprovement(ownerId: UserId) {
+        val today = todayFor(ownerId)
+        val used = currentCount(qualityScopeKey(ownerId), today)
+        if (used >= qualityProperties.dailyQualityImprovementLimit) {
+            throw QuotaExceededException(
+                message = "오늘 품질 개선을 사용할 수 있는 횟수(${qualityProperties.dailyQualityImprovementLimit}회)를 모두 썼어요. " +
+                    "내일 다시 시도하거나, 지금은 항목을 직접 편집해 보세요.",
+                code = QUALITY_IMPROVEMENT_QUOTA_EXCEEDED,
+                action = ACTION_EDIT_MANUALLY,
+            )
+        }
+    }
+
+    override fun recordQualityImprovement(ownerId: UserId) {
+        incrementOrInsert(qualityScopeKey(ownerId), todayFor(ownerId))
     }
 
     /** 사용자 시간대 기준 오늘(달력일). 리셋 경계 계산의 단일 진실. */
@@ -111,15 +129,22 @@ class CountingGenerationQuotaGuard(
 
     private fun regenerationScopeKey(sectionId: SectionId): String = "$REGEN_SCOPE_PREFIX${sectionId.value}"
 
+    /** 품질 개선은 사용자당 합산 한도다(§5.1-3 별도 일일 한도 — 항목 재생성과 키 접두로 분리해 카운터가 섞이지 않음). */
+    private fun qualityScopeKey(ownerId: UserId): String = "$QUALITY_SCOPE_PREFIX${ownerId.value}"
+
     companion object {
         private const val INITIAL_SCOPE_PREFIX = "INITIAL:"
         private const val REGEN_SCOPE_PREFIX = "REGEN:"
+        private const val QUALITY_SCOPE_PREFIX = "QUALITY:"
 
         /** 1차 생성 한도 초과 에러 코드(클라이언트 분기·안내용). */
         const val GENERATION_QUOTA_EXCEEDED = "GENERATION_QUOTA_EXCEEDED"
 
         /** 항목 재생성 한도 초과 에러 코드. */
         const val REGENERATION_QUOTA_EXCEEDED = "REGENERATION_QUOTA_EXCEEDED"
+
+        /** 품질 개선 한도 초과 에러 코드. */
+        const val QUALITY_IMPROVEMENT_QUOTA_EXCEEDED = "QUALITY_IMPROVEMENT_QUOTA_EXCEEDED"
 
         /** 대안 행동 힌트: 직접 편집(§399). */
         const val ACTION_EDIT_MANUALLY = "EDIT_MANUALLY"

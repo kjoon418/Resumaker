@@ -39,4 +39,15 @@ interface GenerationQuotaGuard {
 
     /** 항목 재생성의 사용자 요청 최종 성공을 생성 항목당 1회 차감한다. 영속 후 호출한다. */
     fun recordRegeneration(ownerId: UserId, sectionId: SectionId)
+
+    /**
+     * 품질 개선 접수 전 사용자당 잔여 횟수를 점검한다(품질 개선 기획 §5.1-3 — 항목 재생성 상한과 **별개의** 자체 일일
+     * 한도). 상한 도달 시 [watson.resumaker.common.domain.QuotaExceededException].
+     */
+    fun checkQualityImprovement(ownerId: UserId)
+
+    /**
+     * 품질 개선 작업 성공(채택 가능 후보 ≥1)을 사용자당 1회 차감한다(전 항목 실패 시 미차감 — QC7). 후보 영속 후 호출한다.
+     */
+    fun recordQualityImprovement(ownerId: UserId)
 }

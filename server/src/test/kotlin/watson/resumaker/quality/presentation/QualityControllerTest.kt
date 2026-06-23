@@ -52,6 +52,9 @@ class QualityControllerTest {
     private lateinit var improvementJobService: QualityImprovementJobService
 
     @MockitoBean
+    private lateinit var adoptionService: watson.resumaker.quality.application.CandidateAdoptionService
+
+    @MockitoBean
     private lateinit var currentUserProvider: CurrentUserProvider
 
     private val artifactId = UUID.randomUUID()
@@ -226,6 +229,44 @@ class QualityControllerTest {
         }.andExpect {
             status { isBadRequest() }
             jsonPath("$.code") { value("INVALID_REQUEST") }
+        }
+    }
+
+    @Test
+    fun 후보_채택은_200과_갱신된_활성_버전을_반환한다() {
+        // given — 일괄 채택으로 새 활성 버전이 생긴다.
+        val jobId = UUID.randomUUID()
+        val newVersionId = UUID.randomUUID().toString()
+        whenever(currentUserProvider.currentUserId()).thenReturn(UserId(UUID.randomUUID()))
+        whenever(adoptionService.adopt(any(), any(), any(), any())).thenReturn(
+            watson.resumaker.generation.presentation.ArtifactResponse(
+                id = artifactId.toString(),
+                kind = watson.resumaker.artifact.domain.ArtifactKind.RESUME,
+                activeVersion = watson.resumaker.generation.presentation.ArtifactVersionResponse(
+                    versionId = newVersionId,
+                    sections = listOf(
+                        watson.resumaker.generation.presentation.ArtifactSectionResponse(
+                            id = UUID.randomUUID().toString(),
+                            sectionKind = watson.resumaker.artifact.domain.SectionKind.SUMMARY,
+                            definitionKey = "section-0-요약",
+                            content = "다듬은 요약",
+                            status = watson.resumaker.artifact.domain.SectionStatus.GENERATED,
+                            sourceExperienceIds = emptyList(),
+                        ),
+                    ),
+                ),
+            ),
+        )
+        val request = AdoptCandidatesRequest(candidateIds = listOf(UUID.randomUUID().toString()))
+
+        // when and then
+        mockMvc.post("/artifacts/$artifactId/quality-improvements/$jobId/adopt") {
+            contentType = MediaType.APPLICATION_JSON
+            content = objectMapper.writeValueAsString(request)
+        }.andExpect {
+            status { isOk() }
+            jsonPath("$.activeVersion.versionId") { value(newVersionId) }
+            jsonPath("$.activeVersion.sections[0].content") { value("다듬은 요약") }
         }
     }
 }

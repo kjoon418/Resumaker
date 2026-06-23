@@ -11,6 +11,8 @@ import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
 import watson.resumaker.account.application.CurrentUserProvider
 import watson.resumaker.common.domain.DomainValidationException
+import watson.resumaker.generation.presentation.ArtifactResponse
+import watson.resumaker.quality.application.CandidateAdoptionService
 import watson.resumaker.quality.application.QualityImprovementJobService
 import watson.resumaker.quality.application.QualityReviewService
 import watson.resumaker.quality.domain.QualityImprovementJobId
@@ -24,14 +26,15 @@ import java.util.UUID
  * - POST /artifacts/{artifactId}/quality-improvements : 처치(품질 개선) **접수**. AUTO_REWRITE 소견만 받아 즉시
  *   202+jobId를 돌려주고 워커가 백그라운드로 후보를 만든다. 클라이언트는 {jobId}로 완료를 폴링한다.
  * - GET  /artifacts/{artifactId}/quality-improvements/{jobId} : 작업 단건 조회(상태·후보 폴링).
- *
- * (후보 채택 엔드포인트는 후속 커밋에서 더한다.)
+ * - POST /artifacts/{artifactId}/quality-improvements/{jobId}/adopt : 후보 채택(일괄·부분). 새 활성 버전을 만들어
+ *   갱신된 산출물(활성 버전)을 200으로 돌려준다.
  */
 @RestController
 @RequestMapping("/artifacts/{artifactId}")
 class QualityController(
     private val reviewService: QualityReviewService,
     private val improvementJobService: QualityImprovementJobService,
+    private val adoptionService: CandidateAdoptionService,
     private val mapper: QualityMapper,
     private val currentUserProvider: CurrentUserProvider,
 ) {
@@ -66,6 +69,21 @@ class QualityController(
                 QualityImprovementJobId(toUuid(jobId)),
             ),
         )
+
+    @PostMapping("/quality-improvements/{jobId}/adopt")
+    fun adopt(
+        @PathVariable artifactId: String,
+        @PathVariable jobId: String,
+        @Valid @RequestBody request: AdoptCandidatesRequest,
+    ): ResponseEntity<ArtifactResponse> {
+        val response = adoptionService.adopt(
+            currentUserProvider.currentUserId(),
+            toUuid(artifactId),
+            QualityImprovementJobId(toUuid(jobId)),
+            request.candidateIds!!,
+        )
+        return ResponseEntity.ok(response)
+    }
 
     private fun toUuid(value: String): UUID = try {
         UUID.fromString(value)

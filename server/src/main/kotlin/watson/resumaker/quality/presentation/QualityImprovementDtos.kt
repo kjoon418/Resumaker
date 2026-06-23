@@ -40,3 +40,12 @@ data class CandidateDto(
     val candidateContent: String,
     val appliedCriterionIds: List<String>,
 )
+
+/**
+ * 후보 채택 요청 DTO(POST /artifacts/{artifactId}/quality-improvements/{jobId}/adopt). 채택할 후보 식별자만 담는다.
+ * 일괄(여러 후보)·부분(일부) 채택 모두 한 번의 버전 전이로 묶인다. 빈 목록은 형식 검증으로 거부한다.
+ */
+data class AdoptCandidatesRequest(
+    @field:NotEmpty(message = "채택할 후보를 하나 이상 골라 주세요.")
+    val candidateIds: List<String>? = null,
+)

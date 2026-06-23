@@ -41,6 +41,9 @@ class CountingGenerationQuotaGuardTest {
         dailyInitialGenerationLimit = 10,
         dailyRegenerationLimitPerSection = 5,
     )
+    private val qualityProperties = watson.resumaker.quality.infrastructure.QualityQuotaProperties(
+        dailyQualityImprovementLimit = 3,
+    )
 
     private val ownerId = UserId(UUID.randomUUID())
     private val sectionId = SectionId(UUID.randomUUID())
@@ -52,6 +55,7 @@ class CountingGenerationQuotaGuardTest {
             userRepository = userRepository,
             counterRepository = counterRepository,
             properties = properties,
+            qualityProperties = qualityProperties,
             clock = Clock.fixed(instant, ZoneOffset.UTC),
         )
     }
@@ -177,6 +181,50 @@ class CountingGenerationQuotaGuardTest {
         // then
         verify(counterRepository).increment(
             org.mockito.kotlin.argThat { contains(sectionId.value.toString()) },
+            eq(LocalDate.parse("2026-06-17")),
+        )
+    }
+
+    @Test
+    fun 품질개선_한도는_사용자당_별도_스코프로_상한_도달_시_차단된다() {
+        // given (QC7·§5.1-3) — 오늘 3회(상한 3 도달), 항목 재생성·1차 생성과 **별개** 카운터.
+        whenever(counterRepository.findCountByScopeKeyAndQuotaDate(any(), any())).thenReturn(3)
+        val guard = guardAt(Instant.parse("2026-06-17T03:00:00Z"))
+
+        // when and then — 별도 코드(QUALITY_IMPROVEMENT_QUOTA_EXCEEDED)로 차단.
+        assertThatThrownBy { guard.checkQualityImprovement(ownerId) }
+            .isInstanceOf(QuotaExceededException::class.java)
+            .extracting("code").isEqualTo(CountingGenerationQuotaGuard.QUALITY_IMPROVEMENT_QUOTA_EXCEEDED)
+    }
+
+    @Test
+    fun 품질개선_점검은_사용자당_별도_QUALITY_스코프키를_쓴다() {
+        // given — 1차 생성(INITIAL:)·재생성(REGEN:)과 섞이지 않도록 QUALITY: 접두 + ownerId 키를 써야 한다.
+        whenever(counterRepository.findCountByScopeKeyAndQuotaDate(any(), any())).thenReturn(0)
+        val guard = guardAt(Instant.parse("2026-06-17T03:00:00Z"))
+
+        // when
+        guard.checkQualityImprovement(ownerId)
+
+        // then
+        verify(counterRepository).findCountByScopeKeyAndQuotaDate(
+            org.mockito.kotlin.argThat { startsWith("QUALITY:") && contains(ownerId.value.toString()) },
+            any(),
+        )
+    }
+
+    @Test
+    fun 품질개선_차감은_사용자당_QUALITY_스코프로_원자_증가한다() {
+        // given (QC7) — 작업 성공 시 1회 차감.
+        whenever(counterRepository.increment(any(), any())).thenReturn(1)
+        val guard = guardAt(Instant.parse("2026-06-17T03:00:00Z"))
+
+        // when
+        guard.recordQualityImprovement(ownerId)
+
+        // then
+        verify(counterRepository).increment(
+            org.mockito.kotlin.argThat { startsWith("QUALITY:") && contains(ownerId.value.toString()) },
             eq(LocalDate.parse("2026-06-17")),
         )
     }

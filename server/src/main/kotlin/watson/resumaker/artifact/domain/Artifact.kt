@@ -155,6 +155,43 @@ class Artifact private constructor(
     }
 
     /**
+     * 항목 **일괄 채택**(품질 개선 기획 §3.5 "일괄 채택은 한 번의 버전 전이로 묶어 버전 폭증을 막는다"): 직전 활성
+     * 버전을 복제한 뒤 [adopted]에 담긴 여러 항목을 **한 번에** 교체한 새 버전을 만들어 활성으로 전환한다. 교체되지
+     * 않은 항목은 그대로 복제되어 **채택하지 않은 항목은 변하지 않는다**(§334). [adoptSection]과 달리 여러 항목을
+     * 한 버전 전이로 묶는다(품질 개선 일괄 채택 — 버전 1개·prune 1회).
+     *
+     * @param adopted   교체할 항목 식별자 → 내용 맵. 비어 있으면 채택할 게 없으므로 거부한다.
+     * @return 새로 만들어진 활성 버전.
+     */
+    fun adoptSections(adopted: Map<SectionId, SectionContent>, createdAt: Instant): Version {
+        if (adopted.isEmpty()) {
+            throw DomainValidationException("채택할 항목이 없어요.")
+        }
+        val active = activeVersion()
+        // 채택 대상 항목을 definitionKey로 변환한다(새 버전에서 같은 키로 대응 — adoptSection과 동일 규칙).
+        val adoptedByKey = adopted.entries.associate { (sectionId, content) ->
+            val target = active.sectionById(sectionId)
+                ?: throw DomainValidationException("채택할 항목을 활성 버전에서 찾을 수 없어요.")
+            target.definitionKey to content
+        }
+
+        val newSections = active.sections.map { source ->
+            val copy = ArtifactSection.copyForNewVersion(source)
+            adoptedByKey[source.definitionKey]?.let { content ->
+                copy.content = content
+                copy.status = SectionStatus.GENERATED
+            }
+            copy
+        }
+
+        val newVersion = Version.create(newSections, createdAt)
+        newVersion.assignArtifact(this)
+        versionList.add(newVersion)
+        activeVersionId = newVersion.id
+        return newVersion
+    }
+
+    /**
      * 항목 직접 편집(도메인 이해 §5·§267·§382·§428, 수용 기준 10·19): 직전 활성 버전을 복제한 뒤 대상 항목만
      * content를 교체한 새 버전을 만들어 활성으로 전환한다. 교체되지 않은 항목은 [ArtifactSection.copyForNewVersion]으로
      * 그대로 복제되어 **한 항목 편집이 다른 항목을 바꾸지 않는다.**

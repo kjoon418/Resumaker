@@ -65,9 +65,11 @@ class QualityImprovementJobWorkerTest {
         }
     }
 
+    private val quotaGuard = watson.resumaker.generation.application.AllowingGenerationQuotaGuard()
+
     private val worker = QualityImprovementJobWorker(
         jobRepository, candidateRepository, artifactRepository, experienceRepository,
-        processor, properties, transactionTemplate, clock,
+        processor, quotaGuard, properties, transactionTemplate, clock,
     )
 
     private val ownerId = UserId(UUID.randomUUID())

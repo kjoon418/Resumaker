@@ -13,6 +13,7 @@ import watson.resumaker.experience.domain.ExperienceRecord
 import watson.resumaker.experience.domain.ExperienceRecordId
 import watson.resumaker.experience.infrastructure.ExperienceRecordRepository
 import watson.resumaker.generation.application.ExperienceSnapshot
+import watson.resumaker.generation.application.GenerationQuotaGuard
 import watson.resumaker.generation.application.TargetSnapshot
 import watson.resumaker.generation.infrastructure.ClaudeCliException
 import watson.resumaker.quality.domain.QualityCandidate
@@ -46,6 +47,7 @@ class QualityImprovementJobWorker(
     private val artifactRepository: ArtifactRepository,
     private val experienceRepository: ExperienceRecordRepository,
     private val processor: QualityImprovementProcessor,
+    private val quotaGuard: GenerationQuotaGuard,
     private val properties: QualityImprovementJobProperties,
     private val transactionTemplate: TransactionTemplate,
     private val clock: Clock,
@@ -117,9 +119,10 @@ class QualityImprovementJobWorker(
                 }
             }
 
-            // 3. (tx) 후보 영속 + 상태 확정. 채택 가능한 후보가 ≥1이면 성공, 0건이면 실패(전 항목 검증/생성 실패).
+            // 3. (tx) 후보 영속 + 상태 확정 + 차감. 채택 가능 후보 ≥1이면 성공·차감, 0건이면 실패·미차감(QC7).
             transactionTemplate.execute {
                 if (candidates.isEmpty()) {
+                    // 전 항목 검증/생성 실패 → 미차감(QC7), 원본 유지.
                     job.markFailed(
                         "QUALITY_IMPROVEMENT_NO_CANDIDATE",
                         "안전하게 다듬을 수 있는 항목이 없어 원본을 유지했어요.",
@@ -128,6 +131,10 @@ class QualityImprovementJobWorker(
                 } else {
                     candidateRepository.saveAll(candidates)
                     job.markSucceeded(now)
+                    // 차감(QC7): 채택 가능 후보가 영속된 같은 tx2에서 사용자당 1회 차감한다(작업 성공 = 채택 가능 후보 ≥1).
+                    // 차감은 채택(adopt) 시점이 아니라 작업 성공 시점이다(오너 확정 §5.1-3). incrementOrInsert는 saveAndFlush
+                    // 경유라 후보 INSERT가 clearAutomatically로 폐기되지 않는다(ecfc116 미저장 회귀 방지).
+                    quotaGuard.recordQualityImprovement(job.ownerId)
                 }
                 jobRepository.save(job)
             }

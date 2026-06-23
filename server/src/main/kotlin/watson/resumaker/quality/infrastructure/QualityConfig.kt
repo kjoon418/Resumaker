@@ -14,5 +14,6 @@ import watson.resumaker.quality.application.QualityImprovementJobProperties
 @EnableConfigurationProperties(
     QualityCriteriaProperties::class,
     QualityImprovementJobProperties::class,
+    QualityQuotaProperties::class,
 )
 class QualityConfig
