@@ -144,6 +144,11 @@ class ClaudeCliClient(
      * 전파한다(호출 어댑터가 graceful 폴백·503 매핑으로 처리, 기존 흐름과 동일). 본문(프롬프트·결과)·API 키는 로깅하지 않는다.
      */
     private fun completeViaApi(prompt: String, jsonSchema: String): JsonNode {
+        // 빈 키면 원격 401 왕복 전에 즉시 자기설명적으로 실패시킨다(운영 설정 누락).
+        if (anthropicApiProperties.apiKey.isBlank()) {
+            throw ClaudeCliException("provider=api인데 ANTHROPIC_API_KEY가 비어 있어요(운영 설정 누락).")
+        }
+
         val http = httpJsonClient
             ?: throw ClaudeCliException("HTTP 클라이언트가 구성되지 않았어요(provider=api인데 주입 누락).")
 
@@ -197,6 +202,15 @@ class ClaudeCliClient(
 
         if (envelope == null || !envelope.isObject) {
             throw ClaudeCliException("Anthropic API 응답 형식이 올바르지 않아요(객체가 아님).")
+        }
+
+        // tool_use를 수용하기 전에 stop_reason을 확인한다. max_tokens면 tool_use.input이 구조적으로 valid해도
+        // 부분 결과이므로 반드시 실패시켜 조용한 부분 산출물을 막는다. refusal이면 거부로 전파한다.
+        when (envelope.path("stop_reason").asText()) {
+            "max_tokens" ->
+                throw ClaudeCliException("Anthropic API 응답이 max_tokens로 잘렸어요(max-tokens를 키우세요).")
+            "refusal" ->
+                throw ClaudeCliException("Anthropic API가 요청을 거부했어요(stop_reason=refusal).")
         }
 
         // content 배열에서 tool_use 블록을 찾아 그 input(파싱된 구조화 JSON)을 반환한다.

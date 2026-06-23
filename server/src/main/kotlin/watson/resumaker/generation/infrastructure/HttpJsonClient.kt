@@ -40,7 +40,9 @@ class HttpJsonExecutionException(message: String, cause: Throwable? = null) : Ru
 class JdkHttpJsonClient : HttpJsonClient {
 
     private val httpClient: HttpClient = HttpClient.newBuilder()
-        .connectTimeout(Duration.ofSeconds(15))
+        // 연결(TCP/TLS 핸드셰이크) 타임아웃. 한 호출 전체 대기는 요청별 timeout이 맡으므로 여기선
+        // 연결 수립만 짧게 고정한다(설정 필드로 뺄 만큼 운영 변동이 없어 명명 상수로 충분).
+        .connectTimeout(Duration.ofSeconds(CONNECT_TIMEOUT_SECONDS))
         .build()
 
     override fun postJson(url: String, headers: Map<String, String>, body: String, timeout: Duration): HttpJsonResponse {
@@ -61,5 +63,10 @@ class JdkHttpJsonClient : HttpJsonClient {
             Thread.currentThread().interrupt()
             throw HttpJsonExecutionException("HTTP 요청이 중단됐어요.", e)
         }
+    }
+
+    companion object {
+        /** 연결 수립 타임아웃(초). 운영 변동이 없어 고정한다. */
+        private const val CONNECT_TIMEOUT_SECONDS = 15L
     }
 }

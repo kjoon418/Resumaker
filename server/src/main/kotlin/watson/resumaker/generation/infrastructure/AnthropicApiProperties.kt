@@ -27,7 +27,10 @@ data class AnthropicApiProperties(
     val baseUrl: String = "https://api.anthropic.com/v1/messages",
     /** anthropic-version 헤더 값. */
     val version: String = "2023-06-01",
-    /** 사용할 모델 id(CLI와 동일 기본값 유지). */
+    /**
+     * 사용할 모델 id(CLI와 동일 기본값 유지). provider=api일 때 이 값은 **종량 API에서 유효한 모델 id**여야 한다
+     * (CLAUDE_CLI_MODEL을 CLI와 공유하므로, 구독 전용 별칭이 아닌 API 모델 id인지 확인할 것).
+     */
     val model: String = "claude-sonnet-4-5",
     /** 응답 출력 토큰 상한(필수 파라미터). 이력서/포트폴리오 구조화 결과가 잘리지 않게 넉넉히 둔다. */
     val maxTokens: Int = 16000,
