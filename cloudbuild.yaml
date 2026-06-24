@@ -49,9 +49,12 @@ images:
   - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/backend:${_TAG}
   - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/frontend:${_TAG}
 
-# 기본 빌드 머신으로도 동작하지만 wasm 빌드가 느리다. 빠르게 하려면 아래 주석을 풀어 더 큰 머신 사용(소액 과금).
-# options:
-#   machineType: E2_HIGHCPU_8
+options:
+  # 트리거가 사용자 지정 서비스계정을 쓰면 기본(Google 소유) 로그 버킷을 못 쓴다.
+  # 로그를 Cloud Logging 으로만 보내 그 제약을 피한다.
+  logging: CLOUD_LOGGING_ONLY
+  # 기본 빌드 머신으로도 동작하지만 wasm 빌드가 느리다. 빠르게 하려면 아래 주석을 풀어 더 큰 머신 사용(소액 과금).
+  # machineType: E2_HIGHCPU_8
 
 # 두 이미지 빌드(특히 wasm) 여유를 위해 타임아웃을 넉넉히 둔다.
 timeout: 2400s
