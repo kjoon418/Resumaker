@@ -1,0 +1,14 @@
+[Unit]
+# ── Resumaker 자동 배포 타이머(B안) ── main push → Cloud Build 가 :latest 를 갱신하면,
+# 이 타이머가 2분마다 resumaker-deploy.service 를 돌려 VM 에 반영한다.
+Description=Resumaker auto-deploy timer (polls every 2min for new commits/images)
+
+[Timer]
+# 부팅 2분 뒤 첫 실행, 이후 직전 실행 종료 시점 기준 2분 간격(겹침은 service 의 flock 이 막는다).
+OnBootSec=2min
+OnUnitActiveSec=2min
+AccuracySec=15s
+Unit=resumaker-deploy.service
+
+[Install]
+WantedBy=timers.target

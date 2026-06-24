@@ -1,6 +1,6 @@
 # CI/CD 계획 — 커밋 → 자동 빌드 → VM 자동 반영
 
-> 상태: **계획 문서(미실행)**. 나중에 이 문서를 들고 "CI/CD <A/B>안으로 진행"이라고 하면 AI가 아래 산출물을 생성한다.
+> 상태: **B안(풀 기반) 산출물 생성 완료**. AI 산출물(`scripts/deploy/auto-deploy.sh`, `resumaker-deploy.service`, `resumaker-deploy.timer`)은 저장소에 포함됨. 남은 것은 Phase 0~1·2-B 의 **[당신]** 항목(push·Cloud Build 연결·트리거·VM git 전환·systemd 등록).
 > 전제 인프라는 `docs/배포-GCP-Compute-Engine.md`(이미 배포 완료된 상태)를 잇는다.
 
 ## 0. 목표와 현재 상태
@@ -42,9 +42,9 @@
 
 ## 2. 선결정 사항 (재개 시 먼저 답하면 AI가 산출물 생성)
 
-- [ ] **배포 절반 A/B 선택** (권장 B).
+- [x] **배포 절반 A/B 선택** → **B안(풀 기반)** 채택. 산출물 생성 완료.
 - [ ] **저장소 공개 여부** — `kjoon418/Resumaker`가 private면 VM의 `git pull`에 **읽기 전용 자격**(fine-grained PAT 또는 deploy key)이 필요. public이면 불필요. (확인: GitHub repo Settings → Visibility)
-- [ ] **폴링 주기**(B안) — 기본 2분 제안. 더 빠르게/느리게?
+- [x] **폴링 주기**(B안) → **2분**(`resumaker-deploy.timer`의 `OnUnitActiveSec=2min`). 바꾸려면 timer 파일 한 줄 수정 후 `daemon-reload`.
 - [ ] **빌드 머신** — wasm 빌드가 느림. `cloudbuild.yaml`의 `E2_HIGHCPU_8` 주석을 풀어 빠르게(소액 과금) 할지.
 
 ---
@@ -71,9 +71,10 @@
 - [ ] **[당신] 검증**: 더미 커밋 push → Cloud Build 히스토리에 빌드가 자동으로 뜨고 `:latest`가 갱신되는지.
 
 ### Phase 2-B — 배포(풀 기반, **B안**)
-- [ ] **[AI] 산출물 생성**(재개 시):
-  - `scripts/deploy/auto-deploy.sh` — `cd ~/resumaker && git pull --ff-only && bash scripts/deploy/deploy.sh`(락으로 중복 실행 방지, 로그 남김)
-  - `resumaker-deploy.service` + `resumaker-deploy.timer`(systemd, OnUnitActiveSec=2min) 초안
+- [x] **[AI] 산출물 생성 완료**(저장소에 포함됨):
+  - `scripts/deploy/auto-deploy.sh` — flock 락(중복 실행 방지) + `git pull --ff-only` + `deploy.sh`. 로그는 journald 로. 커밋 변화가 없어도 `:latest` 갱신 반영 위해 deploy.sh 는 항상 실행(멱등).
+  - `scripts/deploy/resumaker-deploy.service` — systemd oneshot. **사용자로 실행**(`User=__DEPLOY_USER__`)해 vm-setup.sh 가 구성한 Artifact Registry 인증을 그대로 사용. 등록 시 `__DEPLOY_USER__`/`__APP_DIR__` 가 실제 값으로 치환됨.
+  - `scripts/deploy/resumaker-deploy.timer` — `OnBootSec=2min`, `OnUnitActiveSec=2min`(2분 폴링).
 - [ ] **[당신] VM을 git 체크아웃으로 전환**(1회): 현재 `~/resumaker`는 scp 사본. 깔끔히:
   ```bash
   # VM에서. .env.prod는 보존
@@ -83,13 +84,19 @@
   cp ~/env.prod.bak ~/resumaker/.env.prod
   sed -i 's/\r$//' ~/resumaker/scripts/deploy/*.sh
   ```
-- [ ] **[당신] systemd 등록·기동**:
+- [ ] **[당신] systemd 등록·기동**(플레이스홀더를 현재 사용자/경로로 치환 + CRLF 제거하며 설치):
   ```bash
-  sudo cp ~/resumaker/scripts/deploy/resumaker-deploy.{service,timer} /etc/systemd/system/
+  # service: __DEPLOY_USER__/__APP_DIR__ 치환 + CR 제거 후 설치
+  sed -e "s|__DEPLOY_USER__|$(whoami)|g" -e "s|__APP_DIR__|$HOME/resumaker|g" -e 's/\r$//' \
+    ~/resumaker/scripts/deploy/resumaker-deploy.service | sudo tee /etc/systemd/system/resumaker-deploy.service >/dev/null
+  # timer: CR 제거 후 설치
+  sed -e 's/\r$//' ~/resumaker/scripts/deploy/resumaker-deploy.timer | sudo tee /etc/systemd/system/resumaker-deploy.timer >/dev/null
+
   sudo systemctl daemon-reload && sudo systemctl enable --now resumaker-deploy.timer
-  systemctl list-timers | grep resumaker   # 다음 실행 확인
+  systemctl list-timers | grep resumaker      # 다음 실행 시각 확인
+  sudo systemctl start resumaker-deploy.service  # (선택) 즉시 1회 실행해 동작 확인
   ```
-- [ ] **[당신] 검증**: 코드 한 줄 바꿔 push → (빌드 ~몇 분) → 폴링 주기 내 VM 컨테이너가 새 이미지로 재기동되는지(`docker compose ... ps`의 CREATED 시각). `journalctl -u resumaker-deploy` 로 배포 로그.
+- [ ] **[당신] 검증**: 코드 한 줄 바꿔 push → (빌드 ~몇 분) → 폴링 주기 내 VM 컨테이너가 새 이미지로 재기동되는지(`docker compose ... ps`의 CREATED 시각). `journalctl -u resumaker-deploy -f` 로 배포 로그.
 
 ### Phase 2-A — 배포(푸시 기반, **A안, 대안**)
 - [ ] **[당신] 방화벽**: IAP SSH 허용 — 22를 `35.235.240.0/20`에만 개방:

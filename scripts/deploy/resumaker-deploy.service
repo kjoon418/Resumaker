@@ -1,0 +1,19 @@
+[Unit]
+# ── Resumaker 자동 배포(B안: 풀 기반) ──
+# 타이머(resumaker-deploy.timer)가 주기적으로 이 oneshot 서비스를 띄운다.
+Description=Resumaker auto-deploy (git pull + docker compose pull/up)
+Wants=network-online.target docker.service
+After=network-online.target docker.service
+
+[Service]
+Type=oneshot
+# __DEPLOY_USER__ / __APP_DIR__ 는 설치 시 sed 로 실제 값으로 치환된다(plan 의 등록 명령 참고).
+# 사용자로 실행해야 vm-setup.sh 가 구성한 Artifact Registry docker 인증(~/.docker/config.json,
+# ~/.config/gcloud)을 그대로 쓴다. root 로 돌리면 pull 인증이 깨질 수 있다.
+User=__DEPLOY_USER__
+WorkingDirectory=__APP_DIR__
+ExecStart=/usr/bin/env bash __APP_DIR__/scripts/deploy/auto-deploy.sh
+# gcloud credential helper(docker-credential-gcloud)가 PATH 에서 발견되도록 표준 경로를 명시한다.
+Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/snap/bin
+# 한 번 실행이 너무 길어지면(이미지 pull 지연 등) 끊는다.
+TimeoutStartSec=1200
