@@ -6,6 +6,7 @@ import watson.resumaker.common.domain.DomainValidationException
 import watson.resumaker.common.domain.QuotaExceededException
 import watson.resumaker.common.domain.ResourceNotFoundException
 import watson.resumaker.experience.domain.ExperienceRecordId
+import watson.resumaker.generation.domain.GenerationErrorCode
 import watson.resumaker.generation.domain.GenerationJob
 import watson.resumaker.generation.domain.GenerationJobStatus
 import watson.resumaker.generation.infrastructure.ClaudeCliException
@@ -53,7 +54,7 @@ class GenerationJobWorker(
         val cutoff = now.minus(properties.staleRunningTimeout)
         jobRepository.findByStatusAndStartedAtBefore(GenerationJobStatus.RUNNING, cutoff).forEach { job ->
             job.markFailed(
-                code = "AI_GENERATION_UNAVAILABLE",
+                code = GenerationErrorCode.AI_UNAVAILABLE,
                 message = "생성이 예상보다 오래 걸려 중단됐어요. 다시 시도해 주세요.",
                 now = now,
             )
@@ -112,16 +113,16 @@ class GenerationJobWorker(
             job.markFailed(exception.code, exception.message ?: "오늘 만들 수 있는 횟수를 모두 썼어요.", now)
         } catch (exception: ClaudeCliException) {
             // 외부 AI 일시 불가(API 키 없음·CLI 비정상 종료·파싱 오류 등).
-            job.markFailed("AI_GENERATION_UNAVAILABLE", "지금은 AI 생성을 사용할 수 없어요. 잠시 후 다시 시도해 주세요.", now)
+            job.markFailed(GenerationErrorCode.AI_UNAVAILABLE, "지금은 AI 생성을 사용할 수 없어요. 잠시 후 다시 시도해 주세요.", now)
         } catch (exception: DomainValidationException) {
             // 전 항목 실패 등으로 만들 산출물이 없는 경우(파이프라인이 "생성할 수 있는 항목이 없어요…"를 던짐).
-            job.markFailed("GENERATION_NO_CONTENT", exception.message ?: "생성할 수 있는 항목이 없어요.", now)
+            job.markFailed(GenerationErrorCode.NO_CONTENT, exception.message ?: "생성할 수 있는 항목이 없어요.", now)
         } catch (exception: ResourceNotFoundException) {
             // 제출 후 경험·목표가 삭제돼 생성 재료를 적재하지 못한 경우.
-            job.markFailed("GENERATION_SOURCE_MISSING", "생성에 쓸 경험이나 목표를 찾을 수 없어요.", now)
+            job.markFailed(GenerationErrorCode.SOURCE_MISSING, "생성에 쓸 경험이나 목표를 찾을 수 없어요.", now)
         } catch (exception: Throwable) {
             // 그 외 예기치 못한 실패. 내부 정보는 노출하지 않고 일반 안내로 종료한다.
-            job.markFailed("GENERATION_FAILED", "생성 중 문제가 생겼어요. 다시 시도해 주세요.", now)
+            job.markFailed(GenerationErrorCode.GENERATION_FAILED, "생성 중 문제가 생겼어요. 다시 시도해 주세요.", now)
         }
         jobRepository.save(job)
     }

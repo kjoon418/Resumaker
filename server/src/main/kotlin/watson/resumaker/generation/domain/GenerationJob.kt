@@ -126,6 +126,23 @@ class GenerationJob private constructor(
         this.finishedAt = now
     }
 
+    /**
+     * 이 작업의 '다시 만들기' 분류(클라이언트가 버튼 동작을 정하는 단일 신호 — [GenerationJobRetryMode]).
+     *
+     * FAILED가 아니면 [GenerationJobRetryMode.NONE]. FAILED면 실패 코드로 갈린다: 입력 관련 실패는
+     * 같은 입력으로 또 실패하므로 [GenerationJobRetryMode.EDIT_INPUTS](입력 프리필 제작 화면), 한도 초과는
+     * [GenerationJobRetryMode.NONE](버튼 없음), 그 외(일시적·예기치 못한 실패)는 저장된 입력으로 그 자리에서
+     * 다시 만드는 [GenerationJobRetryMode.IN_PLACE].
+     */
+    fun retryMode(): GenerationJobRetryMode {
+        if (status != GenerationJobStatus.FAILED) return GenerationJobRetryMode.NONE
+        return when (errorCode) {
+            GenerationErrorCode.NO_CONTENT, GenerationErrorCode.SOURCE_MISSING -> GenerationJobRetryMode.EDIT_INPUTS
+            GenerationErrorCode.QUOTA_EXCEEDED -> GenerationJobRetryMode.NONE
+            else -> GenerationJobRetryMode.IN_PLACE
+        }
+    }
+
     companion object {
         /**
          * 제출 시점에 PENDING 작업을 만든다(attempts=0). 워커가 픽업하기 전까지 대기열에 머문다.

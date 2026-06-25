@@ -10,10 +10,12 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.delete
 import org.springframework.test.web.servlet.get
+import org.springframework.test.web.servlet.post
 import watson.resumaker.account.application.CurrentUserProvider
 import watson.resumaker.account.domain.UserId
 import watson.resumaker.artifact.domain.ArtifactKind
 import watson.resumaker.common.domain.ConflictException
+import watson.resumaker.common.domain.QuotaExceededException
 import watson.resumaker.common.domain.ResourceNotFoundException
 import watson.resumaker.generation.application.GenerationJobService
 import watson.resumaker.generation.domain.GenerationJobStatus
@@ -105,6 +107,53 @@ class GenerationJobControllerTest {
             .andExpect {
                 status { isBadRequest() }
                 jsonPath("$.code") { value("INVALID_REQUEST") }
+            }
+    }
+
+    @Test
+    fun 일시적_실패_다시만들기는_202와_새_작업을_반환한다() {
+        // given — IN_PLACE 재시도 성공: 새 PENDING 작업을 202로 돌려준다.
+        val newJobId = UUID.randomUUID().toString()
+        whenever(currentUserProvider.currentUserId()).thenReturn(UserId(UUID.randomUUID()))
+        whenever(generationJobService.retryInPlace(any(), any()))
+            .thenReturn(jobResponse(GenerationJobStatus.PENDING).copy(jobId = newJobId))
+
+        // when and then
+        mockMvc.post("/generation-jobs/$jobId/retry")
+            .andExpect {
+                status { isAccepted() }
+                jsonPath("$.jobId") { value(newJobId) }
+                jsonPath("$.status") { value("PENDING") }
+            }
+    }
+
+    @Test
+    fun 다시만들_수_없는_작업의_재시도는_409() {
+        // given — 입력 오류·한도 초과 등 IN_PLACE가 아닌 작업은 서비스가 409.
+        whenever(currentUserProvider.currentUserId()).thenReturn(UserId(UUID.randomUUID()))
+        doThrow(ConflictException("이 작업은 같은 정보로 다시 만들 수 없어요. 입력을 바꿔 새로 만들어 주세요."))
+            .whenever(generationJobService).retryInPlace(any(), any())
+
+        // when and then
+        mockMvc.post("/generation-jobs/$jobId/retry")
+            .andExpect {
+                status { isConflict() }
+                jsonPath("$.code") { value("CONFLICT") }
+            }
+    }
+
+    @Test
+    fun 다시만들기_한도_초과는_429() {
+        // given — IN_PLACE라도 가드레일 사전 점검에서 막히면 429.
+        whenever(currentUserProvider.currentUserId()).thenReturn(UserId(UUID.randomUUID()))
+        doThrow(QuotaExceededException("오늘 만들 수 있는 횟수를 모두 썼어요.", code = "GENERATION_QUOTA_EXCEEDED"))
+            .whenever(generationJobService).retryInPlace(any(), any())
+
+        // when and then
+        mockMvc.post("/generation-jobs/$jobId/retry")
+            .andExpect {
+                status { isTooManyRequests() }
+                jsonPath("$.code") { value("GENERATION_QUOTA_EXCEEDED") }
             }
     }
 

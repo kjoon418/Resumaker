@@ -8,6 +8,7 @@ import watson.resumaker.common.domain.ConflictException
 import watson.resumaker.common.domain.ResourceNotFoundException
 import watson.resumaker.generation.domain.GenerationJob
 import watson.resumaker.generation.domain.GenerationJobId
+import watson.resumaker.generation.domain.GenerationJobRetryMode
 import watson.resumaker.generation.infrastructure.GenerationJobRepository
 import watson.resumaker.generation.presentation.GenerationJobMapper
 import watson.resumaker.generation.presentation.GenerationJobResponse
@@ -92,6 +93,38 @@ class GenerationJobService(
             throw ConflictException("생성 중인 작업은 삭제할 수 없어요.")
         }
         jobRepository.delete(job)
+    }
+
+    /**
+     * 일시적 실패 작업을 **저장된 입력 그대로** 다시 만든다(목록의 '다시 만들기' — IN_PLACE). 실패 작업이 보관한
+     * 경험·목표·양식으로 새 PENDING 작업을 만들고, 기존 실패 작업은 삭제해 한 트랜잭션에서 교체한다(재사용 +
+     * 실패 기록 제거를 동시에 — 사용자가 다시 만들었음을 명확히 인지).
+     *
+     * **가드:** IN_PLACE가 아닌 작업(입력 오류·한도 초과·활성·성공)은 같은 입력 재요청이 무의미하므로 409로 막는다
+     * (입력 오류는 클라이언트가 제작 화면으로 보내고, 한도 초과는 버튼 자체가 없다). 제출과 동일하게 가드레일을
+     * 사전 점검(429)하고 목표 존재를 재검증(404)한다.
+     */
+    @Transactional
+    fun retryInPlace(ownerId: UserId, id: GenerationJobId): GenerationJobResponse {
+        val failed = jobRepository.findByIdAndOwnerId(id, ownerId)
+            ?: throw ResourceNotFoundException("요청하신 생성 작업을 찾을 수 없어요.")
+        if (failed.retryMode() != GenerationJobRetryMode.IN_PLACE) {
+            throw ConflictException("이 작업은 같은 정보로 다시 만들 수 없어요. 입력을 바꿔 새로 만들어 주세요.")
+        }
+        quotaGuard.checkInitialGeneration(ownerId)
+        val target = loadTarget(ownerId, TargetBriefId(failed.targetId))
+        val retried = GenerationJob.create(
+            ownerId = ownerId,
+            kind = failed.kind,
+            experienceIds = failed.experienceIds.toList(),
+            targetId = failed.targetId,
+            templateId = failed.templateId,
+            targetCompany = target.company?.value,
+            createdAt = Instant.now(clock),
+        )
+        val saved = jobRepository.save(retried)
+        jobRepository.delete(failed)
+        return mapper.toResponse(saved)
     }
 
     private fun loadTarget(ownerId: UserId, targetId: TargetBriefId): TargetBrief =

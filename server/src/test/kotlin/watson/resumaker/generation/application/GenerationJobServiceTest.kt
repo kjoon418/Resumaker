@@ -176,6 +176,72 @@ class GenerationJobServiceTest {
             .isInstanceOf(ResourceNotFoundException::class.java)
     }
 
+    @Test
+    fun 일시적_실패_작업은_저장된_입력으로_새_PENDING을_만들고_실패작업을_삭제한다() {
+        // given — IN_PLACE(일시적) 실패 작업. 저장된 경험·목표·양식 그대로 다시 만든다.
+        val failed = pendingJob().apply {
+            markFailed("AI_GENERATION_UNAVAILABLE", "지금은 AI 생성을 사용할 수 없어요.", Instant.now(clock))
+        }
+        whenever(jobRepository.findByIdAndOwnerId(failed.id, ownerId)).thenReturn(failed)
+        whenever(targetRepository.findByIdAndOwnerId(targetId, ownerId)).thenReturn(target())
+        whenever(jobRepository.save(any<GenerationJob>())).thenAnswer { it.arguments[0] }
+
+        // when
+        val response = service.retryInPlace(ownerId, failed.id)
+
+        // then — 새 PENDING(다른 jobId)으로 교체되고, 입력은 보존되며, 실패 작업은 삭제된다.
+        assertThat(response.status).isEqualTo(GenerationJobStatus.PENDING)
+        assertThat(response.jobId).isNotEqualTo(failed.id.value.toString())
+        assertThat(response.kind).isEqualTo(ArtifactKind.RESUME)
+        assertThat(response.experienceIds).containsExactly(expId.value.toString())
+        verify(jobRepository).save(any<GenerationJob>())
+        verify(jobRepository).delete(failed)
+    }
+
+    @Test
+    fun 입력오류_실패_작업의_다시만들기는_409() {
+        // given — EDIT_INPUTS(입력 오류)는 같은 입력으론 또 실패하므로 in-place 재요청을 막는다(클라이언트는 제작 화면으로).
+        val failed = pendingJob().apply {
+            markFailed("GENERATION_NO_CONTENT", "생성할 수 있는 항목이 없어요.", Instant.now(clock))
+        }
+        whenever(jobRepository.findByIdAndOwnerId(failed.id, ownerId)).thenReturn(failed)
+
+        // when and then — 가드레일 점검·저장 없이 409.
+        assertThatThrownBy { service.retryInPlace(ownerId, failed.id) }
+            .isInstanceOf(ConflictException::class.java)
+        verify(quotaGuard, never()).checkInitialGeneration(ownerId)
+        verify(jobRepository, never()).save(any<GenerationJob>())
+        verify(jobRepository, never()).delete(any<GenerationJob>())
+    }
+
+    @Test
+    fun 다시만들기도_한도_초과면_새_작업을_만들지_않는다() {
+        // given — IN_PLACE라도 제출과 동일하게 가드레일을 사전 점검한다(429). 실패 작업은 그대로 남는다.
+        val failed = pendingJob().apply {
+            markFailed("AI_GENERATION_UNAVAILABLE", "지금은 AI 생성을 사용할 수 없어요.", Instant.now(clock))
+        }
+        whenever(jobRepository.findByIdAndOwnerId(failed.id, ownerId)).thenReturn(failed)
+        doThrow(QuotaExceededException("한도 초과", code = "GENERATION_QUOTA_EXCEEDED"))
+            .whenever(quotaGuard).checkInitialGeneration(ownerId)
+
+        // when and then
+        assertThatThrownBy { service.retryInPlace(ownerId, failed.id) }
+            .isInstanceOf(QuotaExceededException::class.java)
+        verify(jobRepository, never()).save(any<GenerationJob>())
+        verify(jobRepository, never()).delete(any<GenerationJob>())
+    }
+
+    @Test
+    fun 다시만들기_대상이_타인_소유이거나_미존재면_404() {
+        // given (소유 격리)
+        val id = GenerationJobId(UUID.randomUUID())
+        whenever(jobRepository.findByIdAndOwnerId(id, ownerId)).thenReturn(null)
+
+        // when and then
+        assertThatThrownBy { service.retryInPlace(ownerId, id) }
+            .isInstanceOf(ResourceNotFoundException::class.java)
+    }
+
     private fun pendingJob(): GenerationJob = GenerationJob.create(
         ownerId = ownerId,
         kind = ArtifactKind.RESUME,

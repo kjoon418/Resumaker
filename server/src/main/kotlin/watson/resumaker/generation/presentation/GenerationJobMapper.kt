@@ -19,5 +19,11 @@ class GenerationJobMapper {
         errorMessage = job.errorMessage,
         targetCompany = job.targetCompany,
         createdAt = job.createdAt.toString(),
+        // '다시 만들기' 분류는 서버 단일 책임(클라이언트는 이 값만 보고 버튼 동작을 정한다).
+        retryMode = job.retryMode(),
+        // EDIT_INPUTS 재시도 시 제작 화면 프리필용 입력(모두 사용자 소유 데이터).
+        experienceIds = job.experienceIds.map { it.toString() },
+        targetId = job.targetId.toString(),
+        templateId = job.templateId?.toString(),
     )
 }
