@@ -17,10 +17,29 @@ data class QualityReport(
     val artifactId: UUID,
     val versionId: UUID,
     val findings: List<Finding>,
+    /**
+     * 소견이 달린 항목들(활성 버전 순서, 소견 0건 항목은 제외). 각 항목의 이름·실제 내용을 함께 담아, 클라이언트가
+     * "어느 항목의 어느 내용이 문제인지"를 항목별로 묶어 보여줄 수 있게 한다(소견을 평평한 목록으로만 주면 같은
+     * 기준이 여러 항목에서 중복처럼 보이는 문제 해소). [findings]는 처치 접수·결정성 검사 호환을 위해 평평하게 유지한다.
+     */
+    val sections: List<ReviewedSection> = emptyList(),
 ) {
     /** AUTO_REWRITE 처치 소견 수(비동기 개선 작업으로 다듬을 수 있는 후보의 개수). */
     val autoRewriteCount: Int get() = findings.count { it.treatmentKind == TreatmentKind.AUTO_REWRITE }
 }
+
+/**
+ * 진단에서 소견이 달린 한 항목의 표시 맥락. 소견을 항목에 정박(anchor)시키기 위한 항목 이름·내용이다.
+ *
+ * @param sectionId     활성 버전의 항목 식별자(소견 [Finding.sectionId]와 대응 — 클라이언트가 묶음 키로 쓴다).
+ * @param definitionKey 항목 이름(열람 화면이 항목 제목으로 쓰는 키 그대로 — 사용자가 알아보는 라벨).
+ * @param content       항목의 현재 내용(사용자가 "내 이력서의 이 부분"임을 알아보는 정박점).
+ */
+data class ReviewedSection(
+    val sectionId: SectionId,
+    val definitionKey: String,
+    val content: String,
+)
 
 /**
  * 개선 소견(품질 개선 기획 §3.1). "어느 생성 항목의, 어떤 개선 기준을, 어떻게 위반/약화했는가"의 한 건의 지적.

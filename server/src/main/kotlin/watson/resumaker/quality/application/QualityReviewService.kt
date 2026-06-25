@@ -17,6 +17,7 @@ import watson.resumaker.generation.application.FactTokenExtractor
 import watson.resumaker.quality.domain.Finding
 import watson.resumaker.quality.domain.QualityCriterion
 import watson.resumaker.quality.domain.QualityReport
+import watson.resumaker.quality.domain.ReviewedSection
 import watson.resumaker.quality.domain.SuggestionGuide
 import watson.resumaker.quality.domain.TreatmentKind
 import watson.resumaker.quality.infrastructure.QualityCriteriaDictionary
@@ -68,10 +69,17 @@ class QualityReviewService(
         // 항목을 가로지르는 중복(C3)은 항목 쌍 단위로 검출한다.
         findings += findDuplications(sections)
 
+        // 소견이 달린 항목만, 활성 버전 순서대로 표시 맥락(이름·내용)을 담는다(클라이언트의 항목별 묶음·정박용).
+        val sectionIdsWithFindings = findings.map { it.sectionId }.toSet()
+        val reviewedSections = sections
+            .filter { it.id in sectionIdsWithFindings }
+            .map { ReviewedSection(it.id, it.definitionKey, it.content.value) }
+
         return QualityReport(
             artifactId = artifact.id.value,
             versionId = active.id.value,
             findings = findings,
+            sections = reviewedSections,
         )
     }
 

@@ -38,6 +38,29 @@ data class FindingUi(
 )
 
 /**
+ * 소견이 달린 한 항목(섹션)의 표시 맥락. 소견을 이 항목에 정박(anchor)시켜, "어느 항목의, 어떤 내용이"를 보여준다.
+ */
+data class ReviewedSectionUi(
+    val sectionId: String,
+    /** 항목 이름(열람 화면 항목 제목과 동일한 키). */
+    val definitionKey: String,
+    /** 항목의 현재 내용(사용자가 "내 이력서의 이 부분"임을 알아보는 정박점). */
+    val content: String,
+)
+
+/** 한 항목과 그 항목에 달린 소견들의 묶음(화면이 항목 카드로 렌더한다). */
+data class SectionFindingsUi(
+    val section: ReviewedSectionUi,
+    val findings: List<FindingUi>,
+) {
+    /** 이 항목의 자동 다듬기 대상 소견(체크박스 표시·선택 단위). */
+    val autoRewriteFindings: List<FindingUi> get() = findings.filter { it.treatmentKind == TreatmentKind.AUTO_REWRITE }
+
+    /** 이 항목의 경험 보강 안내 소견. */
+    val suggestionFindings: List<FindingUi> get() = findings.filter { it.treatmentKind == TreatmentKind.SUGGESTION }
+}
+
+/**
  * 채택 대기 중인 후보 한 건의 UI 표현.
  * 원본↔개선 비교 뷰에 사용한다.
  */
@@ -82,6 +105,8 @@ data class QualityReviewUiState(
     val errorMessage: String? = null,
     /** 소견 목록(FINDINGS 단계). OUT_OF_SCOPE는 제외하고 표시한다. */
     val findings: List<FindingUi> = emptyList(),
+    /** 소견이 달린 항목들(이름·내용). 소견을 항목별로 묶어 정박해 보여주는 데 쓴다(중복처럼 보이던 문제 해소). */
+    val reviewedSections: List<ReviewedSectionUi> = emptyList(),
     /** 사용자가 선택한 AUTO_REWRITE 소견 id 집합(FINDINGS 단계). */
     val selectedFindingIds: Set<String> = emptySet(),
     /** IMPROVING 단계의 현재 작업 id(폴링 키). */
@@ -102,6 +127,15 @@ data class QualityReviewUiState(
     /** 소견이 0건인 빈 상태(긍정 빈 상태 고지). */
     val hasNoFindings: Boolean
         get() = step == QualityStep.FINDINGS && findings.isEmpty()
+
+    /**
+     * 소견을 항목별로 묶은 렌더 모델(활성 버전 항목 순서 유지, 소견 없는 항목 제외). 화면은 항목 이름·내용 카드
+     * 아래에 그 항목의 소견만 보여줘 "어느 항목의 어느 부분이 문제인지"를 정박한다(중복 오해 해소).
+     */
+    val sectionFindings: List<SectionFindingsUi>
+        get() = reviewedSections
+            .map { section -> SectionFindingsUi(section, findings.filter { it.sectionId == section.sectionId }) }
+            .filter { it.findings.isNotEmpty() }
 
     /** AUTO_REWRITE 소견 목록. */
     val autoRewriteFindings: List<FindingUi>
@@ -161,10 +195,14 @@ class QualityReviewViewModel(
                         .filter { it.treatmentKind == TreatmentKind.AUTO_REWRITE }
                         .map { it.findingId }
                         .toSet()
+                    val sections = response.sections.map {
+                        ReviewedSectionUi(sectionId = it.sectionId, definitionKey = it.definitionKey, content = it.content)
+                    }
                     _state.update {
                         it.copy(
                             step = QualityStep.FINDINGS,
                             findings = findings,
+                            reviewedSections = sections,
                             selectedFindingIds = autoIds,
                         )
                     }

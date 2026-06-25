@@ -17,6 +17,7 @@ import watson.resumaker.model.dto.FindingDto
 import watson.resumaker.model.dto.QualityImprovementJobResponse
 import watson.resumaker.model.dto.QualityJobStatus
 import watson.resumaker.model.dto.QualityReviewResponse
+import watson.resumaker.model.dto.ReviewedSectionDto
 import watson.resumaker.model.dto.SuggestionGuideDto
 import watson.resumaker.model.type.ArtifactKind
 import watson.resumaker.model.type.SectionKind
@@ -88,6 +89,9 @@ class QualityReviewViewModelTest {
         artifactId = "a-1",
         versionId = "v-1",
         findings = findings.toList(),
+        // 소견의 항목(sectionId/definitionKey)에서 표시 맥락을 파생한다(서버가 소견 달린 항목만 내려주는 것과 동형).
+        sections = findings.map { it.sectionId to it.definitionKey }.distinct()
+            .map { (sid, key) -> ReviewedSectionDto(sectionId = sid, definitionKey = key, content = "내용-$sid") },
         autoRewriteCount = findings.count { it.treatmentKind == TreatmentKind.AUTO_REWRITE },
     )
 
@@ -204,6 +208,33 @@ class QualityReviewViewModelTest {
         testScheduler.advanceUntilIdle()
 
         assertEquals(1, api.reviewCount)
+    }
+
+    @Test
+    fun `startReview 성공 - 소견을 항목별로 묶어 정박한다`() = runTest(dispatcher) {
+        // 같은 항목(s-1)의 소견 2개 + 다른 항목(s-2)의 보강 소견 1개 → 항목 2개로 묶이고 내용·이름이 정박된다.
+        val api = FakeQualityApi(
+            reviewResult = ApiResult.Success(
+                reviewResponse(
+                    autoFinding("f-1", sectionId = "s-1"),
+                    autoFinding("f-2", "또 다른 기준", sectionId = "s-1"),
+                    suggestionFinding("f-3"), // sectionId = "s-2"
+                ),
+            ),
+        )
+        val vm = vm(api)
+        vm.startReview()
+        testScheduler.advanceUntilIdle()
+
+        val groups = vm.state.value.sectionFindings
+        assertEquals(2, groups.size)
+        val s1 = groups.first { it.section.sectionId == "s-1" }
+        assertEquals("내용-s-1", s1.section.content)
+        assertEquals(2, s1.autoRewriteFindings.size) // 같은 항목의 두 소견이 한 카드 아래로 묶인다(중복 오해 해소)
+        assertTrue(s1.suggestionFindings.isEmpty())
+        val s2 = groups.first { it.section.sectionId == "s-2" }
+        assertEquals(1, s2.suggestionFindings.size)
+        assertTrue(s2.autoRewriteFindings.isEmpty())
     }
 
     // ── 소견 선택 토글 ────────────────────────────────────────────────────────

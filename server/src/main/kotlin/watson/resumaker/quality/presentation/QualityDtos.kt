@@ -13,7 +13,19 @@ data class QualityReviewResponse(
     val artifactId: String,
     val versionId: String,
     val findings: List<FindingDto>,
+    /**
+     * 소견이 달린 항목들(이름·내용). 클라이언트가 소견을 [FindingDto.sectionId] 기준으로 이 항목에 묶어, 항목 이름과
+     * 실제 내용 위에서 "어느 부분이 어떻게 문제인지"를 보여준다(같은 기준이 여러 항목에 걸쳐 중복처럼 보이는 문제 해소).
+     */
+    val sections: List<ReviewedSectionDto>,
     val autoRewriteCount: Int,
+)
+
+/** 소견이 달린 한 항목의 표시 맥락(항목 이름 + 현재 내용). 소견을 이 항목에 정박시키는 데 쓴다. */
+data class ReviewedSectionDto(
+    val sectionId: String,
+    val definitionKey: String,
+    val content: String,
 )
 
 /**

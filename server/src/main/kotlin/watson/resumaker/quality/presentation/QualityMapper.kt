@@ -3,6 +3,7 @@ package watson.resumaker.quality.presentation
 import org.springframework.stereotype.Component
 import watson.resumaker.quality.domain.Finding
 import watson.resumaker.quality.domain.QualityReport
+import watson.resumaker.quality.domain.ReviewedSection
 
 /**
  * 품질 진단 결과 응답 Service Mapper(구현 설계 §8 "Response DTO 변환은 Service Mapper"). 도메인 VO의 식별자를
@@ -15,7 +16,14 @@ class QualityMapper {
         artifactId = report.artifactId.toString(),
         versionId = report.versionId.toString(),
         findings = report.findings.map { toDto(it) },
+        sections = report.sections.map { toSectionDto(it) },
         autoRewriteCount = report.autoRewriteCount,
+    )
+
+    private fun toSectionDto(section: ReviewedSection): ReviewedSectionDto = ReviewedSectionDto(
+        sectionId = section.sectionId.value.toString(),
+        definitionKey = section.definitionKey,
+        content = section.content,
     )
 
     private fun toDto(finding: Finding): FindingDto = FindingDto(

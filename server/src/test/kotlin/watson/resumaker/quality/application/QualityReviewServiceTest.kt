@@ -191,6 +191,28 @@ class QualityReviewServiceTest {
     }
 
     @Test
+    fun 소견이_달린_항목만_이름과_내용을_담아_돌려준다() {
+        // given — 약점 있는 항목(담당했다)과 깨끗한 항목(설계했어요)이 함께 있다.
+        val dirty = section("결제를 담당했다.", key = "요약")
+        val clean = section("결제 흐름을 새로 설계했어요.", key = "경력", kind = SectionKind.CAREER)
+        val artifact = resume(dirty, clean)
+        whenever(artifactRepository.findByIdAndOwnerId(any(), any())).thenReturn(artifact)
+        whenever(experienceRepository.findAllByIdInAndOwnerId(any(), any())).thenReturn(listOf(experience("결제")))
+
+        // when
+        val report = service.review(ownerId, artifact.id.value)
+
+        // then — 소견이 달린 '요약' 항목만 표시 맥락에 포함되고, 이름·실제 내용을 담는다(정박점).
+        assertThat(report.sections).hasSize(1)
+        val reviewed = report.sections.single()
+        assertThat(reviewed.definitionKey).isEqualTo("요약")
+        assertThat(reviewed.content).isEqualTo("결제를 담당했다.")
+        assertThat(reviewed.sectionId).isEqualTo(dirty.id)
+        // 모든 소견의 sectionId가 표시 맥락 항목으로 매칭된다(클라이언트 묶음 키 정합).
+        assertThat(report.findings.map { it.sectionId }.toSet()).containsExactly(dirty.id)
+    }
+
+    @Test
     fun 포트폴리오_산출물은_품질_점검을_거절한다() {
         // given (QC10·QC12) — 포트폴리오는 MVP 자동 개선 대상이 아니다.
         val artifact = portfolio()

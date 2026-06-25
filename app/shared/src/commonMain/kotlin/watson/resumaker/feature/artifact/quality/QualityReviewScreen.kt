@@ -146,7 +146,12 @@ fun QualityReviewScreen(
     }
 }
 
-/** 소견 목록 본문: AUTO_REWRITE 체크박스 섹션 + SUGGESTION 안내 섹션 + 처치 버튼. */
+/**
+ * 소견 목록 본문: **항목별로 묶은** 카드(항목 이름 + 실제 내용 + 그 항목의 소견들) + 처치 버튼.
+ *
+ * 같은 기준(예: "약한 동사")이 여러 항목에 걸쳐도, 각 소견이 자기 항목 이름·내용 아래에 정박되므로 중복/오류처럼
+ * 보이지 않고 "어느 항목의 어느 부분이 어떻게 문제인지"가 분명해진다.
+ */
 @Composable
 private fun FindingsContent(
     modifier: androidx.compose.ui.Modifier,
@@ -156,6 +161,7 @@ private fun FindingsContent(
     onSubmitImprovement: () -> Unit,
     onOpenExperience: (String?) -> Unit,
 ) {
+    val colors = RmTheme.colors
     Column(
         modifier = modifier
             .verticalScroll(rememberScrollState())
@@ -163,19 +169,23 @@ private fun FindingsContent(
             .padding(top = RmSpacing.space6, bottom = RmSpacing.space10),
         verticalArrangement = Arrangement.spacedBy(RmSpacing.space4),
     ) {
-        // AUTO_REWRITE 섹션: 체크로 선택해 "이대로 다듬기" 처치.
-        if (state.autoRewriteFindings.isNotEmpty()) {
-            FindingSectionHeader(
-                title = "이렇게 다듬을 수 있어요",
-                description = "체크한 항목을 사실을 바꾸지 않고 표현만 다듬어요.",
+        Text(
+            text = "항목별로 다듬을 부분을 찾았어요. 체크한 부분은 사실을 바꾸지 않고 표현만 다듬어요.",
+            style = RmTextStyles.bodyS,
+            color = colors.textSecondary,
+        )
+
+        state.sectionFindings.forEach { group ->
+            SectionFindingCard(
+                group = group,
+                selectedFindingIds = state.selectedFindingIds,
+                onToggleFinding = onToggleFinding,
+                onOpenExperience = onOpenExperience,
             )
-            state.autoRewriteFindings.forEach { finding ->
-                AutoRewriteFindingCard(
-                    finding = finding,
-                    checked = finding.findingId in state.selectedFindingIds,
-                    onToggle = { onToggleFinding(finding.findingId) },
-                )
-            }
+        }
+
+        // 자동으로 다듬을 소견이 하나라도 있을 때만 처치 버튼을 노출한다(선택이 없으면 비활성).
+        if (state.autoRewriteFindings.isNotEmpty()) {
             PrimaryButton(
                 text = "이대로 다듬기",
                 onClick = onSubmitImprovement,
@@ -183,106 +193,100 @@ private fun FindingsContent(
                 modifier = androidx.compose.ui.Modifier.fillMaxWidth(),
             )
         }
+    }
+}
 
-        // SUGGESTION 섹션: 경험 보강 안내(텍스트 변경 없음).
-        if (state.suggestionFindings.isNotEmpty()) {
-            FindingSectionHeader(
-                title = "경험을 보강하면 더 강해져요",
-                description = "아래 항목은 경험에 내용을 추가해야 개선할 수 있어요.",
+/**
+ * 한 항목 카드: 항목 이름 + 현재 내용(정박점) + 그 항목의 소견들. AUTO_REWRITE 소견은 체크박스로 선택하고,
+ * SUGGESTION 소견은 "경험 보강하러 가기"로 유도한다(텍스트 변경 없음).
+ */
+@Composable
+private fun SectionFindingCard(
+    group: SectionFindingsUi,
+    selectedFindingIds: Set<String>,
+    onToggleFinding: (String) -> Unit,
+    onOpenExperience: (String?) -> Unit,
+) {
+    val colors = RmTheme.colors
+    RmCard {
+        Column(verticalArrangement = Arrangement.spacedBy(RmSpacing.space3)) {
+            // 항목 이름(어느 부분인지).
+            Text(
+                text = group.section.definitionKey,
+                style = RmTextStyles.label,
+                color = colors.textPrimary,
             )
-            state.suggestionFindings.forEach { finding ->
-                SuggestionFindingCard(
+            // 항목의 현재 내용(사용자가 "내 이력서의 이 부분"임을 알아보는 정박점).
+            Text(
+                text = group.section.content,
+                style = RmTextStyles.bodyS,
+                color = colors.textSecondary,
+            )
+
+            // 자동 다듬기 소견: 체크박스로 선택.
+            group.autoRewriteFindings.forEach { finding ->
+                AutoRewriteFindingRow(
                     finding = finding,
-                    onOpenExperience = onOpenExperience,
+                    checked = finding.findingId in selectedFindingIds,
+                    onToggle = { onToggleFinding(finding.findingId) },
                 )
+            }
+            // 경험 보강 소견: 텍스트 변경 없이 보강 안내.
+            group.suggestionFindings.forEach { finding ->
+                SuggestionFindingRow(finding = finding, onOpenExperience = onOpenExperience)
             }
         }
     }
 }
 
+/** AUTO_REWRITE 소견 한 줄: 체크박스 + 기준 라벨 + 근거 텍스트(있으면 — 어떤 표현이 문제인지). */
 @Composable
-private fun FindingSectionHeader(title: String, description: String) {
-    val colors = RmTheme.colors
-    Column(verticalArrangement = Arrangement.spacedBy(RmSpacing.space1)) {
-        Text(text = title, style = RmTextStyles.headingS, color = colors.textPrimary)
-        Text(text = description, style = RmTextStyles.bodyS, color = colors.textSecondary)
-    }
-}
-
-/**
- * AUTO_REWRITE 소견 카드: 체크박스 + 기준 라벨 + 근거 텍스트(있으면).
- * 사용자가 어떤 항목이 개선될지 파악하고 동의 여부를 선택할 수 있다.
- */
-@Composable
-private fun AutoRewriteFindingCard(
+private fun AutoRewriteFindingRow(
     finding: FindingUi,
     checked: Boolean,
     onToggle: () -> Unit,
 ) {
     val colors = RmTheme.colors
-    RmCard {
-        Row(
-            modifier = androidx.compose.ui.Modifier.fillMaxWidth(),
-            verticalAlignment = androidx.compose.ui.Alignment.Top,
-            horizontalArrangement = Arrangement.spacedBy(RmSpacing.space2),
+    Row(
+        modifier = androidx.compose.ui.Modifier.fillMaxWidth(),
+        verticalAlignment = androidx.compose.ui.Alignment.Top,
+        horizontalArrangement = Arrangement.spacedBy(RmSpacing.space2),
+    ) {
+        Checkbox(
+            checked = checked,
+            onCheckedChange = { onToggle() },
+            colors = CheckboxDefaults.colors(
+                checkedColor = colors.primary,
+                uncheckedColor = colors.textTertiary,
+            ),
+        )
+        Column(
+            modifier = androidx.compose.ui.Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(RmSpacing.space1),
         ) {
-            Checkbox(
-                checked = checked,
-                onCheckedChange = { onToggle() },
-                colors = CheckboxDefaults.colors(
-                    checkedColor = colors.primary,
-                    uncheckedColor = colors.textTertiary,
-                ),
-            )
-            Column(
-                modifier = androidx.compose.ui.Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(RmSpacing.space1),
-            ) {
-                Text(
-                    text = finding.criterionLabel,
-                    style = RmTextStyles.label,
-                    color = colors.textPrimary,
-                )
-                finding.evidenceText?.let { evidence ->
-                    Text(
-                        text = evidence,
-                        style = RmTextStyles.bodyS,
-                        color = colors.textSecondary,
-                    )
-                }
+            Text(text = finding.criterionLabel, style = RmTextStyles.bodyM, color = colors.textPrimary)
+            finding.evidenceText?.let { evidence ->
+                Text(text = "“$evidence”", style = RmTextStyles.bodyS, color = colors.textSecondary)
             }
         }
     }
 }
 
-/**
- * SUGGESTION 소견 카드: 안내 메시지 + "경험 보강하러 가기" 버튼.
- * 텍스트를 직접 바꾸지 않고 사용자가 경험 내용을 보강해 오도록 유도한다.
- */
+/** SUGGESTION 소견 한 줄: 기준 라벨 + 보강 안내 + "경험 보강하러 가기"(텍스트는 바꾸지 않는다). */
 @Composable
-private fun SuggestionFindingCard(
+private fun SuggestionFindingRow(
     finding: FindingUi,
     onOpenExperience: (String?) -> Unit,
 ) {
     val colors = RmTheme.colors
-    RmCard {
-        Column(verticalArrangement = Arrangement.spacedBy(RmSpacing.space2)) {
-            Text(
-                text = finding.criterionLabel,
-                style = RmTextStyles.label,
-                color = colors.textPrimary,
-            )
-            finding.suggestionMessage?.let { msg ->
-                Text(
-                    text = msg,
-                    style = RmTextStyles.bodyS,
-                    color = colors.textSecondary,
-                )
-            }
-            GhostButton(
-                text = "경험 보강하러 가기",
-                onClick = { onOpenExperience(finding.targetExperienceId) },
-            )
+    Column(verticalArrangement = Arrangement.spacedBy(RmSpacing.space1)) {
+        Text(text = finding.criterionLabel, style = RmTextStyles.bodyM, color = colors.textPrimary)
+        finding.suggestionMessage?.let { msg ->
+            Text(text = msg, style = RmTextStyles.bodyS, color = colors.textSecondary)
         }
+        GhostButton(
+            text = "경험 보강하러 가기",
+            onClick = { onOpenExperience(finding.targetExperienceId) },
+        )
     }
 }
