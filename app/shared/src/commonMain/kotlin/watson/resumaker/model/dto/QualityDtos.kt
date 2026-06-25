@@ -95,6 +95,11 @@ data class QualityImprovementJobResponse(
     val errorCode: String? = null,
     val errorMessage: String? = null,
     val createdAt: String,
+    /**
+     * 검증 실패로 제외돼 원본을 유지한 항목 수(SUCCEEDED일 때만 의미). 서버가 계산해 내린다(클라이언트가 원래 선택을
+     * 기억하지 못하는 비차단 복원 경로에서도 "일부 항목은 유지했어요"를 정확히 고지하기 위함 — 가짜 성공 금지).
+     */
+    val excludedSectionCount: Int = 0,
 )
 
 /** 품질 개선 작업 상태. 기존 GenerationJobStatus와 동형. */

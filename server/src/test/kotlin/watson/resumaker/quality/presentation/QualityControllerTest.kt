@@ -11,6 +11,7 @@ import org.springframework.context.annotation.Import
 import org.springframework.http.MediaType
 import org.springframework.test.context.bean.override.mockito.MockitoBean
 import org.springframework.test.web.servlet.MockMvc
+import org.springframework.test.web.servlet.delete
 import org.springframework.test.web.servlet.get
 import org.springframework.test.web.servlet.post
 import watson.resumaker.account.application.CurrentUserProvider
@@ -230,6 +231,53 @@ class QualityControllerTest {
             status { isBadRequest() }
             jsonPath("$.code") { value("INVALID_REQUEST") }
         }
+    }
+
+    @Test
+    fun 최신_개선_작업_조회는_200과_작업을_반환한다() {
+        // given (§3) — 산출물 열람 화면이 비차단 진행 카드를 복원할 때 최신 작업을 본다.
+        val jobId = UUID.randomUUID().toString()
+        whenever(currentUserProvider.currentUserId()).thenReturn(UserId(UUID.randomUUID()))
+        whenever(improvementJobService.latestFor(any(), any())).thenReturn(
+            QualityImprovementJobResponse(
+                jobId = jobId,
+                status = QualityImprovementJobStatus.RUNNING,
+                candidates = null,
+                errorCode = null,
+                errorMessage = null,
+                createdAt = "2026-06-22T00:00:00Z",
+            ),
+        )
+
+        // when and then — 리터럴 경로 `latest`가 `{jobId}` 패턴보다 먼저 매칭된다.
+        mockMvc.get("/artifacts/$artifactId/quality-improvements/latest")
+            .andExpect {
+                status { isOk() }
+                jsonPath("$.jobId") { value(jobId) }
+                jsonPath("$.status") { value("RUNNING") }
+            }
+    }
+
+    @Test
+    fun 최신_개선_작업이_없으면_204를_반환한다() {
+        // given — 작업이 없으면 204(No Content) → 화면이 카드를 띄우지 않는다.
+        whenever(currentUserProvider.currentUserId()).thenReturn(UserId(UUID.randomUUID()))
+        whenever(improvementJobService.latestFor(any(), any())).thenReturn(null)
+
+        // when and then
+        mockMvc.get("/artifacts/$artifactId/quality-improvements/latest")
+            .andExpect { status { isNoContent() } }
+    }
+
+    @Test
+    fun 개선_작업_닫기는_204를_반환한다() {
+        // given — 진행 카드 "닫기": 작업·후보를 지우고 204.
+        val jobId = UUID.randomUUID()
+        whenever(currentUserProvider.currentUserId()).thenReturn(UserId(UUID.randomUUID()))
+
+        // when and then
+        mockMvc.delete("/artifacts/$artifactId/quality-improvements/$jobId")
+            .andExpect { status { isNoContent() } }
     }
 
     @Test

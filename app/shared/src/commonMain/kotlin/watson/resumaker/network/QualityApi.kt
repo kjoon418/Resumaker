@@ -1,9 +1,11 @@
 package watson.resumaker.network
 
 import io.ktor.client.call.body
+import io.ktor.client.request.delete
 import io.ktor.client.request.get
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
+import io.ktor.http.HttpStatusCode
 import watson.resumaker.model.dto.AdoptCandidatesRequest
 import watson.resumaker.model.dto.ArtifactResponse
 import watson.resumaker.model.dto.QualityImprovementJobResponse
@@ -60,6 +62,18 @@ interface QualityApi {
         jobId: String,
         candidateIds: List<String>,
     ): ApiResult<ArtifactResponse>
+
+    /**
+     * 산출물의 가장 최근 품질 개선 작업 조회(GET /artifacts/{id}/quality-improvements/latest).
+     * 작업이 없으면 204 → Success(null). 산출물 열람 화면이 비차단 진행 카드를 복원할 때 쓴다(§3).
+     */
+    suspend fun getLatestImprovement(artifactId: String): ApiResult<QualityImprovementJobResponse?>
+
+    /**
+     * 품질 개선 작업 닫기(DELETE /artifacts/{id}/quality-improvements/{jobId} → 204).
+     * 진행 카드의 "닫기"로 실패·미채택 작업을 치울 때 쓴다.
+     */
+    suspend fun dismissImprovement(artifactId: String, jobId: String): ApiResult<Unit>
 }
 
 class QualityApiImpl(private val client: ApiClient) : QualityApi {
@@ -102,6 +116,21 @@ class QualityApiImpl(private val client: ApiClient) : QualityApi {
             client.http.post(client.url("/artifacts/$artifactId/quality-improvements/$jobId/adopt")) {
                 with(client) { withUser() }
                 setBody(AdoptCandidatesRequest(candidateIds = candidateIds))
+            }
+        }
+
+    override suspend fun getLatestImprovement(artifactId: String): ApiResult<QualityImprovementJobResponse?> =
+        // 작업이 없으면 서버가 204를 준다(본문 없음) → null. 200이면 본문을 파싱한다.
+        client.safeRequest(decode = { if (it.status == HttpStatusCode.NoContent) null else it.body<QualityImprovementJobResponse>() }) {
+            client.http.get(client.url("/artifacts/$artifactId/quality-improvements/latest")) {
+                with(client) { withUser() }
+            }
+        }
+
+    override suspend fun dismissImprovement(artifactId: String, jobId: String): ApiResult<Unit> =
+        client.safeRequest(decode = { }) {
+            client.http.delete(client.url("/artifacts/$artifactId/quality-improvements/$jobId")) {
+                with(client) { withUser() }
             }
         }
 }

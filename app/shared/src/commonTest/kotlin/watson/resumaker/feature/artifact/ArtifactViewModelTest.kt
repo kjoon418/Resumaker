@@ -7,12 +7,17 @@ import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
+import kotlinx.coroutines.test.advanceTimeBy
 import watson.resumaker.fake.FakeArtifactApi
+import watson.resumaker.fake.FakeQualityApi
 import watson.resumaker.model.dto.ArtifactResponse
 import watson.resumaker.model.dto.ArtifactSectionResponse
 import watson.resumaker.model.dto.ArtifactVersionResponse
+import watson.resumaker.model.dto.CandidateDto
 import watson.resumaker.model.dto.GeneratedSectionResponse
 import watson.resumaker.model.dto.GenerationResponse
+import watson.resumaker.model.dto.QualityImprovementJobResponse
+import watson.resumaker.model.dto.QualityJobStatus
 import watson.resumaker.model.type.ArtifactKind
 import watson.resumaker.model.type.SectionKind
 import watson.resumaker.model.type.SectionStatus
@@ -23,6 +28,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -73,7 +79,7 @@ class ArtifactViewModelTest {
                 ),
             ),
         )
-        return ArtifactViewModel(api, artifactId = "a-1")
+        return ArtifactViewModel(api, qualityApi = FakeQualityApi(), artifactId = "a-1")
     }
 
     @Test
@@ -90,7 +96,7 @@ class ArtifactViewModelTest {
                 ),
             ),
         )
-        val vm = ArtifactViewModel(api, artifactId = "a-1")
+        val vm = ArtifactViewModel(api, qualityApi = FakeQualityApi(), artifactId = "a-1")
         testScheduler.advanceUntilIdle()
 
         assertFalse(vm.state.value.loading)
@@ -116,7 +122,7 @@ class ArtifactViewModelTest {
                 ),
             ),
         )
-        val vm = ArtifactViewModel(api, artifactId = "a-1")
+        val vm = ArtifactViewModel(api, qualityApi = FakeQualityApi(), artifactId = "a-1")
         testScheduler.advanceUntilIdle()
 
         assertTrue(vm.state.value.hasFailedSections)
@@ -130,7 +136,7 @@ class ArtifactViewModelTest {
         val api = FakeArtifactApi(
             getArtifactResult = ApiResult.Failure(message = "산출물을 찾을 수 없어요.", code = "404"),
         )
-        val vm = ArtifactViewModel(api, artifactId = "missing")
+        val vm = ArtifactViewModel(api, qualityApi = FakeQualityApi(), artifactId = "missing")
         testScheduler.advanceUntilIdle()
 
         assertEquals("산출물을 찾을 수 없어요.", vm.state.value.errorMessage)
@@ -170,7 +176,7 @@ class ArtifactViewModelTest {
                 ),
             ),
         )
-        val vm = ArtifactViewModel(api, artifactId = "a-1", initial = initial)
+        val vm = ArtifactViewModel(api, qualityApi = FakeQualityApi(), artifactId = "a-1", initial = initial)
         testScheduler.advanceUntilIdle()
 
         // getArtifact가 호출돼 서버 상태가 반영된다(load-after-initial).
@@ -200,7 +206,7 @@ class ArtifactViewModelTest {
             ),
         )
         // initial=null: 딥링크·pop 복귀처럼 생성 응답 없이 VM이 새로 만들어지는 상황.
-        val vm = ArtifactViewModel(api, artifactId = "a-1", initial = null)
+        val vm = ArtifactViewModel(api, qualityApi = FakeQualityApi(), artifactId = "a-1", initial = null)
         testScheduler.advanceUntilIdle()
 
         assertEquals("a-1", api.getArtifactId)
@@ -508,5 +514,98 @@ class ArtifactViewModelTest {
 
         vm.consumeActionMessage()
         assertEquals(null, vm.state.value.actionMessage)
+    }
+
+    // ── 비차단 품질 개선 진행 카드(§3) ─────────────────────────────────────────
+
+    private fun runningJob(jobId: String = "j-1") = QualityImprovementJobResponse(
+        jobId = jobId,
+        status = QualityJobStatus.RUNNING,
+        createdAt = "2026-01-01T00:00:00Z",
+    )
+
+    private fun succeededJob(candidateCount: Int, jobId: String = "j-1") = QualityImprovementJobResponse(
+        jobId = jobId,
+        status = QualityJobStatus.SUCCEEDED,
+        candidates = (1..candidateCount).map {
+            CandidateDto(
+                candidateId = "c-$it",
+                sectionId = "s-$it",
+                definitionKey = "career",
+                originalContent = "원본",
+                candidateContent = "개선",
+                appliedCriterionIds = listOf("crit"),
+            )
+        },
+        createdAt = "2026-01-01T00:00:00Z",
+    )
+
+    @Test
+    fun refreshQualityJobImprovingThenReadyByPolling() = runTest(dispatcher) {
+        // 화면 진입 시 최신 작업이 진행 중 → 진행 카드. 폴링이 완료를 잡으면 "확인하기" 카드(개선안 수)로 전환된다.
+        val api = FakeArtifactApi()
+        val quality = FakeQualityApi(latestResult = ApiResult.Success(runningJob("j-9")))
+        quality.getJobSequence.add(ApiResult.Success(succeededJob(candidateCount = 2, jobId = "j-9")))
+        val vm = loadedQualityViewModel(api, quality)
+        testScheduler.advanceUntilIdle()
+
+        // runCurrent: 최신 조회만 실행해 진행 카드를 세우고, 폴링의 delay는 아직 흘리지 않는다(IMPROVING 관찰).
+        vm.refreshQualityJob()
+        testScheduler.runCurrent()
+        assertEquals(QualityImprovementCardUi.Phase.IMPROVING, vm.state.value.qualityImprovement?.phase)
+
+        // 폴링 간격을 흘리면 SUCCEEDED를 잡아 "확인하기"(READY) 카드로 전환된다.
+        advanceTimeBy(ArtifactViewModel.QUALITY_POLL_INTERVAL_MS + 100)
+        testScheduler.runCurrent()
+        val card = vm.state.value.qualityImprovement
+        assertEquals(QualityImprovementCardUi.Phase.READY, card?.phase)
+        assertEquals(2, card?.candidateCount)
+    }
+
+    @Test
+    fun refreshQualityJobNoJobLeavesNoCard() = runTest(dispatcher) {
+        // 최신 작업이 없으면(204 → null) 카드를 띄우지 않는다.
+        val api = FakeArtifactApi()
+        val quality = FakeQualityApi(latestResult = ApiResult.Success(null))
+        val vm = loadedQualityViewModel(api, quality)
+        testScheduler.advanceUntilIdle()
+
+        vm.refreshQualityJob()
+        testScheduler.advanceUntilIdle()
+
+        assertNull(vm.state.value.qualityImprovement)
+    }
+
+    @Test
+    fun dismissQualityJobClearsCardAndCallsServer() = runTest(dispatcher) {
+        // "닫기": 카드를 즉시 비우고 서버에 삭제를 요청한다(실패·미채택 작업 치우기).
+        val api = FakeArtifactApi()
+        val quality = FakeQualityApi(latestResult = ApiResult.Success(succeededJob(candidateCount = 1, jobId = "j-7")))
+        val vm = loadedQualityViewModel(api, quality)
+        testScheduler.advanceUntilIdle()
+        vm.refreshQualityJob()
+        testScheduler.advanceUntilIdle()
+        assertNotNull(vm.state.value.qualityImprovement)
+
+        vm.dismissQualityJob()
+        testScheduler.advanceUntilIdle()
+
+        assertNull(vm.state.value.qualityImprovement)
+        assertEquals("j-7", quality.dismissedJobId)
+    }
+
+    /** 단일 GENERATED 항목 산출물을 적재한, qualityApi를 끼운 ViewModel(진행 카드 테스트 출발점). */
+    private fun loadedQualityViewModel(api: FakeArtifactApi, quality: FakeQualityApi): ArtifactViewModel {
+        api.getArtifactResult = ApiResult.Success(
+            ArtifactResponse(
+                id = "a-1",
+                kind = ArtifactKind.RESUME,
+                activeVersion = ArtifactVersionResponse(
+                    versionId = "v-1",
+                    sections = listOf(viewSection("s-1", SectionStatus.GENERATED, "원본 내용")),
+                ),
+            ),
+        )
+        return ArtifactViewModel(api, qualityApi = quality, artifactId = "a-1")
     }
 }

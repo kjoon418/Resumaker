@@ -22,6 +22,13 @@ interface QualityImprovementJobRepository : JpaRepository<QualityImprovementJob,
 
     fun findByIdAndOwnerId(id: QualityImprovementJobId, ownerId: UserId): QualityImprovementJob?
 
+    /**
+     * 한 산출물의 **가장 최근** 품질 개선 작업(소유 격리). 산출물 열람 화면이 비차단 진행 카드를 복원할 때 쓴다
+     * (재진입 견고함 — 화면이 VM 상태에 기대지 않고 서버 권위로 최신 작업을 찾는다). 채택 시 작업을 삭제하므로,
+     * 채택 완료된 작업은 더 이상 최신으로 잡히지 않는다(카드가 다시 뜨지 않음).
+     */
+    fun findFirstByArtifactIdAndOwnerIdOrderByCreatedAtDesc(artifactId: UUID, ownerId: UserId): QualityImprovementJob?
+
     /** 가장 오래된 대기 작업 픽업용(FIFO). 워커가 한 틱에 1건 처리한다. */
     fun findFirstByStatusOrderByCreatedAtAsc(status: QualityImprovementJobStatus): QualityImprovementJob?
 

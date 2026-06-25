@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test
 import org.mockito.kotlin.any
 import org.mockito.kotlin.eq
 import org.mockito.kotlin.mock
+import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 import watson.resumaker.account.domain.UserId
 import watson.resumaker.artifact.domain.Artifact
@@ -127,6 +128,25 @@ class CandidateAdoptionServiceTest {
         val sections = response.activeVersion.sections.associateBy { it.definitionKey }
         assertThat(sections["section-0-요약"]!!.content).isEqualTo("다듬은 요약")
         assertThat(sections["section-1-경력"]!!.content).isEqualTo("원래 경력")
+    }
+
+    @Test
+    fun 채택이_끝나면_작업과_후보를_소비한다() {
+        // given — 채택 후 작업·후보를 지워야 산출물 화면의 "개선안 확인" 카드가 다시 뜨지 않는다(재진입 견고함 §3).
+        val (artifact, ids) = resumeArtifact()
+        val j = job(artifact)
+        val c1 = candidate(j.id.value, ids["summary"]!!, "section-0-요약", "다듬은 요약")
+        whenever(jobRepository.findByIdAndOwnerId(any(), any())).thenReturn(j)
+        whenever(candidateRepository.findAllByJobId(j.id.value)).thenReturn(listOf(c1))
+        whenever(artifactRepository.findByIdAndOwnerId(any(), any())).thenReturn(artifact)
+        whenever(artifactRepository.save(any<Artifact>())).thenAnswer { it.arguments[0] }
+
+        // when
+        service.adopt(ownerId, artifact.id.value, j.id, listOf(c1.id.value.toString()))
+
+        // then — 같은 tx에서 후보·작업을 정리한다.
+        verify(candidateRepository).deleteByJobId(j.id.value)
+        verify(jobRepository).delete(j)
     }
 
     @Test

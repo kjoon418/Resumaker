@@ -3,7 +3,6 @@ package watson.resumaker.feature.artifact.quality
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
-import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
@@ -46,8 +45,13 @@ class QualityReviewViewModelTest {
 
     // ── 헬퍼 ─────────────────────────────────────────────────────────────────
 
-    private fun vm(api: FakeQualityApi = FakeQualityApi()) =
-        QualityReviewViewModel(qualityApi = api, artifactId = "a-1", artifactKind = ArtifactKind.RESUME)
+    private fun vm(api: FakeQualityApi = FakeQualityApi(), resumeJobId: String? = null) =
+        QualityReviewViewModel(
+            qualityApi = api,
+            artifactId = "a-1",
+            artifactKind = ArtifactKind.RESUME,
+            resumeJobId = resumeJobId,
+        )
 
     private fun autoFinding(
         id: String = "f-1",
@@ -101,12 +105,13 @@ class QualityReviewViewModelTest {
         createdAt = "2026-01-01T00:00:00Z",
     )
 
-    private fun succeededJob(vararg candidates: CandidateDto, jobId: String = "j-1") =
+    private fun succeededJob(vararg candidates: CandidateDto, jobId: String = "j-1", excluded: Int = 0) =
         QualityImprovementJobResponse(
             jobId = jobId,
             status = QualityJobStatus.SUCCEEDED,
             candidates = candidates.toList(),
             createdAt = "2026-01-01T00:00:00Z",
+            excludedSectionCount = excluded,
         )
 
     private fun sampleCandidate(id: String = "c-1") = CandidateDto(
@@ -271,17 +276,14 @@ class QualityReviewViewModelTest {
         assertFalse(vm.state.value.canSubmitImprovement)
     }
 
-    // ── 처치 접수 ─────────────────────────────────────────────────────────────
+    // ── 처치 접수(비차단 §3) ──────────────────────────────────────────────────
 
     @Test
-    fun `submitImprovement 성공 - IMPROVING 단계로 전환하고 폴링을 시작한다`() = runTest(dispatcher) {
-        val pendingJobResponse = pendingJob()
-        val succeededJobResponse = succeededJob(sampleCandidate())
+    fun `submitImprovement 성공 - submittedJobId로 복귀를 트리거한다`() = runTest(dispatcher) {
         val api = FakeQualityApi(
             reviewResult = ApiResult.Success(reviewResponse(autoFinding())),
-            submitResult = ApiResult.Success(pendingJobResponse),
+            submitResult = ApiResult.Success(pendingJob("j-9")),
         )
-        api.getJobSequence.add(ApiResult.Success(succeededJobResponse))
         val vm = vm(api)
         vm.startReview()
         testScheduler.advanceUntilIdle()
@@ -289,17 +291,32 @@ class QualityReviewViewModelTest {
         vm.submitImprovement()
         testScheduler.advanceUntilIdle()
 
-        // 폴링 간격 경과 후 SUCCEEDED → CANDIDATES 단계.
-        advanceTimeBy(QualityReviewViewModel.POLL_INTERVAL_MS + 100)
-        testScheduler.advanceUntilIdle()
-
-        assertEquals(QualityStep.CANDIDATES, vm.state.value.step)
-        assertEquals(1, vm.state.value.candidates.size)
-        assertEquals("c-1", vm.state.value.candidates[0].candidateId)
+        // 폴링하지 않고 복귀 신호만 세운다(화면이 산출물 열람으로 복귀 → 열람 화면이 진행 카드로 이어받는다).
+        assertEquals("j-9", vm.state.value.submittedJobId)
+        assertFalse(vm.state.value.submitting)
+        assertEquals(QualityStep.FINDINGS, vm.state.value.step)
+        assertEquals(0, api.getJobCount)
     }
 
     @Test
-    fun `submitImprovement 429 - 스낵바로 한도 초과 안내, FINDINGS로 복귀`() = runTest(dispatcher) {
+    fun `consumeSubmitted - 복귀 신호를 비운다`() = runTest(dispatcher) {
+        val api = FakeQualityApi(
+            reviewResult = ApiResult.Success(reviewResponse(autoFinding())),
+            submitResult = ApiResult.Success(pendingJob("j-9")),
+        )
+        val vm = vm(api)
+        vm.startReview()
+        testScheduler.advanceUntilIdle()
+        vm.submitImprovement()
+        testScheduler.advanceUntilIdle()
+        assertEquals("j-9", vm.state.value.submittedJobId)
+
+        vm.consumeSubmitted()
+        assertNull(vm.state.value.submittedJobId)
+    }
+
+    @Test
+    fun `submitImprovement 429 - 스낵바로 한도 초과 안내, FINDINGS 유지`() = runTest(dispatcher) {
         val api = FakeQualityApi(
             reviewResult = ApiResult.Success(reviewResponse(autoFinding())),
             submitResult = ApiResult.Failure(
@@ -315,92 +332,40 @@ class QualityReviewViewModelTest {
         testScheduler.advanceUntilIdle()
 
         assertEquals(QualityStep.FINDINGS, vm.state.value.step)
+        assertFalse(vm.state.value.submitting)
+        assertNull(vm.state.value.submittedJobId)
         assertNotNull(vm.state.value.snackbarMessage)
         assertTrue(vm.state.value.snackbarMessage!!.contains("오늘"))
     }
 
-    // ── 폴링 ─────────────────────────────────────────────────────────────────
+    // ── 후보 재진입(비차단 §3) ─────────────────────────────────────────────────
 
     @Test
-    fun `폴링 - FAILED 상태이면 FINDINGS로 복귀하고 스낵바를 띄운다`() = runTest(dispatcher) {
-        val failedJob = QualityImprovementJobResponse(
-            jobId = "j-1",
-            status = QualityJobStatus.FAILED,
-            errorMessage = "AI 생성 실패",
-            createdAt = "2026-01-01T00:00:00Z",
-        )
+    fun `resume - 준비된 작업이면 곧장 후보 비교(CANDIDATES)로 들어간다`() = runTest(dispatcher) {
         val api = FakeQualityApi(
-            reviewResult = ApiResult.Success(reviewResponse(autoFinding())),
-            submitResult = ApiResult.Success(pendingJob()),
-            getJobResult = ApiResult.Success(failedJob),
+            getJobResult = ApiResult.Success(
+                succeededJob(sampleCandidate("c-1"), sampleCandidate("c-2"), excluded = 1),
+            ),
         )
-        val vm = vm(api)
-        vm.startReview()
+        val vm = vm(api, resumeJobId = "j-1")
         testScheduler.advanceUntilIdle()
 
-        vm.submitImprovement()
-        testScheduler.advanceUntilIdle()
+        assertTrue(vm.isResuming)
+        assertEquals(QualityStep.CANDIDATES, vm.state.value.step)
+        assertEquals(2, vm.state.value.candidates.size)
+        // 제외 수는 서버 계산값을 그대로 쓴다(클라이언트가 원래 선택을 기억하지 못해도 정확 — 가짜 성공 금지).
+        assertEquals(1, vm.state.value.excludedCandidateCount)
+        assertEquals(0, api.reviewCount) // 재진입은 점검을 다시 돌리지 않는다.
+    }
 
-        advanceTimeBy(QualityReviewViewModel.POLL_INTERVAL_MS + 100)
+    @Test
+    fun `resume - 아직 준비 전이면 점검 화면으로 안내한다`() = runTest(dispatcher) {
+        val api = FakeQualityApi(getJobResult = ApiResult.Success(pendingJob()))
+        val vm = vm(api, resumeJobId = "j-1")
         testScheduler.advanceUntilIdle()
 
         assertEquals(QualityStep.FINDINGS, vm.state.value.step)
-        assertNotNull(vm.state.value.snackbarMessage)
-    }
-
-    @Test
-    fun `폴링 SUCCEEDED - 서로 다른 두 섹션 중 한 후보만 돌아오면 제외 1`() = runTest(dispatcher) {
-        // 서로 다른 섹션(s-1, s-2)의 소견 2개를 선택했는데 후보는 1개만 돌아왔다 → excluded = 1.
-        val api = FakeQualityApi(
-            reviewResult = ApiResult.Success(
-                reviewResponse(
-                    autoFinding("f-1", sectionId = "s-1"),
-                    autoFinding("f-2", "또 다른 기준", sectionId = "s-2"),
-                ),
-            ),
-            submitResult = ApiResult.Success(pendingJob()),
-        )
-        api.getJobSequence.add(ApiResult.Success(succeededJob(sampleCandidate("c-1"))))
-        val vm = vm(api)
-        vm.startReview()
-        testScheduler.advanceUntilIdle()
-
-        vm.submitImprovement()
-        testScheduler.advanceUntilIdle()
-
-        advanceTimeBy(QualityReviewViewModel.POLL_INTERVAL_MS + 100)
-        testScheduler.advanceUntilIdle()
-
-        assertEquals(QualityStep.CANDIDATES, vm.state.value.step)
-        assertEquals(1, vm.state.value.excludedCandidateCount)
-    }
-
-    @Test
-    fun `폴링 SUCCEEDED - 한 섹션의 소견 여럿이라도 후보 1개면 제외 0(오고지 금지)`() = runTest(dispatcher) {
-        // 같은 섹션(s-1)에 소견 2개를 선택. 처치는 섹션당 1후보이므로 후보 1개가 정상 성공이고, 제외는 0이어야 한다.
-        // (요청 소견 수로 계산하면 정상 성공을 "원본 유지"로 오고지한다 — L2 회귀 방지.)
-        val api = FakeQualityApi(
-            reviewResult = ApiResult.Success(
-                reviewResponse(
-                    autoFinding("f-1", sectionId = "s-1"),
-                    autoFinding("f-2", "또 다른 기준", sectionId = "s-1"),
-                ),
-            ),
-            submitResult = ApiResult.Success(pendingJob()),
-        )
-        api.getJobSequence.add(ApiResult.Success(succeededJob(sampleCandidate("c-1"))))
-        val vm = vm(api)
-        vm.startReview()
-        testScheduler.advanceUntilIdle()
-
-        vm.submitImprovement()
-        testScheduler.advanceUntilIdle()
-
-        advanceTimeBy(QualityReviewViewModel.POLL_INTERVAL_MS + 100)
-        testScheduler.advanceUntilIdle()
-
-        assertEquals(QualityStep.CANDIDATES, vm.state.value.step)
-        assertEquals(0, vm.state.value.excludedCandidateCount)
+        assertNotNull(vm.state.value.errorMessage)
     }
 
     // ── 후보 채택 ─────────────────────────────────────────────────────────────
@@ -408,16 +373,9 @@ class QualityReviewViewModelTest {
     @Test
     fun `toggleCandidate - 체크 해제 후 재선택이 올바르게 동작한다`() = runTest(dispatcher) {
         val api = FakeQualityApi(
-            reviewResult = ApiResult.Success(reviewResponse(autoFinding())),
-            submitResult = ApiResult.Success(pendingJob()),
+            getJobResult = ApiResult.Success(succeededJob(sampleCandidate("c-1"), sampleCandidate("c-2"))),
         )
-        api.getJobSequence.add(ApiResult.Success(succeededJob(sampleCandidate("c-1"), sampleCandidate("c-2"))))
-        val vm = vm(api)
-        vm.startReview()
-        testScheduler.advanceUntilIdle()
-        vm.submitImprovement()
-        testScheduler.advanceUntilIdle()
-        advanceTimeBy(QualityReviewViewModel.POLL_INTERVAL_MS + 100)
+        val vm = vm(api, resumeJobId = "j-1")
         testScheduler.advanceUntilIdle()
 
         // 초기: 모두 선택.
@@ -431,17 +389,10 @@ class QualityReviewViewModelTest {
     @Test
     fun `adoptSelected 성공 - ADOPTED 단계로 전환한다`() = runTest(dispatcher) {
         val api = FakeQualityApi(
-            reviewResult = ApiResult.Success(reviewResponse(autoFinding())),
-            submitResult = ApiResult.Success(pendingJob()),
+            getJobResult = ApiResult.Success(succeededJob(sampleCandidate())),
             adoptResult = ApiResult.Success(sampleArtifact()),
         )
-        api.getJobSequence.add(ApiResult.Success(succeededJob(sampleCandidate())))
-        val vm = vm(api)
-        vm.startReview()
-        testScheduler.advanceUntilIdle()
-        vm.submitImprovement()
-        testScheduler.advanceUntilIdle()
-        advanceTimeBy(QualityReviewViewModel.POLL_INTERVAL_MS + 100)
+        val vm = vm(api, resumeJobId = "j-1")
         testScheduler.advanceUntilIdle()
 
         vm.adoptSelected()
@@ -449,21 +400,15 @@ class QualityReviewViewModelTest {
 
         assertEquals(QualityStep.ADOPTED, vm.state.value.step)
         assertEquals(listOf("c-1"), api.lastAdoptCandidateIds)
+        assertEquals("j-1", api.lastAdoptJobId)
     }
 
     @Test
     fun `adoptSelected - 선택된 후보 없으면 호출하지 않는다`() = runTest(dispatcher) {
         val api = FakeQualityApi(
-            reviewResult = ApiResult.Success(reviewResponse(autoFinding())),
-            submitResult = ApiResult.Success(pendingJob()),
+            getJobResult = ApiResult.Success(succeededJob(sampleCandidate())),
         )
-        api.getJobSequence.add(ApiResult.Success(succeededJob(sampleCandidate())))
-        val vm = vm(api)
-        vm.startReview()
-        testScheduler.advanceUntilIdle()
-        vm.submitImprovement()
-        testScheduler.advanceUntilIdle()
-        advanceTimeBy(QualityReviewViewModel.POLL_INTERVAL_MS + 100)
+        val vm = vm(api, resumeJobId = "j-1")
         testScheduler.advanceUntilIdle()
 
         // 전체 해제.
@@ -478,17 +423,10 @@ class QualityReviewViewModelTest {
     @Test
     fun `adoptSelected 실패 - 스낵바 안내 후 CANDIDATES 유지`() = runTest(dispatcher) {
         val api = FakeQualityApi(
-            reviewResult = ApiResult.Success(reviewResponse(autoFinding())),
-            submitResult = ApiResult.Success(pendingJob()),
+            getJobResult = ApiResult.Success(succeededJob(sampleCandidate())),
             adoptResult = ApiResult.Failure("서버 오류"),
         )
-        api.getJobSequence.add(ApiResult.Success(succeededJob(sampleCandidate())))
-        val vm = vm(api)
-        vm.startReview()
-        testScheduler.advanceUntilIdle()
-        vm.submitImprovement()
-        testScheduler.advanceUntilIdle()
-        advanceTimeBy(QualityReviewViewModel.POLL_INTERVAL_MS + 100)
+        val vm = vm(api, resumeJobId = "j-1")
         testScheduler.advanceUntilIdle()
 
         vm.adoptSelected()

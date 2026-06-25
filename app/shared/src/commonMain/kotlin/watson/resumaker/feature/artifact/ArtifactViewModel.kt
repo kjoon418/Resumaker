@@ -3,6 +3,7 @@ package watson.resumaker.feature.artifact
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -10,12 +11,15 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import watson.resumaker.model.dto.ArtifactResponse
 import watson.resumaker.model.dto.GenerationResponse
+import watson.resumaker.model.dto.QualityImprovementJobResponse
+import watson.resumaker.model.dto.QualityJobStatus
 import watson.resumaker.model.type.ArtifactKind
 import watson.resumaker.model.type.SectionKind
 import watson.resumaker.model.type.SectionStatus
 import watson.resumaker.model.type.TemplateOrigin
 import watson.resumaker.network.ApiResult
 import watson.resumaker.network.ArtifactApi
+import watson.resumaker.network.QualityApi
 
 /**
  * 산출물 열람 화면의 표시 항목(생성 응답·열람 응답 공통 모델).
@@ -54,6 +58,11 @@ data class ArtifactUiState(
      * 화면이 [consumeEditPrompt]로 비운다.
      */
     val editPromptSectionId: String? = null,
+    /**
+     * 비차단 품질 개선 진행 카드(§3). '이대로 다듬기'를 누르면 이 화면으로 돌아오고, 화면은 이 카드로 진행/완료/실패를
+     * 보여준다(생성 비동기와 동형). null이면 진행 중인 개선 작업이 없다(카드 미노출).
+     */
+    val qualityImprovement: QualityImprovementCardUi? = null,
 ) {
     /** 부분 실패 항목이 하나라도 있는지(상단 고지·재시도 안내용). */
     val hasFailedSections: Boolean get() = sections.any { it.failed }
@@ -70,6 +79,21 @@ data class ArtifactUiState(
 }
 
 /**
+ * 비차단 품질 개선 진행 카드의 표시 모델(§3). 서버 작업이 증분 진행을 추적하지 않으므로 진행 단계는 불확정
+ * ("품질 개선 중…")으로 정직하게 표시한다(가짜 진행 % 금지). 완료되면 준비된 개선안 수와 함께 "확인하기"로 유도한다.
+ */
+data class QualityImprovementCardUi(
+    val jobId: String,
+    val phase: Phase,
+    /** READY일 때 준비된 개선안 수(확인하기 유도 문구). */
+    val candidateCount: Int = 0,
+    /** FAILED일 때 실패 안내(서버 메시지). */
+    val errorMessage: String? = null,
+) {
+    enum class Phase { IMPROVING, READY, FAILED }
+}
+
+/**
  * 산출물 열람 ViewModel. 활성 버전의 항목별 내용·상태·출처를 표시한다(수용 기준 12).
  *
  * [initial]이 있으면 즉시 시드해 첫 프레임부터 생성 결과를 보여주고(깜박임 없는 즉시 표시), 이어서 항상
@@ -81,6 +105,7 @@ data class ArtifactUiState(
  */
 class ArtifactViewModel(
     private val artifactApi: ArtifactApi,
+    private val qualityApi: QualityApi,
     private val artifactId: String,
     initial: GenerationResponse? = null,
 ) : ViewModel() {
@@ -90,6 +115,9 @@ class ArtifactViewModel(
 
     /** 진행 중인 열람 로드 Job. 연타 시 중복 로드 경합을 막는다. */
     private var loadJob: Job? = null
+
+    /** 진행 중인 품질 개선 폴링 Job. 비차단 진행 카드를 완료/실패까지 갱신한다. */
+    private var qualityPollJob: Job? = null
 
     init {
         // initial이 있으면 즉시 시드해 첫 프레임부터 표시하고, 항상 load()로 서버 최신 상태를 덮어쓴다.
@@ -109,9 +137,11 @@ class ArtifactViewModel(
                     // load-after-initial: actionMessage(폴백 고지 등)가 이미 세팅돼 있으면 보존한다.
                     // load()가 initial 시드 직후 덮어써도 스낵바가 한 번 뜨도록 보장한다(§187).
                     val pending = _state.value.actionMessage
+                    // 진행 카드는 별도 흐름(refreshQualityJob)이 채우므로 load()의 전체 교체에서 보존한다.
+                    val quality = _state.value.qualityImprovement
                     _state.value = result.value.toUiState().let {
                         if (pending != null && it.actionMessage == null) it.copy(actionMessage = pending) else it
-                    }
+                    }.copy(qualityImprovement = quality)
                 }
                 is ApiResult.Failure -> _state.update { it.copy(loading = false, errorMessage = result.message) }
             }
@@ -175,6 +205,76 @@ class ArtifactViewModel(
     fun consumeEditPrompt() {
         _state.update { if (it.editPromptSectionId == null) it else it.copy(editPromptSectionId = null) }
     }
+
+    /**
+     * 비차단 품질 개선 작업을 복원·반영한다(§3). 화면 (재)진입 시 호출한다. 서버에서 이 산출물의 **최신** 작업을 찾아
+     * 진행 중이면 진행 카드 + 폴링, 완료면 "확인하기" 카드, 실패면 실패 카드를 띄운다. 작업이 없으면 카드를 비운다.
+     * 이력서가 아닌 산출물엔 작업이 존재할 수 없어 자연히 204(작업 없음)로 카드가 뜨지 않는다.
+     * 조회 실패는 본문 표시를 막지 않는다(진행 카드는 보조 정보 — 막다른 길 금지).
+     */
+    fun refreshQualityJob() {
+        viewModelScope.launch {
+            when (val result = qualityApi.getLatestImprovement(artifactId)) {
+                is ApiResult.Success -> applyLatestQualityJob(result.value)
+                is ApiResult.Failure -> { /* 무시: 진행 카드는 보조 정보다. */ }
+            }
+        }
+    }
+
+    /** 진행 카드 "닫기": 실패·미채택 작업을 치운다(서버 삭제 + 카드 즉시 제거). 삭제 실패해도 카드는 닫는다. */
+    fun dismissQualityJob() {
+        val card = _state.value.qualityImprovement ?: return
+        qualityPollJob?.cancel()
+        _state.update { it.copy(qualityImprovement = null) }
+        viewModelScope.launch { qualityApi.dismissImprovement(artifactId, card.jobId) }
+    }
+
+    /** 최신 작업 조회 결과를 카드로 반영한다(refresh 경로). 진행 중이면 폴링을 시작한다. null이면 카드·폴링을 정리한다. */
+    private fun applyLatestQualityJob(job: QualityImprovementJobResponse?) {
+        if (job == null) {
+            qualityPollJob?.cancel()
+            _state.update { it.copy(qualityImprovement = null) }
+            return
+        }
+        if (job.status.isActive) {
+            _state.update {
+                it.copy(qualityImprovement = QualityImprovementCardUi(job.jobId, QualityImprovementCardUi.Phase.IMPROVING))
+            }
+            startQualityPolling(job.jobId)
+        } else {
+            qualityPollJob?.cancel()
+            _state.update { it.copy(qualityImprovement = job.toTerminalCard()) }
+        }
+    }
+
+    /** 활성 작업을 완료/실패까지 폴링한다(생성 잡 폴링과 동형). 이미 폴링 중이면 무시한다(중복 방지). */
+    private fun startQualityPolling(jobId: String) {
+        if (qualityPollJob?.isActive == true) return
+        qualityPollJob = viewModelScope.launch {
+            while (true) {
+                delay(QUALITY_POLL_INTERVAL_MS)
+                when (val result = qualityApi.getImprovementJob(artifactId, jobId)) {
+                    is ApiResult.Success -> {
+                        val job = result.value
+                        if (!job.status.isActive) {
+                            _state.update { it.copy(qualityImprovement = job.toTerminalCard()) }
+                            break
+                        }
+                    }
+                    // 폴링 실패: 진행 카드는 보조 정보이므로 폴링만 멈춘다(다음 화면 진입에서 refresh가 복원).
+                    is ApiResult.Failure -> break
+                }
+            }
+        }
+    }
+
+    /** 종료(SUCCEEDED/FAILED) 작업 응답을 카드로 변환한다. SUCCEEDED면 READY(개선안 수), FAILED면 FAILED(안내). */
+    private fun QualityImprovementJobResponse.toTerminalCard(): QualityImprovementCardUi =
+        if (status == QualityJobStatus.SUCCEEDED) {
+            QualityImprovementCardUi(jobId, QualityImprovementCardUi.Phase.READY, candidateCount = candidates?.size ?: 0)
+        } else {
+            QualityImprovementCardUi(jobId, QualityImprovementCardUi.Phase.FAILED, errorMessage = errorMessage)
+        }
 
     private fun markInFlight(sectionId: String) {
         _state.update { it.copy(inFlightSectionIds = it.inFlightSectionIds + sectionId) }
@@ -248,6 +348,9 @@ class ArtifactViewModel(
     )
 
     companion object {
+        /** 품질 개선 진행 카드 폴링 간격(생성 잡 폴링과 동일 — 3초). */
+        const val QUALITY_POLL_INTERVAL_MS = 3_000L
+
         /** 재생성 한도 초과 에러 코드(서버 `CountingGenerationQuotaGuard`와 1:1, 429). */
         const val REGENERATION_QUOTA_EXCEEDED = "REGENERATION_QUOTA_EXCEEDED"
 

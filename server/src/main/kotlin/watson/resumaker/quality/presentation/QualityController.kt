@@ -3,6 +3,7 @@ package watson.resumaker.quality.presentation
 import jakarta.validation.Valid
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
+import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
@@ -58,6 +59,17 @@ class QualityController(
         return ResponseEntity.status(HttpStatus.ACCEPTED).body(job)
     }
 
+    /**
+     * 한 산출물의 **가장 최근** 품질 개선 작업 조회(GET .../quality-improvements/latest). 산출물 열람 화면이
+     * 비차단 진행 카드를 복원할 때 쓴다(§3 — "이대로 다듬기"를 누르면 화면으로 돌아오고 화면이 이 작업을 폴링).
+     * 작업이 없으면 204(No Content). `latest`는 리터럴 경로라 `{jobId}` 패턴보다 먼저 매칭된다(Spring 경로 우선순위).
+     */
+    @GetMapping("/quality-improvements/latest")
+    fun latestImprovement(@PathVariable artifactId: String): ResponseEntity<QualityImprovementJobResponse> {
+        val latest = improvementJobService.latestFor(currentUserProvider.currentUserId(), toUuid(artifactId))
+        return latest?.let { ResponseEntity.ok(it) } ?: ResponseEntity.noContent().build()
+    }
+
     @GetMapping("/quality-improvements/{jobId}")
     fun getImprovement(
         @PathVariable artifactId: String,
@@ -69,6 +81,23 @@ class QualityController(
                 QualityImprovementJobId(toUuid(jobId)),
             ),
         )
+
+    /**
+     * 품질 개선 작업 닫기(DELETE .../quality-improvements/{jobId}). 진행 카드의 "닫기"에서 실패·미채택 작업을
+     * 치울 때 쓴다(작업·후보 삭제). 소유 격리(QC8)·경로 일치는 서비스가 강제한다. 성공 시 204.
+     */
+    @DeleteMapping("/quality-improvements/{jobId}")
+    fun dismissImprovement(
+        @PathVariable artifactId: String,
+        @PathVariable jobId: String,
+    ): ResponseEntity<Void> {
+        improvementJobService.dismiss(
+            currentUserProvider.currentUserId(),
+            toUuid(artifactId),
+            QualityImprovementJobId(toUuid(jobId)),
+        )
+        return ResponseEntity.noContent().build()
+    }
 
     @PostMapping("/quality-improvements/{jobId}/adopt")
     fun adopt(

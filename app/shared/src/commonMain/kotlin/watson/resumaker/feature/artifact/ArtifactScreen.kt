@@ -61,9 +61,14 @@ fun ArtifactScreen(
     onViewVersions: () -> Unit = {},
     /** 품질 점검 진입(RESUME 전용, QC10). 화면이 RESUME 종류일 때만 버튼을 노출한다. */
     onStartQualityReview: () -> Unit = {},
+    /** 비차단 품질 개선 진행 카드의 "확인하기" — 준비된 개선안(후보) 비교·채택 화면으로 이동(§3). */
+    onConfirmQualityImprovement: (jobId: String) -> Unit = {},
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
+
+    // 비차단 품질 개선 진행 카드 복원(§3): 화면 (재)진입 시 최신 개선 작업을 조회해 카드로 띄운다.
+    LaunchedEffect(Unit) { viewModel.refreshQualityJob() }
 
     var copyMessage by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(copyMessage) {
@@ -128,6 +133,15 @@ fun ArtifactScreen(
                     }
                 }
 
+                // 비차단 품질 개선 진행 카드(§3): 다듬는 중/준비됨/실패를 생성 비동기처럼 알린다(빈 화면 대기 해소).
+                state.qualityImprovement?.let { card ->
+                    QualityImprovementCard(
+                        card = card,
+                        onConfirm = { onConfirmQualityImprovement(card.jobId) },
+                        onDismiss = viewModel::dismissQualityJob,
+                    )
+                }
+
                 if (state.hasCopyableContent) {
                     GhostButton(
                         text = "전체 복사",
@@ -170,6 +184,65 @@ fun ArtifactScreen(
                 }
             }
         }
+    }
+}
+
+/**
+ * 비차단 품질 개선 진행 카드(§3). 산출물 생성 비동기와 동형으로, '이대로 다듬기' 후 빈 화면 대기 없이 이 카드로
+ * 진행/완료/실패를 알린다. 서버 작업이 증분 진행을 추적하지 않으므로 진행은 불확정("품질 개선 중…")으로 정직하게
+ * 표시한다(가짜 % 금지). 준비되면 "확인하기"로 후보 비교·채택 화면으로 이동한다.
+ */
+@Composable
+private fun QualityImprovementCard(
+    card: QualityImprovementCardUi,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val colors = RmTheme.colors
+    when (card.phase) {
+        QualityImprovementCardUi.Phase.IMPROVING ->
+            InfoCard(icon = RmIcons.Sparkles, title = "품질 개선 중…") {
+                Text(
+                    text = "AI가 선택한 항목을 다듬고 있어요. 다 되면 여기서 알려드릴게요.",
+                    style = RmTextStyles.bodyS,
+                    color = colors.onPrimaryContainer,
+                )
+            }
+
+        QualityImprovementCardUi.Phase.READY ->
+            RmCard {
+                Column(verticalArrangement = Arrangement.spacedBy(RmSpacing.space3)) {
+                    Text(
+                        text = if (card.candidateCount > 0) "개선안 ${card.candidateCount}개가 준비됐어요" else "개선 결과가 준비됐어요",
+                        style = RmTextStyles.label,
+                        color = colors.textPrimary,
+                    )
+                    Text(
+                        text = "확인하고 원하는 항목만 골라 반영할 수 있어요.",
+                        style = RmTextStyles.bodyS,
+                        color = colors.textSecondary,
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(RmSpacing.space2),
+                    ) {
+                        GhostButton(text = "닫기", onClick = onDismiss, modifier = Modifier.weight(1f))
+                        PrimaryButton(text = "확인하기", onClick = onConfirm, modifier = Modifier.weight(1f))
+                    }
+                }
+            }
+
+        QualityImprovementCardUi.Phase.FAILED ->
+            InfoCard(icon = RmIcons.Warning, title = "품질 개선을 완료하지 못했어요") {
+                Column(verticalArrangement = Arrangement.spacedBy(RmSpacing.space2)) {
+                    Text(
+                        text = card.errorMessage ?: "다시 시도해 주세요.",
+                        style = RmTextStyles.bodyS,
+                        color = colors.onPrimaryContainer,
+                    )
+                    GhostButton(text = "닫기", onClick = onDismiss, fillWidth = false)
+                }
+            }
     }
 }
 

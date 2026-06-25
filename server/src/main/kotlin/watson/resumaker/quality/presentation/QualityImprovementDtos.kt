@@ -25,6 +25,12 @@ data class QualityImprovementJobResponse(
     val errorCode: String?,
     val errorMessage: String?,
     val createdAt: String,
+    /**
+     * 검증 실패로 제외돼 원본을 유지한 항목 수(SUCCEEDED일 때만 의미, 그 외 0). 요청 소견이 가리킨 서로 다른 항목 수에서
+     * 실제 후보 수를 뺀 값이다(가짜 성공 금지 — "일부 항목은 유지했어요" 고지용). 화면이 비차단 진행 카드로 복원해도
+     * 일관되게 고지하도록 서버가 계산해 내린다(클라이언트가 원래 선택을 기억하지 못해도 정확).
+     */
+    val excludedSectionCount: Int = 0,
 )
 
 /**

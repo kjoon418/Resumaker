@@ -3,7 +3,6 @@ package watson.resumaker.feature.artifact.quality
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -77,18 +76,20 @@ data class CandidateUi(
 /**
  * 품질 점검·개선 화면 단계.
  *
- * IDLE → REVIEWING(점검 중) → FINDINGS(소견 표시) → IMPROVING(잡 폴링) → CANDIDATES(비교·채택) → ADOPTED(채택 완료)
+ * IDLE → REVIEWING(점검 중) → FINDINGS(소견 표시) → [submitImprovement로 비차단 접수 후 산출물 열람 화면 복귀]
+ * 또는 재진입(resume)으로 곧장 CANDIDATES(비교·채택) → ADOPTED(채택 완료).
  * 어느 단계에서든 에러가 발생하면 [errorMessage]가 세팅된다.
+ *
+ * 개선 작업 폴링은 더 이상 이 화면이 아니라 산출물 열람 화면([watson.resumaker.feature.artifact.ArtifactViewModel])이
+ * 비차단 진행 카드로 담당한다(§3 — '이대로 다듬기' 후 빈 화면 대기 해소).
  */
 enum class QualityStep {
     /** 초기(진입 직전). */
     IDLE,
-    /** 품질 점검 API 호출 중(스켈레톤 로딩). */
+    /** 품질 점검 API 호출 중(스켈레톤 로딩). 재진입(resume) 시 후보 적재 중에도 잠시 쓰인다. */
     REVIEWING,
     /** 소견 목록 표시(소견 0건 포함). */
     FINDINGS,
-    /** 품질 개선 작업 접수 후 폴링 중(스켈레톤 로딩). */
-    IMPROVING,
     /** SUCCEEDED: 후보 비교·채택 화면. */
     CANDIDATES,
     /** 채택 완료 — 화면이 산출물 열람으로 복귀한다. */
@@ -109,7 +110,14 @@ data class QualityReviewUiState(
     val reviewedSections: List<ReviewedSectionUi> = emptyList(),
     /** 사용자가 선택한 AUTO_REWRITE 소견 id 집합(FINDINGS 단계). */
     val selectedFindingIds: Set<String> = emptySet(),
-    /** IMPROVING 단계의 현재 작업 id(폴링 키). */
+    /** 처치 접수(submitImprovement) 진행 중(버튼 로딩 표시). */
+    val submitting: Boolean = false,
+    /**
+     * 처치 접수(202) 성공 시 만들어진 작업 id(일회성 복귀 트리거). 화면이 이 값을 보고 산출물 열람 화면으로 복귀하고
+     * [consumeSubmitted]로 비운다(§3 비차단 — 빈 화면 대기 없이 열람 화면의 진행 카드로 이어진다).
+     */
+    val submittedJobId: String? = null,
+    /** 채택 대상 작업 id(CANDIDATES 단계 — 재진입 시 적재한 jobId). adopt 요청 키. */
     val improvingJobId: String? = null,
     /** CANDIDATES 단계의 후보 목록. */
     val candidates: List<CandidateUi> = emptyList(),
@@ -162,6 +170,11 @@ class QualityReviewViewModel(
     private val qualityApi: QualityApi,
     private val artifactId: String,
     private val artifactKind: ArtifactKind,
+    /**
+     * non-null이면 점검을 건너뛰고 이 작업의 후보 비교·채택(2단계)으로 곧장 진입한다(비차단 개선 §3 — 산출물 열람
+     * 화면의 "확인하기" 재진입). null이면 정상 점검 흐름이다.
+     */
+    private val resumeJobId: String? = null,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(QualityReviewUiState())
@@ -170,8 +183,13 @@ class QualityReviewViewModel(
     /** 진행 중인 점검 Job. 연타 방지. */
     private var reviewJob: Job? = null
 
-    /** 진행 중인 폴링 Job. */
-    private var pollJob: Job? = null
+    /** 비차단 개선의 후보 재진입 모드 여부(이 경우 화면은 점검을 자동 시작하지 않는다). */
+    val isResuming: Boolean get() = resumeJobId != null
+
+    init {
+        // 재진입 모드면 점검을 건너뛰고 곧장 후보를 적재한다(2단계 직행 — 산출물 열람 화면의 "확인하기").
+        if (resumeJobId != null) resumeCandidates(resumeJobId)
+    }
 
     // ── 진단 ──────────────────────────────────────────────────────────────────
 
@@ -231,25 +249,24 @@ class QualityReviewViewModel(
     // ── 처치 접수 ─────────────────────────────────────────────────────────────
 
     /**
-     * "이대로 다듬기" 클릭 — 선택된 AUTO_REWRITE 소견으로 개선 작업을 접수하고 폴링을 시작한다.
-     * 선택이 없으면 무시한다([canSubmitImprovement]가 false인 경우).
+     * "이대로 다듬기" 클릭 — 선택된 AUTO_REWRITE 소견으로 개선 작업을 **비차단 접수**한다(§3). 접수(202)되면 폴링하지
+     * 않고 산출물 열람 화면으로 돌아간다(빈 화면 대기 해소). 화면이 [submittedJobId]를 보고 복귀를 트리거하고, 열람
+     * 화면이 진행 카드로 완료까지 폴링한다. 선택이 없거나 이미 접수 중이면 무시한다.
      */
     fun submitImprovement() {
         val current = _state.value
         if (!current.canSubmitImprovement) return
-        if (current.step == QualityStep.IMPROVING) return
-        _state.update { it.copy(step = QualityStep.IMPROVING, errorMessage = null) }
+        if (current.submitting) return
+        _state.update { it.copy(submitting = true, errorMessage = null) }
         viewModelScope.launch {
             val findingIds = current.selectedFindingIds.toList()
             when (val result = qualityApi.submitImprovement(artifactId, findingIds)) {
-                is ApiResult.Success -> {
-                    val job = result.value
-                    _state.update { it.copy(improvingJobId = job.jobId) }
-                    startPolling(job.jobId)
+                is ApiResult.Success -> _state.update {
+                    it.copy(submitting = false, submittedJobId = result.value.jobId)
                 }
                 is ApiResult.Failure -> _state.update {
                     it.copy(
-                        step = QualityStep.FINDINGS,
+                        submitting = false,
                         snackbarMessage = improvementErrorMessage(result.code, result.message),
                     )
                 }
@@ -257,61 +274,45 @@ class QualityReviewViewModel(
         }
     }
 
-    // ── 폴링 ──────────────────────────────────────────────────────────────────
+    /** 복귀 트리거(submittedJobId)를 소비한다(중복 복귀 방지). 화면이 복귀 내비를 호출한 뒤 비운다. */
+    fun consumeSubmitted() = _state.update { if (it.submittedJobId == null) it else it.copy(submittedJobId = null) }
 
-    /** 개선 작업 폴링 루프. 기존 생성 잡 폴링([ArtifactListViewModel])과 동형. */
-    private fun startPolling(jobId: String) {
-        pollJob?.cancel()
-        pollJob = viewModelScope.launch {
-            while (true) {
-                delay(POLL_INTERVAL_MS)
-                when (val result = qualityApi.getImprovementJob(artifactId, jobId)) {
-                    is ApiResult.Success -> {
-                        val job = result.value
-                        when {
-                            job.status == QualityJobStatus.SUCCEEDED -> {
-                                val rawCandidates = job.candidates.orEmpty()
-                                val candidates = rawCandidates.map { it.toUi() }
-                                // 처치는 항목(섹션)당 1후보를 만든다. 따라서 "기대 후보 수"는 선택된 소견이 가리키는
-                                // 서로 다른 섹션 수이며, 그보다 후보가 적으면 검증 실패로 제외된 섹션이 있는 것이다.
-                                // (요청 소견 수로 비교하면 한 섹션에 소견이 여럿일 때 정상 성공을 오제외로 고지한다.)
-                                val current = _state.value
-                                val expectedSections = current.findings
-                                    .filter { it.findingId in current.selectedFindingIds }
-                                    .map { it.sectionId }
-                                    .toSet()
-                                val excluded = (expectedSections.size - rawCandidates.size).coerceAtLeast(0)
-                                _state.update {
-                                    it.copy(
-                                        step = QualityStep.CANDIDATES,
-                                        candidates = candidates,
-                                        excludedCandidateCount = excluded,
-                                    )
-                                }
-                                break
-                            }
-                            job.status == QualityJobStatus.FAILED -> {
-                                _state.update {
-                                    it.copy(
-                                        step = QualityStep.FINDINGS,
-                                        snackbarMessage = job.errorMessage
-                                            ?: "품질 개선을 완료하지 못했어요. 다시 시도해 주세요.",
-                                    )
-                                }
-                                break
-                            }
-                            else -> { /* PENDING|RUNNING: 계속 폴링 */ }
+    // ── 후보 재진입(비차단 개선 §3) ──────────────────────────────────────────────
+
+    /**
+     * 준비된 개선 작업의 후보를 적재해 곧장 비교·채택(2단계)으로 들어간다. 비차단 개선에서 산출물 열람 화면의
+     * "확인하기"가 이 ViewModel을 resumeJobId로 만들어 진입시킨다. 아직 준비 전이거나 실패·조회 실패면 점검 화면
+     * (FINDINGS)으로 안내한다(막다른 길 금지). 제외 항목 수는 서버 계산값([QualityImprovementJobResponse.excludedSectionCount])을
+     * 그대로 쓴다(클라이언트가 원래 선택을 기억하지 못해도 정확 — 가짜 성공 금지).
+     */
+    private fun resumeCandidates(jobId: String) {
+        _state.update { it.copy(step = QualityStep.REVIEWING, errorMessage = null) }
+        viewModelScope.launch {
+            when (val result = qualityApi.getImprovementJob(artifactId, jobId)) {
+                is ApiResult.Success -> {
+                    val job = result.value
+                    if (job.status == QualityJobStatus.SUCCEEDED) {
+                        _state.update {
+                            it.copy(
+                                step = QualityStep.CANDIDATES,
+                                candidates = job.candidates.orEmpty().map { c -> c.toUi() },
+                                improvingJobId = jobId,
+                                excludedCandidateCount = job.excludedSectionCount,
+                            )
                         }
-                    }
-                    is ApiResult.Failure -> {
+                    } else {
+                        // 준비 전/실패 — 점검 화면으로 돌려보내 다시 시도하도록 한다(ErrorBanner 재시도).
                         _state.update {
                             it.copy(
                                 step = QualityStep.FINDINGS,
-                                snackbarMessage = result.message,
+                                errorMessage = job.errorMessage
+                                    ?: "개선 결과를 아직 불러올 수 없어요. 잠시 후 다시 시도해 주세요.",
                             )
                         }
-                        break
                     }
+                }
+                is ApiResult.Failure -> _state.update {
+                    it.copy(step = QualityStep.FINDINGS, errorMessage = result.message)
                 }
             }
         }
@@ -388,9 +389,6 @@ class QualityReviewViewModel(
     }
 
     companion object {
-        /** 폴링 간격(기존 생성 잡 폴링과 동일 — ArtifactListViewModel.POLL_INTERVAL_MS). */
-        const val POLL_INTERVAL_MS = 3_000L
-
         /** 일일 한도 초과 에러 코드(서버 계약). */
         const val QUOTA_EXCEEDED_CODE = "QUALITY_IMPROVEMENT_QUOTA_EXCEEDED"
     }

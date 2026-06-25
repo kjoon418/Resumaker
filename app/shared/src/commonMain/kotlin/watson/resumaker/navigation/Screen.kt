@@ -86,8 +86,14 @@ sealed interface Screen {
      * 품질 점검·개선(RESUME 전용, QC10). 1단계(소견 확인)와 2단계(후보 비교·채택)를 동일 화면 스택 안에서
      * 처리한다. ViewModel을 공유해 상태를 이어받는다.
      * [artifactId]로 품질 점검을 요청하고 개선 결과를 채택한다.
+     *
+     * [resumeJobId]가 non-null이면 점검을 건너뛰고 그 작업의 후보 비교·채택(2단계)으로 곧장 진입한다. 비차단 개선
+     * (§3)에서 산출물 열람 화면의 "확인하기"가 준비된 작업 id를 실어 보낸다(URL 비참여 transient, 딥링크 시 null→정상 점검).
      */
-    data class ArtifactQualityReview(val artifactId: String) : Screen
+    data class ArtifactQualityReview(
+        val artifactId: String,
+        val resumeJobId: String? = null,
+    ) : Screen
 
     /** 마이페이지. */
     data object MyPage : Screen

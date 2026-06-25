@@ -23,7 +23,6 @@ import watson.resumaker.ui.component.ContentWidth
 import watson.resumaker.ui.component.EmptyState
 import watson.resumaker.ui.component.ErrorBanner
 import watson.resumaker.ui.component.GhostButton
-import watson.resumaker.ui.component.InfoCard
 import watson.resumaker.ui.component.PageHeader
 import watson.resumaker.ui.component.PrimaryButton
 import watson.resumaker.ui.component.RmCard
@@ -46,6 +45,8 @@ fun QualityReviewScreen(
     onBack: () -> Unit,
     /** 개선 작업 완료 후 후보 비교 화면(2단계)으로 이동. ViewModel을 공유하므로 상위에서 같은 인스턴스 전달. */
     onProceedToImprovement: () -> Unit,
+    /** 비차단 접수(202) 성공 시 산출물 열람 화면으로 복귀(§3 — 빈 화면 대기 해소). */
+    onImprovementSubmitted: () -> Unit,
     /** "경험 보강하러 가기" 클릭 — 특정 경험 수정 or 경험 목록으로 이동. */
     onOpenExperience: (experienceId: String?) -> Unit,
 ) {
@@ -67,9 +68,17 @@ fun QualityReviewScreen(
         }
     }
 
-    // 진입 시 자동으로 진단 시작.
+    // 비차단 접수(202) 성공: 산출물 열람 화면으로 복귀한다(§3 — 빈 화면 대기 해소).
+    LaunchedEffect(state.submittedJobId) {
+        if (state.submittedJobId != null) {
+            onImprovementSubmitted()
+            viewModel.consumeSubmitted()
+        }
+    }
+
+    // 진입 시 자동으로 진단 시작. 재진입(resume) 모드면 후보를 곧장 적재하므로 점검을 시작하지 않는다.
     LaunchedEffect(Unit) {
-        viewModel.startReview()
+        if (!viewModel.isResuming) viewModel.startReview()
     }
 
     AppScaffold(
@@ -123,23 +132,6 @@ fun QualityReviewScreen(
                 }
             }
 
-            // IMPROVING: 개선 작업 폴링 중(스켈레톤 + 안내 문구).
-            QualityStep.IMPROVING -> Column(
-                modifier = contentModifier
-                    .padding(horizontal = pad)
-                    .padding(top = RmSpacing.space6),
-                verticalArrangement = Arrangement.spacedBy(RmSpacing.space4),
-            ) {
-                InfoCard(icon = RmIcons.Sparkles, title = "이력서를 다듬는 중이에요") {
-                    Text(
-                        text = "AI가 선택한 항목을 꼼꼼히 다듬고 있어요. 잠시 기다려 주세요.",
-                        style = RmTextStyles.bodyS,
-                        color = RmTheme.colors.onPrimaryContainer,
-                    )
-                }
-                SkeletonList(showLeadingChip = false)
-            }
-
             // CANDIDATES, ADOPTED: 이미 다음 화면으로 전환됐거나 전환 중. 빈 껍데기로 깜박임 방지.
             QualityStep.CANDIDATES, QualityStep.ADOPTED -> Box(contentModifier) {}
         }
@@ -190,6 +182,7 @@ private fun FindingsContent(
                 text = "이대로 다듬기",
                 onClick = onSubmitImprovement,
                 enabled = state.canSubmitImprovement,
+                loading = state.submitting,
                 modifier = androidx.compose.ui.Modifier.fillMaxWidth(),
             )
         }

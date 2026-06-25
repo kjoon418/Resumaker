@@ -300,6 +300,7 @@ fun App(container: AppContainer = remember { AppContainer() }) {
                 val vm = remember(screen.artifactId) {
                     ArtifactViewModel(
                         artifactApi = container.artifactApi,
+                        qualityApi = container.qualityApi,
                         artifactId = screen.artifactId,
                         initial = screen.initial,
                     )
@@ -309,17 +310,23 @@ fun App(container: AppContainer = remember { AppContainer() }) {
                     onBack = { navigator.pop() },
                     onViewVersions = { navigator.push(Screen.ArtifactVersions(screen.artifactId)) },
                     onStartQualityReview = { navigator.push(Screen.ArtifactQualityReview(screen.artifactId)) },
+                    // 비차단 개선 진행 카드의 "확인하기": 준비된 작업 id를 실어 후보 비교·채택(2단계)으로 곧장 재진입(§3).
+                    onConfirmQualityImprovement = { jobId ->
+                        navigator.push(Screen.ArtifactQualityReview(screen.artifactId, resumeJobId = jobId))
+                    },
                 )
             }
 
             is Screen.ArtifactQualityReview -> {
                 // ViewModel을 단일 인스턴스로 공유: 1단계(QualityReviewScreen)와 2단계(QualityImprovementScreen)가
                 // 같은 인스턴스를 통해 상태를 이어받는다. artifactKind는 RESUME 전용 진입점(QC10)이 보장하므로 고정.
-                val vm = remember(screen.artifactId) {
+                val vm = remember(screen.artifactId, screen.resumeJobId) {
                     QualityReviewViewModel(
                         qualityApi = container.qualityApi,
                         artifactId = screen.artifactId,
                         artifactKind = ArtifactKind.RESUME,
+                        // non-null이면 점검을 건너뛰고 이 작업의 후보 비교·채택(2단계)으로 곧장 진입(§3 비차단 재진입).
+                        resumeJobId = screen.resumeJobId,
                     )
                 }
                 // 단계 기반 렌더링: CANDIDATES 단계까지는 1단계, 이후는 2단계를 보여준다.
@@ -336,6 +343,9 @@ fun App(container: AppContainer = remember { AppContainer() }) {
                         viewModel = vm,
                         onBack = { navigator.pop() },
                         onProceedToImprovement = { /* state.step 전환이 recomposition을 트리거한다 */ },
+                        // 비차단 접수(202): 산출물 열람 화면으로 복귀한다. 복귀하면 열람 화면이 진행 카드로 완료까지
+                        // 폴링한다(§3 — 빈 화면 대기 해소). 열람 화면 VM은 pop 후 재생성돼 최신 작업을 자동 복원한다.
+                        onImprovementSubmitted = { navigator.pop() },
                         onOpenExperience = { experienceId ->
                             if (experienceId != null) navigator.push(Screen.ExperienceEdit(experienceId))
                             else navigator.push(Screen.ExperienceList)

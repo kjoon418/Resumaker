@@ -399,6 +399,15 @@ class FakeQualityApi(
      * 하나씩 꺼내 [getJobResult]를 갱신한 뒤 반환한다. 비면 마지막 [getJobResult]를 계속 반환한다.
      */
     var getJobSequence: ArrayDeque<ApiResult<QualityImprovementJobResponse>> = ArrayDeque(),
+    /** 최신 작업 조회 결과(null이면 작업 없음 → 화면 카드 미노출). */
+    var latestResult: ApiResult<QualityImprovementJobResponse?> = ApiResult.Success(null),
+    /** 작업 닫기(dismiss) 결과. */
+    var dismissResult: ApiResult<Unit> = ApiResult.Success(Unit),
+    /**
+     * 호출마다 다른 getLatestImprovement 결과를 돌려주기 위한 큐(진행→완료 전환 테스트용). 비어 있지 않으면 매 호출
+     * 앞에서 하나씩 꺼내 [latestResult]를 갱신한 뒤 반환한다. 비면 마지막 [latestResult]를 계속 반환한다.
+     */
+    var getLatestSequence: ArrayDeque<ApiResult<QualityImprovementJobResponse?>> = ArrayDeque(),
 ) : QualityApi {
     var reviewCount = 0
         private set
@@ -408,10 +417,13 @@ class FakeQualityApi(
         private set
     var adoptCount = 0
         private set
+    var getLatestCount = 0
+        private set
 
     var lastSubmitFindingIds: List<String>? = null
     var lastAdoptCandidateIds: List<String>? = null
     var lastAdoptJobId: String? = null
+    var dismissedJobId: String? = null
 
     override suspend fun reviewQuality(artifactId: String): ApiResult<QualityReviewResponse> {
         reviewCount++
@@ -447,6 +459,17 @@ class FakeQualityApi(
         lastAdoptJobId = jobId
         lastAdoptCandidateIds = candidateIds
         return adoptResult
+    }
+
+    override suspend fun getLatestImprovement(artifactId: String): ApiResult<QualityImprovementJobResponse?> {
+        getLatestCount++
+        if (getLatestSequence.isNotEmpty()) latestResult = getLatestSequence.removeFirst()
+        return latestResult
+    }
+
+    override suspend fun dismissImprovement(artifactId: String, jobId: String): ApiResult<Unit> {
+        dismissedJobId = jobId
+        return dismissResult
     }
 }
 

@@ -13,9 +13,12 @@ import watson.resumaker.account.domain.UserId
 import watson.resumaker.artifact.domain.SectionId
 import watson.resumaker.common.domain.DomainValidationException
 import watson.resumaker.common.domain.QuotaExceededException
+import watson.resumaker.common.domain.ResourceNotFoundException
 import watson.resumaker.quality.domain.Finding
+import watson.resumaker.quality.domain.QualityCandidate
 import watson.resumaker.quality.domain.QualityCriterion
 import watson.resumaker.quality.domain.QualityImprovementJob
+import watson.resumaker.quality.domain.QualityImprovementJobStatus
 import watson.resumaker.quality.domain.QualityReport
 import watson.resumaker.quality.domain.SuggestionGuide
 import watson.resumaker.quality.domain.TreatmentKind
@@ -100,5 +103,70 @@ class QualityImprovementJobServiceTest {
             .isInstanceOf(QuotaExceededException::class.java)
         verify(reviewService, never()).review(any(), any())
         verify(jobRepository, never()).save(any())
+    }
+
+    @Test
+    fun latestFor_최신_작업을_매핑하고_제외_항목수를_계산해_돌려준다() {
+        // given (§3) — 서로 다른 두 항목(s1,s2)을 요청했고 후보는 1개만 성공 → 제외 1(원본 유지 고지용).
+        val s1 = SectionId(UUID.randomUUID())
+        val s2 = SectionId(UUID.randomUUID())
+        val job = QualityImprovementJob.create(
+            ownerId, artifactId, versionId,
+            listOf("${s1.value}:I1", "${s2.value}:I1"),
+            Instant.parse("2026-06-22T00:00:00Z"),
+        )
+        job.markSucceeded(Instant.parse("2026-06-22T00:01:00Z"))
+        whenever(jobRepository.findFirstByArtifactIdAndOwnerIdOrderByCreatedAtDesc(artifactId, ownerId)).thenReturn(job)
+        whenever(candidateRepository.findAllByJobId(job.id.value)).thenReturn(
+            listOf(QualityCandidate.create(job.id.value, s1, "section-0-요약", "원본", "다듬음", listOf("I1"))),
+        )
+
+        // when
+        val response = service.latestFor(ownerId, artifactId)
+
+        // then
+        assertThat(response).isNotNull
+        assertThat(response!!.status).isEqualTo(QualityImprovementJobStatus.SUCCEEDED)
+        assertThat(response.excludedSectionCount).isEqualTo(1)
+    }
+
+    @Test
+    fun latestFor_작업이_없으면_null() {
+        // given — 이 산출물에 개선 작업이 없다(이력서가 아니거나 아직 접수 안 함).
+        whenever(jobRepository.findFirstByArtifactIdAndOwnerIdOrderByCreatedAtDesc(artifactId, ownerId)).thenReturn(null)
+
+        // when and then — null(컨트롤러가 204).
+        assertThat(service.latestFor(ownerId, artifactId)).isNull()
+    }
+
+    @Test
+    fun dismiss_작업과_후보를_지운다() {
+        // given — 진행 카드 "닫기"로 작업을 치운다.
+        val job = QualityImprovementJob.create(
+            ownerId, artifactId, versionId, listOf("${autoSectionId.value}:I1"), Instant.parse("2026-06-22T00:00:00Z"),
+        )
+        whenever(jobRepository.findByIdAndOwnerId(job.id, ownerId)).thenReturn(job)
+
+        // when
+        service.dismiss(ownerId, artifactId, job.id)
+
+        // then
+        verify(candidateRepository).deleteByJobId(job.id.value)
+        verify(jobRepository).delete(job)
+    }
+
+    @Test
+    fun dismiss_경로_산출물과_작업이_불일치하면_404() {
+        // given (QC8) — 작업이 다른 산출물 것이면 경로 불일치로 거부(삭제하지 않음).
+        val otherArtifactId = UUID.randomUUID()
+        val job = QualityImprovementJob.create(
+            ownerId, otherArtifactId, versionId, listOf("${autoSectionId.value}:I1"), Instant.parse("2026-06-22T00:00:00Z"),
+        )
+        whenever(jobRepository.findByIdAndOwnerId(job.id, ownerId)).thenReturn(job)
+
+        // when and then
+        assertThatThrownBy { service.dismiss(ownerId, artifactId, job.id) }
+            .isInstanceOf(ResourceNotFoundException::class.java)
+        verify(jobRepository, never()).delete(any())
     }
 }

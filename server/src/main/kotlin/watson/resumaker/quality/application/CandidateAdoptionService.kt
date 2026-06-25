@@ -81,6 +81,12 @@ class CandidateAdoptionService(
         // 보관 상한 정리(재생성·편집과 동형): 새 버전 추가로 상한을 넘으면 같은 tx에서 가장 오래된 비활성 버전부터 정리.
         val pruned = artifact.pruneOldestIfExceeds(versioningProperties.versionRetentionLimit)
         val saved = artifactRepository.save(artifact)
+
+        // 작업·후보 소비: 채택이 끝나면 이 작업과 그 후보를 지운다. 산출물 열람 화면의 "개선안 확인" 카드가
+        // 채택 후에도 다시 뜨지 않도록(재진입 견고함 — latestFor가 채택 완료 작업을 잡지 않음). 같은 tx 안에서 정리한다.
+        candidateRepository.deleteByJobId(job.id.value)
+        jobRepository.delete(job)
+
         return mapper.toResponse(saved, prunedVersionCount = pruned.size)
     }
 }
