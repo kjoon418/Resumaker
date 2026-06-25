@@ -24,6 +24,10 @@ services:
     environment:
       # e2-micro RAM 1GB 보호: JVM 힙·메타스페이스 상한. JAVA_TOOL_OPTIONS는 JVM이 자동 인식한다.
       JAVA_TOOL_OPTIONS: ${JAVA_TOOL_OPTIONS:--Xmx320m -XX:MaxMetaspaceSize=128m}
+      # 운영 기본값을 api로 못박는다. cli 공급자는 생성 시 claude CLI(Node) 프로세스를 띄워
+      # e2-micro 1GB를 넘겨 OOM→백엔드/터널 다운→전 요청 실패를 일으킨다. .env.prod에서 값이
+      # 누락돼도(=cli로 폴백) 운영이 깨지지 않도록, 여기서 api로 강제한다(ANTHROPIC_API_KEY 필요).
+      LLM_PROVIDER: ${LLM_PROVIDER:-api}
 
   frontend:
     restart: unless-stopped
