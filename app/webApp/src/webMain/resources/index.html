@@ -5,6 +5,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Resumaker</title>
     <!--
+      파비콘: 'Resumaker' 로고와 동일한 Pretendard Bold 'R' 글리프를 primary 블루(#2563EB)로 추출한 자산.
+      벡터(SVG)를 우선 쓰고, SVG 파비콘 미지원 브라우저는 PNG로 폴백한다. 자산은 같은 디렉터리(웹 루트)에 둔다.
+    -->
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+    <link rel="icon" type="image/png" sizes="192x192" href="favicon-192.png">
+    <link rel="icon" type="image/png" sizes="512x512" href="favicon-512.png">
+    <link rel="apple-touch-icon" href="apple-touch-icon.png">
+    <!--
       Pretendard CDN: HTML/비캔버스 텍스트(로딩 스피너 등)용 보조. 캔버스(Compose) 텍스트의 Pretendard는
       .ttf 4종을 shared/composeResources/font/에 번들해 Compose Resources(Res.font.*)로 로드한다(Type.kt 참고).
       미로딩 시 Compose가 시스템 산세리프로 fallback(디자인 시스템 §3.1).
