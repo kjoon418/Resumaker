@@ -1,21 +1,13 @@
 package watson.resumaker.feature.artifact
 
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -43,13 +35,13 @@ import watson.resumaker.ui.component.ContentWidth
 import watson.resumaker.ui.component.EmptyState
 import watson.resumaker.ui.component.GhostButton
 import watson.resumaker.ui.component.HeaderTab
+import watson.resumaker.ui.component.IndeterminateProgressLine
 import watson.resumaker.ui.component.PageHeader
 import watson.resumaker.ui.component.RmCard
 import watson.resumaker.ui.component.SkeletonList
 import watson.resumaker.ui.component.TextLink
 import watson.resumaker.ui.component.headerWidthForTab
 import watson.resumaker.ui.theme.RmIcons
-import watson.resumaker.ui.theme.RmRadius
 import watson.resumaker.ui.theme.RmSize
 import watson.resumaker.ui.theme.RmSpacing
 import watson.resumaker.ui.theme.RmTextStyles
@@ -296,35 +288,6 @@ private fun JobStatusBadge(status: GenerationJobStatus) {
         GenerationJobStatus.FAILED -> Badge(text = "생성 실패", fg = colors.danger, bg = colors.dangerBg)
         // SUCCEEDED는 이 카드로 렌더하지 않으나, when 망라성을 위해 완성 배지를 둔다.
         GenerationJobStatus.SUCCEEDED -> Badge(text = "완성", fg = colors.success, bg = colors.successBg)
-    }
-}
-
-/** RUNNING 카드 하단 불확정 진행 라인. shimmer와 동일하게 infiniteRepeatable tween reverse로 폭을 보간한다. */
-@Composable
-private fun IndeterminateProgressLine(modifier: Modifier = Modifier) {
-    val colors = RmTheme.colors
-    val transition = rememberInfiniteTransition(label = "jobProgress")
-    val fraction by transition.animateFloat(
-        initialValue = 0.2f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 4000),
-            repeatMode = RepeatMode.Reverse,
-        ),
-        label = "jobProgressFraction",
-    )
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(RmSize.hairline + RmSpacing.space0_5)
-            .background(colors.borderSubtle, RoundedCornerShape(RmRadius.full)),
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth(fraction)
-                .height(RmSize.hairline + RmSpacing.space0_5)
-                .background(colors.primary, RoundedCornerShape(RmRadius.full)),
-        )
     }
 }
 

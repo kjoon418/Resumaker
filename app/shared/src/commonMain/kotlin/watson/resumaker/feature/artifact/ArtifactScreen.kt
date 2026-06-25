@@ -14,6 +14,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
@@ -35,6 +36,7 @@ import watson.resumaker.ui.component.Badge
 import watson.resumaker.ui.component.ContentWidth
 import watson.resumaker.ui.component.ErrorBanner
 import watson.resumaker.ui.component.GhostButton
+import watson.resumaker.ui.component.IndeterminateProgressLine
 import watson.resumaker.ui.component.InfoCard
 import watson.resumaker.ui.component.PageHeader
 import watson.resumaker.ui.component.PrimaryButton
@@ -201,12 +203,36 @@ private fun QualityImprovementCard(
     val colors = RmTheme.colors
     when (card.phase) {
         QualityImprovementCardUi.Phase.IMPROVING ->
-            InfoCard(icon = RmIcons.Sparkles, title = "품질 개선 중…") {
-                Text(
-                    text = "AI가 선택한 항목을 다듬고 있어요. 다 되면 여기서 알려드릴게요.",
-                    style = RmTextStyles.bodyS,
-                    color = colors.onPrimaryContainer,
-                )
+            // 산출물 생성 등 다른 비동기 작업의 진행 카드와 동일한 언어로 통일한다(좌측 스피너 칩 + primary 진행 배지 +
+            // 하단 공유 로딩바). 서버 잡이 증분 진행을 추적하지 않으므로 로딩바는 불확정 표현이다(가짜 % 금지).
+            RmCard {
+                Column {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        CircularProgressIndicator(
+                            color = colors.primary,
+                            strokeWidth = RmSpacing.space0_5,
+                            modifier = Modifier
+                                .padding(end = RmSpacing.space3)
+                                .size(RmSize.spinnerSm),
+                        )
+                        Column(modifier = Modifier.weight(1f)) {
+                            Badge(text = "개선 중", fg = colors.primary, bg = colors.primaryContainer)
+                            Text(
+                                text = "이력서를 다듬고 있어요",
+                                style = RmTextStyles.bodyM,
+                                color = colors.textPrimary,
+                                modifier = Modifier.padding(top = RmSpacing.space1),
+                            )
+                            Text(
+                                text = "AI가 선택한 항목을 다듬고 있어요",
+                                style = RmTextStyles.caption,
+                                color = colors.textTertiary,
+                                modifier = Modifier.padding(top = RmSpacing.space1),
+                            )
+                        }
+                    }
+                    IndeterminateProgressLine(modifier = Modifier.padding(top = RmSpacing.space3))
+                }
             }
 
         QualityImprovementCardUi.Phase.READY ->

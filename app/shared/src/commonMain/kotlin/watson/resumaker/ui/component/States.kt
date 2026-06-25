@@ -105,6 +105,40 @@ fun LoadingState(
 }
 
 /**
+ * 비동기 작업 진행 표시용 **불확정 로딩바**(공유 컴포넌트). 증분 진행률을 알 수 없는 백그라운드 작업(산출물 생성·품질
+ * 개선 등)이 "진행 중"임을 한 가지 언어로 보여주도록 통일한다(가짜 % 금지 — 폭만 보간하는 불확정 표현).
+ * shimmer와 동일한 infiniteRepeatable tween reverse로 채움 폭을 0.2↔1.0 사이에서 왕복시킨다.
+ */
+@Composable
+fun IndeterminateProgressLine(modifier: Modifier = Modifier) {
+    val colors = RmTheme.colors
+    val transition = rememberInfiniteTransition(label = "asyncProgress")
+    val fraction by transition.animateFloat(
+        initialValue = 0.2f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            // 느리고 차분한 불확정 진행(4s). 작업이 길어도 과하게 빠르게 보이지 않도록 한다.
+            animation = tween(durationMillis = 4000),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "asyncProgressFraction",
+    )
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(RmSize.hairline + RmSpacing.space0_5)
+            .background(colors.borderSubtle, RoundedCornerShape(RmRadius.full)),
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth(fraction)
+                .height(RmSize.hairline + RmSpacing.space0_5)
+                .background(colors.primary, RoundedCornerShape(RmRadius.full)),
+        )
+    }
+}
+
+/**
  * 디자인 시스템 §5.9 스켈레톤 — 리스트 로딩 시 레이아웃 점프 방지(원칙 7 체감성능).
  * slate-100(borderSubtle) 박스 + 은은한 shimmer(alpha 보간). 토큰만 사용.
  * 리스트 카드 1행(아이콘칩 + 제목 라인 + 메타 라인) 형태를 모사한다.
