@@ -8,6 +8,10 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import watson.resumaker.fake.FakeExperienceApi
 import watson.resumaker.model.dto.ExperienceResponse
+import watson.resumaker.model.dto.ExperienceReviewCriterion
+import watson.resumaker.model.dto.ExperienceReviewField
+import watson.resumaker.model.dto.ExperienceReviewFindingDto
+import watson.resumaker.model.dto.ExperienceReviewResponse
 import watson.resumaker.model.type.ExperienceType
 import watson.resumaker.network.ApiResult
 import kotlin.test.AfterTest
@@ -151,6 +155,56 @@ class ExperienceEditViewModelTest {
         // 신규 생성 경로는 호출되지 않아야 한다.
         assertNull(api.lastCreate)
         assertTrue(vm.state.value.saved)
+    }
+
+    @Test
+    fun editModeLoadsReviewFindingsForPanel() = runTest(dispatcher) {
+        val api = FakeExperienceApi(
+            getOneResult = ApiResult.Success(existingWithDetail()),
+            reviewResult = ApiResult.Success(
+                ExperienceReviewResponse(
+                    findings = listOf(
+                        ExperienceReviewFindingDto(
+                            criterion = ExperienceReviewCriterion.VAGUE_METRIC,
+                            field = ExperienceReviewField.BODY,
+                            message = "구체적인 수치를 적어보세요.",
+                            evidenceText = "대용량",
+                        ),
+                    ),
+                ),
+            ),
+        )
+        val vm = ExperienceEditViewModel(api, experienceId = "e-99")
+        testScheduler.advanceUntilIdle()
+
+        assertEquals("e-99", api.reviewedId)
+        val findings = vm.state.value.reviewFindings
+        assertNotNull(findings)
+        assertEquals(1, findings.size)
+        assertEquals(ExperienceReviewCriterion.VAGUE_METRIC, findings.first().criterion)
+    }
+
+    @Test
+    fun cleanExperienceLoadsEmptyReviewForPositiveState() = runTest(dispatcher) {
+        // 점검했으나 보강할 게 없으면 빈 목록(null 아님) → 화면이 긍정 빈 상태를 보여준다.
+        val api = FakeExperienceApi(getOneResult = ApiResult.Success(existingWithDetail()))
+        val vm = ExperienceEditViewModel(api, experienceId = "e-99")
+        testScheduler.advanceUntilIdle()
+
+        val findings = vm.state.value.reviewFindings
+        assertNotNull(findings)
+        assertTrue(findings.isEmpty())
+    }
+
+    @Test
+    fun createModeDoesNotLoadReview() = runTest(dispatcher) {
+        // 신규(미저장) 경험은 점검 대상이 없다 → review 호출 없음, 패널 숨김(findings null).
+        val api = FakeExperienceApi()
+        val vm = ExperienceEditViewModel(api, experienceId = null)
+        testScheduler.advanceUntilIdle()
+
+        assertNull(api.reviewedId)
+        assertNull(vm.state.value.reviewFindings)
     }
 
     @Test

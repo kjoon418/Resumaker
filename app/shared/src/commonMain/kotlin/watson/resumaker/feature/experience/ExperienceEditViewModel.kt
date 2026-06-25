@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import watson.resumaker.model.dto.CreateExperienceRequest
 import watson.resumaker.model.dto.ExperienceDetailRequest
+import watson.resumaker.model.dto.ExperienceReviewFindingDto
 import watson.resumaker.model.dto.UpdateExperienceRequest
 import watson.resumaker.model.type.ExperienceType
 import watson.resumaker.network.ApiResult
@@ -40,6 +41,11 @@ data class ExperienceEditUiState(
     val snackbarMessage: String? = null,
     /** 저장 성공 시 true(상위가 목록으로 복귀). */
     val saved: Boolean = false,
+    /**
+     * 경험 점검(결정적 보강 유도) 소견. 편집 모드 로드 시·저장 후 갱신한다. null=아직 점검 안 함(패널 숨김),
+     * 빈 목록=점검했고 보강할 게 없음(긍정 빈 상태). 신규(미저장) 경험에는 점검하지 않는다.
+     */
+    val reviewFindings: List<ExperienceReviewFindingDto>? = null,
 ) {
     val isEditMode: Boolean get() = editingId != null
 }
@@ -90,8 +96,22 @@ class ExperienceEditViewModel(
                                 e.periodStart != null || e.skillTags.isNotEmpty(),
                         )
                     }
+                    loadReview(id)
                 }
                 is ApiResult.Failure -> _state.update { it.copy(loading = false, loadError = result.message) }
+            }
+        }
+    }
+
+    /**
+     * 경험 점검(결정적 보강 유도)을 불러와 패널에 채운다. 저장된 경험을 편집할 때만 의미 있다(서버에 점검 대상이 존재).
+     * 실패는 조용히 무시한다 — 점검은 보조 안내라 본 편집 흐름을 막지 않는다(findings는 null 유지 → 패널 숨김).
+     */
+    private fun loadReview(id: String) {
+        viewModelScope.launch {
+            when (val result = experienceApi.review(id)) {
+                is ApiResult.Success -> _state.update { it.copy(reviewFindings = result.value.findings) }
+                is ApiResult.Failure -> Unit
             }
         }
     }

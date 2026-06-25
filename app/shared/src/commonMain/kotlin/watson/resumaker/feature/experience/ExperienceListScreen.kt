@@ -36,6 +36,7 @@ import watson.resumaker.ui.component.InlineAddButton
 import watson.resumaker.ui.component.ListItemCard
 import watson.resumaker.ui.component.LocalContentMaxWidth
 import watson.resumaker.ui.component.SkeletonList
+import watson.resumaker.ui.component.StatusBadge
 import watson.resumaker.ui.component.TypeBadge
 import watson.resumaker.ui.theme.RmIcons
 import watson.resumaker.ui.theme.RmSize
@@ -183,7 +184,16 @@ private fun ExperienceRow(
         title = item.title,
         meta = period,
         leading = { ExperienceIconChip(item.type) },
-        badge = { TypeBadge(item.type) },
+        badge = {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(RmSpacing.space1),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                TypeBadge(item.type)
+                // 경험 점검(결정적)이 보강 포인트를 찾았으면 알린다. 추가 호출 없이 목록 응답의 boostHintCount만 본다.
+                if (item.boostHintCount > 0) StatusBadge(text = "보강 추천")
+            }
+        },
         onClick = onOpen,
         trailing = {
             // 본문 탭(열기)과 삭제 X 오탭 완화 — 본문과 간격 확보 + 48dp 터치 영역 유지.

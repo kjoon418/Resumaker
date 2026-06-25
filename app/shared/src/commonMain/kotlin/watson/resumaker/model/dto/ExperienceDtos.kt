@@ -50,4 +50,28 @@ data class ExperienceResponse(
     val periodStart: String? = null,
     val periodEnd: String? = null,
     val skillTags: List<String> = emptyList(),
+    /** 경험 점검(결정적·무LLM)이 찾은 보강 추천 개수. 목록 배지·상세 힌트용(0이면 깨끗). */
+    val boostHintCount: Int = 0,
+)
+
+/** 경험 점검 기준. 서버 `experience.domain.ExperienceReviewCriterion`과 1:1. */
+enum class ExperienceReviewCriterion { VAGUE_METRIC, MISSING_RESULT, THIN_BODY }
+
+/** 보강 유도가 가리키는 입력 칸. 서버 `experience.domain.ExperienceReviewField`와 1:1. */
+enum class ExperienceReviewField { BODY, RESULT }
+
+/**
+ * 경험 점검 응답. 보강 유도 소견 목록(자동 재작성 없음 — 무엇을 더 적을지 안내만). 서버 `ExperienceReviewResponse`와 1:1.
+ */
+@Serializable
+data class ExperienceReviewResponse(
+    val findings: List<ExperienceReviewFindingDto> = emptyList(),
+)
+
+@Serializable
+data class ExperienceReviewFindingDto(
+    val criterion: ExperienceReviewCriterion,
+    val field: ExperienceReviewField,
+    val message: String,
+    val evidenceText: String? = null,
 )

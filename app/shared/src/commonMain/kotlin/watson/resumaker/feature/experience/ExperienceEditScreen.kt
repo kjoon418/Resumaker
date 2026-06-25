@@ -129,10 +129,46 @@ fun ExperienceEditScreen(
                     }
                 }
 
+                // 경험 점검(결정적 보강 유도): 저장된 경험에서만, 점검 결과가 도착했을 때 노출한다.
+                // 이력서의 '모호한 수치'는 경험에 구체 수치가 없으면 못 고치므로, 여기서 무엇을 더 적을지 짚어 준다.
+                if (state.isEditMode) {
+                    state.reviewFindings?.let { ReviewPanel(findings = it) }
+                }
+
                 OptionalSection(state = state, viewModel = viewModel)
 
                 // WX-6: 폼 하단 인라인 저장(데스크톱 floating CTA 폐기).
                 PrimaryButton(text = "저장", onClick = viewModel::save, loading = state.submitting)
+            }
+        }
+    }
+}
+
+/**
+ * 경험 점검 패널 — 결정적 보강 유도 소견을 친근하게 보여준다(자동 재작성 없음, '무엇을 더 적으면 좋은지'만).
+ * 소견이 없으면 비난/공허 대신 긍정 빈 상태로 안심시킨다(디자인 시스템 EmptyState 카피 원칙).
+ */
+@Composable
+private fun ReviewPanel(findings: List<watson.resumaker.model.dto.ExperienceReviewFindingDto>) {
+    val colors = RmTheme.colors
+    if (findings.isEmpty()) {
+        InfoCard(icon = RmIcons.CheckCircle, title = "지금도 좋아요") {
+            Text(
+                text = "보강할 부분이 없어요. 충분히 구체적으로 적혀 있어요.",
+                style = RmTextStyles.bodyS,
+                color = colors.onPrimaryContainer,
+            )
+        }
+    } else {
+        InfoCard(icon = RmIcons.Sparkles, title = "이렇게 보강하면 더 강해져요") {
+            Column(verticalArrangement = Arrangement.spacedBy(RmSpacing.space2)) {
+                findings.forEach { finding ->
+                    Text(
+                        text = "• ${finding.message}",
+                        style = RmTextStyles.bodyS,
+                        color = colors.onPrimaryContainer,
+                    )
+                }
             }
         }
     }

@@ -42,6 +42,10 @@ class ExperienceController(
     fun getOne(@PathVariable id: String): ResponseEntity<ExperienceResponse> =
         ResponseEntity.ok(service.getOne(currentUserProvider.currentUserId(), toId(id)))
 
+    @GetMapping("/{id}/review")
+    fun review(@PathVariable id: String): ResponseEntity<ExperienceReviewResponse> =
+        ResponseEntity.ok(service.review(currentUserProvider.currentUserId(), toId(id)))
+
     @PatchMapping("/{id}")
     fun update(
         @PathVariable id: String,

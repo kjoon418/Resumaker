@@ -6,6 +6,7 @@ import watson.resumaker.model.dto.ArtifactVersionsResponse
 import watson.resumaker.model.dto.CreateExperienceRequest
 import watson.resumaker.model.dto.CreateTargetRequest
 import watson.resumaker.model.dto.ExperienceResponse
+import watson.resumaker.model.dto.ExperienceReviewResponse
 import watson.resumaker.model.dto.GenerationJobResponse
 import watson.resumaker.model.dto.PortfolioGenerationRequest
 import watson.resumaker.model.dto.ResumeGenerationRequest
@@ -93,10 +94,12 @@ class FakeExperienceApi(
     var createResult: ApiResult<ExperienceResponse>? = null,
     var updateResult: ApiResult<ExperienceResponse>? = null,
     var deleteResult: ApiResult<Unit> = ApiResult.Success(Unit),
+    var reviewResult: ApiResult<ExperienceReviewResponse> = ApiResult.Success(ExperienceReviewResponse()),
 ) : ExperienceApi {
     var lastCreate: CreateExperienceRequest? = null
     var lastUpdate: Pair<String, UpdateExperienceRequest>? = null
     var deletedId: String? = null
+    var reviewedId: String? = null
 
     override suspend fun getAll() = getAllResult
     override suspend fun getOne(id: String) =
@@ -112,6 +115,10 @@ class FakeExperienceApi(
     override suspend fun delete(id: String): ApiResult<Unit> {
         deletedId = id
         return deleteResult
+    }
+    override suspend fun review(id: String): ApiResult<ExperienceReviewResponse> {
+        reviewedId = id
+        return reviewResult
     }
 }
 
