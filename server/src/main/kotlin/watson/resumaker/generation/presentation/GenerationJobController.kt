@@ -42,8 +42,8 @@ class GenerationJobController(
 
     /**
      * 일시적 실패 작업 '다시 만들기'(IN_PLACE). 저장된 입력으로 새 PENDING 작업을 만들고 실패 작업을 삭제한 뒤
-     * 새 작업을 202로 돌려준다. 같은 입력 재요청이 무의미한 작업(입력 오류·한도 초과·활성·성공)은 서비스가 409,
-     * 한도 초과는 429로 막는다.
+     * 새 작업을 202로 돌려준다. 같은 입력 재요청이 무의미한 작업(입력 오류·한도 초과 실패·활성·성공)은 retryMode가
+     * IN_PLACE가 아니라 서비스가 409로 막는다. IN_PLACE 작업이라도 재시도 시점에 일일 한도가 소진됐으면 429.
      */
     @PostMapping("/{id}/retry")
     @ResponseStatus(HttpStatus.ACCEPTED)

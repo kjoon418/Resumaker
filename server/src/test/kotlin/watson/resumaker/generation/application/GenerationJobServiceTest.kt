@@ -182,7 +182,7 @@ class GenerationJobServiceTest {
         val failed = pendingJob().apply {
             markFailed("AI_GENERATION_UNAVAILABLE", "지금은 AI 생성을 사용할 수 없어요.", Instant.now(clock))
         }
-        whenever(jobRepository.findByIdAndOwnerId(failed.id, ownerId)).thenReturn(failed)
+        whenever(jobRepository.findByIdAndOwnerIdForUpdate(failed.id, ownerId)).thenReturn(failed)
         whenever(targetRepository.findByIdAndOwnerId(targetId, ownerId)).thenReturn(target())
         whenever(jobRepository.save(any<GenerationJob>())).thenAnswer { it.arguments[0] }
 
@@ -204,7 +204,7 @@ class GenerationJobServiceTest {
         val failed = pendingJob().apply {
             markFailed("GENERATION_NO_CONTENT", "생성할 수 있는 항목이 없어요.", Instant.now(clock))
         }
-        whenever(jobRepository.findByIdAndOwnerId(failed.id, ownerId)).thenReturn(failed)
+        whenever(jobRepository.findByIdAndOwnerIdForUpdate(failed.id, ownerId)).thenReturn(failed)
 
         // when and then — 가드레일 점검·저장 없이 409.
         assertThatThrownBy { service.retryInPlace(ownerId, failed.id) }
@@ -220,7 +220,7 @@ class GenerationJobServiceTest {
         val failed = pendingJob().apply {
             markFailed("AI_GENERATION_UNAVAILABLE", "지금은 AI 생성을 사용할 수 없어요.", Instant.now(clock))
         }
-        whenever(jobRepository.findByIdAndOwnerId(failed.id, ownerId)).thenReturn(failed)
+        whenever(jobRepository.findByIdAndOwnerIdForUpdate(failed.id, ownerId)).thenReturn(failed)
         doThrow(QuotaExceededException("한도 초과", code = "GENERATION_QUOTA_EXCEEDED"))
             .whenever(quotaGuard).checkInitialGeneration(ownerId)
 
@@ -233,9 +233,9 @@ class GenerationJobServiceTest {
 
     @Test
     fun 다시만들기_대상이_타인_소유이거나_미존재면_404() {
-        // given (소유 격리)
+        // given (소유 격리) — 비관 락 적재가 null이면(미존재·타인·동시 재시도로 이미 삭제됨) 404.
         val id = GenerationJobId(UUID.randomUUID())
-        whenever(jobRepository.findByIdAndOwnerId(id, ownerId)).thenReturn(null)
+        whenever(jobRepository.findByIdAndOwnerIdForUpdate(id, ownerId)).thenReturn(null)
 
         // when and then
         assertThatThrownBy { service.retryInPlace(ownerId, id) }

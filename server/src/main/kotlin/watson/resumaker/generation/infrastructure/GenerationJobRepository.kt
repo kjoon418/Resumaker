@@ -1,6 +1,8 @@
 package watson.resumaker.generation.infrastructure
 
+import jakarta.persistence.LockModeType
 import org.springframework.data.jpa.repository.JpaRepository
+import org.springframework.data.jpa.repository.Lock
 import org.springframework.data.jpa.repository.Modifying
 import org.springframework.data.jpa.repository.Query
 import org.springframework.data.repository.query.Param
@@ -22,6 +24,15 @@ import java.util.UUID
 interface GenerationJobRepository : JpaRepository<GenerationJob, UUID> {
 
     fun findByIdAndOwnerId(id: GenerationJobId, ownerId: UserId): GenerationJob?
+
+    /**
+     * 소유 격리 + 비관 락(PESSIMISTIC_WRITE)으로 작업을 적재한다. 같은 실패 작업의 동시 '다시 만들기'를 직렬화해
+     * 이중 생성·이중 비용을 막는다(클래스 주석 "이중 비용 방지"): 먼저 커밋한 호출이 작업을 삭제하면, 행 락을
+     * 기다리던 다른 호출은 깨어나 null을 받아 404가 된다(=재시도 중복 무산). 락은 트랜잭션 종료까지 유지된다.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select j from GenerationJob j where j.id = :id and j.ownerId = :ownerId")
+    fun findByIdAndOwnerIdForUpdate(@Param("id") id: GenerationJobId, @Param("ownerId") ownerId: UserId): GenerationJob?
 
     fun findAllByOwnerIdOrderByCreatedAtDesc(ownerId: UserId): List<GenerationJob>
 

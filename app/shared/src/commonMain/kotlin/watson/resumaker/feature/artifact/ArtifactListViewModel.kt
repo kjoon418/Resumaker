@@ -140,9 +140,10 @@ class ArtifactListViewModel(
         viewModelScope.launch {
             when (val result = artifactApi.retryJob(job.jobId)) {
                 is ApiResult.Success -> {
+                    // 재요청 표시는 결과 확정 즉시 내린다(refresh 실패해도 버튼이 "다시 만드는 중…"에 갇히지 않도록).
+                    _state.update { it.copy(retryingJobIds = it.retryingJobIds - job.jobId) }
                     // 저장된 입력으로 재요청됨 → 목록 갱신(실패 카드 제거·새 진행 카드 등장)하고 폴링을 (재)가동한다.
                     refresh(setLoadingFalse = false)
-                    _state.update { it.copy(retryingJobIds = it.retryingJobIds - job.jobId) }
                     ensurePolling()
                 }
                 is ApiResult.Failure -> _state.update {

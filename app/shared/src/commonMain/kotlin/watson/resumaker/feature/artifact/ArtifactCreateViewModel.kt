@@ -220,27 +220,26 @@ class ArtifactCreateViewModel(
                     ),
                 )
             }
+            // 프리필(EDIT_INPUTS) 진입이었다면 원본 실패 작업을 지운다(잔존 실패 기록 정리 — 사용자 혼란 방지).
+            // submitted를 세우기 전에 같은 코루틴에서 await해, 목록 이동(=ViewModel 폐기)이 삭제를 취소하지
+            // 못하게 한다. 실패해도 새 제출은 이미 성공이라 베스트에포트로 무시한다.
+            if (result is ApiResult.Success && sourceFailedJobId != null) {
+                artifactApi.deleteJob(sourceFailedJobId)
+            }
             applyGenerationResult(result)
         }
     }
 
-    private fun applyGenerationResult(result: ApiResult<GenerationJobResponse>) {
-        if (result is ApiResult.Success) {
-            // 프리필(EDIT_INPUTS) 진입이었다면, 새 작업을 성공 제출했으니 원본 실패 작업을 지운다(잔존 실패 기록
-            // 정리 — 사용자 혼란 방지). 실패해도 새 제출은 이미 성공이라 베스트에포트로 무시한다.
-            sourceFailedJobId?.let { jobId -> viewModelScope.launch { artifactApi.deleteJob(jobId) } }
-        }
-        _state.update {
-            when (result) {
-                // 제출 성공(202): 작업이 만들어졌으므로 산출물 목록으로 이동해 진행 상황을 보게 한다(완료는 목록이 폴링).
-                is ApiResult.Success -> it.copy(generating = false, submitted = true)
-                is ApiResult.Failure -> it.copy(
-                    generating = false,
-                    generationError = result.message,
-                    generationErrorCode = result.code,
-                    generationAction = result.action,
-                )
-            }
+    private fun applyGenerationResult(result: ApiResult<GenerationJobResponse>) = _state.update {
+        when (result) {
+            // 제출 성공(202): 작업이 만들어졌으므로 산출물 목록으로 이동해 진행 상황을 보게 한다(완료는 목록이 폴링).
+            is ApiResult.Success -> it.copy(generating = false, submitted = true)
+            is ApiResult.Failure -> it.copy(
+                generating = false,
+                generationError = result.message,
+                generationErrorCode = result.code,
+                generationAction = result.action,
+            )
         }
     }
 

@@ -106,7 +106,8 @@ class GenerationJobService(
      */
     @Transactional
     fun retryInPlace(ownerId: UserId, id: GenerationJobId): GenerationJobResponse {
-        val failed = jobRepository.findByIdAndOwnerId(id, ownerId)
+        // 비관 락으로 적재: 같은 실패 작업의 동시 재시도를 직렬화해 이중 생성·이중 비용을 막는다(GenerationJob 주석).
+        val failed = jobRepository.findByIdAndOwnerIdForUpdate(id, ownerId)
             ?: throw ResourceNotFoundException("요청하신 생성 작업을 찾을 수 없어요.")
         if (failed.retryMode() != GenerationJobRetryMode.IN_PLACE) {
             throw ConflictException("이 작업은 같은 정보로 다시 만들 수 없어요. 입력을 바꿔 새로 만들어 주세요.")
