@@ -34,6 +34,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import watson.resumaker.model.dto.ArtifactSummaryResponse
 import watson.resumaker.model.dto.GenerationJobResponse
 import watson.resumaker.model.type.ArtifactKind
+import watson.resumaker.model.type.GenerationJobRetryMode
 import watson.resumaker.model.type.GenerationJobStatus
 import watson.resumaker.ui.component.AppHeader
 import watson.resumaker.ui.component.AppScaffold
@@ -69,8 +70,13 @@ fun ArtifactListScreen(
     onOpenMyPage: () -> Unit = {},
     /** 완성 산출물 카드 클릭 → 열람(Screen.ArtifactView). */
     onOpenArtifact: (String) -> Unit,
-    /** "만들기 시작"·실패 카드 "다시 만들기" → 생성 화면(Screen.Artifact). */
+    /** 빈 상태 "만들기 시작" → 생성 화면(Screen.Artifact). */
     onCreate: () -> Unit,
+    /**
+     * 입력 관련 실패 카드 "경험 다시 고르기"(EDIT_INPUTS) → 입력을 미리 채운 생성 화면. 일시적 실패(IN_PLACE)는
+     * 화면 이동 없이 ViewModel이 그 자리에서 재요청하므로 콜백이 필요 없다.
+     */
+    onEditInputs: (GenerationJobResponse) -> Unit,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -135,7 +141,9 @@ fun ArtifactListScreen(
                     ArtifactJobCard(
                         job = job,
                         deleting = job.jobId in state.deletingJobIds,
-                        onRetry = onCreate,
+                        retrying = job.jobId in state.retryingJobIds,
+                        onRetryInPlace = { viewModel.retryJob(job) },
+                        onEditInputs = { onEditInputs(job) },
                         onDelete = { viewModel.deleteJob(job) },
                     )
                 }
@@ -153,13 +161,19 @@ fun ArtifactListScreen(
 
 /**
  * 생성 작업 카드(상태별). PENDING/RUNNING은 진행 표시(클릭 불가), FAILED는 클릭 시 인라인 오류 배너를 펼쳐
- * "다시 만들기"·"기록 삭제"를 제공한다. SUCCEEDED는 이 카드로 렌더하지 않는다(완성 산출물 카드로 표시).
+ * 다시 만들기 액션(서버 [GenerationJobResponse.retryMode] 분류)·"기록 삭제"를 제공한다. SUCCEEDED는 이 카드로
+ * 렌더하지 않는다(완성 산출물 카드로 표시).
+ *
+ * 다시 만들기 액션은 retryMode로 갈린다: IN_PLACE면 "다시 만들기"(그 자리에서 저장된 입력으로 재요청),
+ * EDIT_INPUTS면 "경험 다시 고르기"(입력 프리필 제작 화면), NONE이면 액션 없음(한도 초과 등).
  */
 @Composable
 private fun ArtifactJobCard(
     job: GenerationJobResponse,
     deleting: Boolean,
-    onRetry: () -> Unit,
+    retrying: Boolean,
+    onRetryInPlace: () -> Unit,
+    onEditInputs: () -> Unit,
     onDelete: () -> Unit,
 ) {
     val colors = RmTheme.colors
@@ -221,9 +235,17 @@ private fun ArtifactJobCard(
                         style = RmTextStyles.bodyS,
                         color = colors.textSecondary,
                     )
-                    // 한도 초과는 재시도해도 같은 결과라 "다시 만들기"를 숨긴다.
-                    if (job.errorCode != ERROR_QUOTA_EXCEEDED) {
-                        GhostButton(text = "다시 만들기", onClick = onRetry)
+                    // 다시 만들기 동작은 서버 분류(retryMode)로 갈린다(한도 초과 NONE은 버튼 없음).
+                    when (job.retryMode) {
+                        GenerationJobRetryMode.IN_PLACE -> GhostButton(
+                            text = if (retrying) "다시 만드는 중…" else "다시 만들기",
+                            onClick = { if (!retrying) onRetryInPlace() },
+                        )
+                        GenerationJobRetryMode.EDIT_INPUTS -> GhostButton(
+                            text = "경험 다시 고르기",
+                            onClick = onEditInputs,
+                        )
+                        GenerationJobRetryMode.NONE -> Unit
                     }
                     TextLink(
                         text = if (deleting) "삭제하는 중…" else "기록 삭제",

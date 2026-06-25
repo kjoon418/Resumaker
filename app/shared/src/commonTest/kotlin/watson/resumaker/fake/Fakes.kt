@@ -238,6 +238,7 @@ class FakeArtifactApi(
     var listJobsResult: ApiResult<List<GenerationJobResponse>> = ApiResult.Success(emptyList()),
     var getJobResult: ApiResult<GenerationJobResponse>? = null,
     var deleteJobResult: ApiResult<Unit> = ApiResult.Success(Unit),
+    var retryJobResult: ApiResult<GenerationJobResponse>? = null,
     var listArtifactsResult: ApiResult<List<ArtifactSummaryResponse>> = ApiResult.Success(emptyList()),
     /**
      * 호출마다 다른 listJobs 결과를 돌려주기 위한 큐(폴링 전환 테스트용). 비어 있지 않으면 매 호출 앞에서 하나씩
@@ -250,6 +251,9 @@ class FakeArtifactApi(
     var getArtifactId: String? = null
     var deletedJobId: String? = null
     var getJobId: String? = null
+    var retriedJobId: String? = null
+    var retryJobCount = 0
+        private set
 
     /** generateResume 호출 횟수(재시도 검증용). */
     var generateResumeCallCount = 0
@@ -330,6 +334,12 @@ class FakeArtifactApi(
     override suspend fun deleteJob(id: String): ApiResult<Unit> {
         deletedJobId = id
         return deleteJobResult
+    }
+
+    override suspend fun retryJob(id: String): ApiResult<GenerationJobResponse> {
+        retryJobCount++
+        retriedJobId = id
+        return retryJobResult ?: ApiResult.Failure("no result")
     }
 
     override suspend fun listArtifacts(): ApiResult<List<ArtifactSummaryResponse>> {

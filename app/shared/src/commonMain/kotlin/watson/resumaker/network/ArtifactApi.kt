@@ -56,6 +56,14 @@ interface ArtifactApi {
      */
     suspend fun deleteJob(id: String): ApiResult<Unit>
 
+    /**
+     * 일시적 실패 작업 '다시 만들기'(POST /generation-jobs/{id}/retry → 202). 서버가 저장된 입력으로 새 PENDING
+     * 작업을 만들고 실패 작업을 삭제한 뒤 새 작업([GenerationJobResponse])을 돌려준다. 제출처럼 빠르므로 일반
+     * 타임아웃을 쓴다. IN_PLACE가 아닌 작업은 409(CONFLICT), 한도 초과는 429(GENERATION_QUOTA_EXCEEDED),
+     * 없음/타인은 404로 [ApiResult.Failure]가 된다.
+     */
+    suspend fun retryJob(id: String): ApiResult<GenerationJobResponse>
+
     /** 내 완성 산출물 목록(GET /artifacts, 최신순). 목록 화면이 완성 카드로 표시한다. */
     suspend fun listArtifacts(): ApiResult<List<ArtifactSummaryResponse>>
 
@@ -133,6 +141,13 @@ class ArtifactApiImpl(private val client: ApiClient) : ArtifactApi {
     override suspend fun deleteJob(id: String): ApiResult<Unit> =
         client.safeRequest(decode = { }) {
             client.http.delete(client.url("/generation-jobs/$id")) {
+                with(client) { withUser() }
+            }
+        }
+
+    override suspend fun retryJob(id: String): ApiResult<GenerationJobResponse> =
+        client.safeRequest(decode = { it.body<GenerationJobResponse>() }) {
+            client.http.post(client.url("/generation-jobs/$id/retry")) {
                 with(client) { withUser() }
             }
         }

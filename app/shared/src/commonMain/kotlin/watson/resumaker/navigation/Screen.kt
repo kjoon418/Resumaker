@@ -54,8 +54,15 @@ sealed interface Screen {
     /**
      * 산출물 생성 진입(종류·경험·목표·양식 선택 → 생성). [hasExperiences]는 더 이상 분기에 쓰지 않으나
      * (생성 화면이 직접 빈 경험을 감지해 예방형 카피로 분기) 기존 진입점 호환을 위해 남긴다.
+     *
+     * [prefillJob]은 입력 관련 실패 작업의 '경험 다시 고르기'(EDIT_INPUTS) 진입 시, 실패 작업이 보관한 입력
+     * (종류·경험·목표·양식)을 미리 채우기 위한 transient 데이터다(URL 비참여, 딥링크 시 null). 생성 화면이
+     * 성공 제출하면 이 작업(jobId)을 삭제해 잔존 실패 기록을 정리한다.
      */
-    data class Artifact(val hasExperiences: Boolean = true) : Screen
+    data class Artifact(
+        val hasExperiences: Boolean = true,
+        val prefillJob: watson.resumaker.model.dto.GenerationJobResponse? = null,
+    ) : Screen
 
     /** 내 산출물 목록(이력서·포트폴리오). 진행 중/실패 생성 작업과 완성 산출물을 함께 보여주고 폴링한다. */
     data object ArtifactList : Screen

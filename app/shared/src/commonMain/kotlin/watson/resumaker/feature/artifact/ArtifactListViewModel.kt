@@ -30,6 +30,8 @@ data class ArtifactListUiState(
     val errorMessage: String? = null,
     /** 삭제 진행 중인 작업 id 집합(카드 액션 비활성·중복 호출 방지). */
     val deletingJobIds: Set<String> = emptySet(),
+    /** '다시 만들기'(IN_PLACE) 진행 중인 작업 id 집합(버튼 비활성·중복 호출 방지). */
+    val retryingJobIds: Set<String> = emptySet(),
     /** 완료/삭제 등 1회성 안내(스낵바). 화면이 소비 후 [consumeSnackbar]로 클리어. */
     val snackbarMessage: String? = null,
 ) {
@@ -120,6 +122,32 @@ class ArtifactListViewModel(
                 is ApiResult.Failure -> _state.update {
                     it.copy(
                         deletingJobIds = it.deletingJobIds - job.jobId,
+                        snackbarMessage = result.message,
+                    )
+                }
+            }
+        }
+    }
+
+    /**
+     * 일시적 실패 작업 '다시 만들기'(IN_PLACE, POST /generation-jobs/{id}/retry). 서버가 저장된 입력으로 새
+     * PENDING 작업을 만들고 실패 작업을 삭제하므로, 성공 시 목록을 다시 불러오면 실패 카드가 사라지고 새 진행
+     * 카드가 그 자리에 나타난다(폴링 재가동). 실패(409·429 등)는 스낵바로 안내하고 실패 카드는 그대로 둔다.
+     */
+    fun retryJob(job: GenerationJobResponse) {
+        if (job.jobId in _state.value.retryingJobIds) return
+        _state.update { it.copy(retryingJobIds = it.retryingJobIds + job.jobId) }
+        viewModelScope.launch {
+            when (val result = artifactApi.retryJob(job.jobId)) {
+                is ApiResult.Success -> {
+                    // 저장된 입력으로 재요청됨 → 목록 갱신(실패 카드 제거·새 진행 카드 등장)하고 폴링을 (재)가동한다.
+                    refresh(setLoadingFalse = false)
+                    _state.update { it.copy(retryingJobIds = it.retryingJobIds - job.jobId) }
+                    ensurePolling()
+                }
+                is ApiResult.Failure -> _state.update {
+                    it.copy(
+                        retryingJobIds = it.retryingJobIds - job.jobId,
                         snackbarMessage = result.message,
                     )
                 }

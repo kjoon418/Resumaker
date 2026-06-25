@@ -141,6 +141,54 @@ class ArtifactListViewModelTest {
     }
 
     @Test
+    fun retryJobReplacesFailedWithNewActiveJob() = runTest(dispatcher) {
+        // IN_PLACE 다시 만들기: 서버가 실패 작업을 새 PENDING으로 교체하므로, 성공 후 목록을 다시 부르면 실패
+        // 카드가 사라지고 새 진행 카드가 나타난다. 새 작업이 곧 완료(SUCCEEDED)되면 폴링이 멈춘다.
+        val api = FakeArtifactApi(
+            listArtifactsResult = ApiResult.Success(emptyList()),
+            retryJobResult = ApiResult.Success(job("j-2", GenerationJobStatus.PENDING)),
+        )
+        api.listJobsSequence = ArrayDeque(
+            listOf(
+                ApiResult.Success(listOf(job("j-1", GenerationJobStatus.FAILED))),    // 최초 load
+                ApiResult.Success(listOf(job("j-2", GenerationJobStatus.PENDING))),   // 재요청 후 refresh
+                ApiResult.Success(listOf(job("j-2", GenerationJobStatus.SUCCEEDED))), // 폴링 1회 → 종료
+            ),
+        )
+        val vm = ArtifactListViewModel(api)
+        testScheduler.advanceUntilIdle()
+
+        vm.retryJob(job("j-1", GenerationJobStatus.FAILED))
+        testScheduler.advanceUntilIdle()
+
+        // 실패 작업으로 재요청 API가 호출됐고, 옛 실패 카드는 사라지고(=목록에서 j-1 제거), 진행 상태는 비활성화됐다.
+        assertEquals("j-1", api.retriedJobId)
+        assertEquals(1, api.retryJobCount)
+        assertTrue(vm.state.value.jobs.none { it.jobId == "j-1" })
+        assertTrue(vm.state.value.retryingJobIds.isEmpty())
+        assertTrue(vm.state.value.renderJobs.isEmpty()) // SUCCEEDED는 렌더하지 않음
+    }
+
+    @Test
+    fun retryJobFailureShowsSnackbarAndKeepsFailedCard() = runTest(dispatcher) {
+        // IN_PLACE가 아닌 작업·한도 초과 등으로 재요청이 거절되면 스낵바로 안내하고 실패 카드는 그대로 둔다.
+        val api = FakeArtifactApi(
+            listJobsResult = ApiResult.Success(listOf(job("j-1", GenerationJobStatus.FAILED))),
+            listArtifactsResult = ApiResult.Success(emptyList()),
+            retryJobResult = ApiResult.Failure("이 작업은 같은 정보로 다시 만들 수 없어요."),
+        )
+        val vm = ArtifactListViewModel(api)
+        testScheduler.advanceUntilIdle()
+
+        vm.retryJob(job("j-1", GenerationJobStatus.FAILED))
+        testScheduler.advanceUntilIdle()
+
+        assertEquals("이 작업은 같은 정보로 다시 만들 수 없어요.", vm.state.value.snackbarMessage)
+        assertEquals(listOf("j-1"), vm.state.value.jobs.map { it.jobId })
+        assertTrue(vm.state.value.retryingJobIds.isEmpty())
+    }
+
+    @Test
     fun emptyStateWhenNoJobsOrArtifacts() = runTest(dispatcher) {
         val api = FakeArtifactApi(
             listJobsResult = ApiResult.Success(emptyList()),

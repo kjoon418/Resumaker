@@ -255,12 +255,14 @@ fun App(container: AppContainer = remember { AppContainer() }) {
             }
 
             is Screen.Artifact -> {
-                val vm = remember {
+                val vm = remember(screen) {
                     ArtifactCreateViewModel(
                         artifactApi = container.artifactApi,
                         experienceApi = container.experienceApi,
                         targetApi = container.targetApi,
                         templateApi = container.templateApi,
+                        // EDIT_INPUTS 재시도면 실패 작업의 입력을 미리 채운다(없으면 빈 폼).
+                        prefillJob = screen.prefillJob,
                     )
                 }
                 ArtifactCreateScreen(
@@ -289,6 +291,8 @@ fun App(container: AppContainer = remember { AppContainer() }) {
                     onBack = { navigator.pop() },
                     onOpenArtifact = { artifactId -> navigator.push(Screen.ArtifactView(artifactId = artifactId)) },
                     onCreate = { navigator.push(Screen.Artifact()) },
+                    // 입력 관련 실패 '경험 다시 고르기' → 실패 작업 입력을 프리필한 생성 화면.
+                    onEditInputs = { job -> navigator.push(Screen.Artifact(prefillJob = job)) },
                 )
             }
 

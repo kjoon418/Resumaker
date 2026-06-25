@@ -106,10 +106,19 @@ class ArtifactCreateViewModel(
     private val experienceApi: ExperienceApi,
     private val targetApi: TargetApi,
     private val templateApi: TemplateApi,
+    /**
+     * 입력 관련 실패 작업의 '경험 다시 고르기'(EDIT_INPUTS)로 진입할 때, 실패 작업이 보관한 입력을 미리 채우기 위한
+     * 프리필. null이면 빈 폼으로 시작한다(일반 진입). 성공 제출 시 이 작업([GenerationJobResponse.jobId])을 삭제해
+     * 잔존 실패 기록을 정리한다.
+     */
+    private val prefillJob: GenerationJobResponse? = null,
 ) : ViewModel() {
 
-    private val _state = MutableStateFlow(ArtifactCreateUiState())
+    private val _state = MutableStateFlow(initialState(prefillJob))
     val state: StateFlow<ArtifactCreateUiState> = _state.asStateFlow()
+
+    /** 프리필 진입의 원본 실패 작업 id. 성공 제출 후 이 작업을 삭제한다(잔존 실패 기록 제거). 일반 진입이면 null. */
+    private val sourceFailedJobId: String? = prefillJob?.jobId
 
     /** 진행 중인 재료 로드 Job. 연타 시 중복 로드 경합을 막는다(generate()와 동일 패턴). */
     private var loadJob: Job? = null
@@ -134,11 +143,19 @@ class ArtifactCreateViewModel(
                 ?: (templatesResult as? ApiResult.Failure)?.message
 
             _state.update {
+                val experiences = (experiencesResult as? ApiResult.Success)?.value ?: it.experiences
+                val targets = (targetsResult as? ApiResult.Success)?.value ?: it.targets
+                val templates = (templatesResult as? ApiResult.Success)?.value ?: it.templates
                 it.copy(
                     loading = false,
-                    experiences = (experiencesResult as? ApiResult.Success)?.value ?: it.experiences,
-                    targets = (targetsResult as? ApiResult.Success)?.value ?: it.targets,
-                    templates = (templatesResult as? ApiResult.Success)?.value ?: it.templates,
+                    experiences = experiences,
+                    targets = targets,
+                    templates = templates,
+                    // 프리필된 선택이 더 이상 존재하지 않으면(예: SOURCE_MISSING로 경험·목표가 삭제됨) 솎아내
+                    // 폼을 정직하게 둔다 — 없는 항목을 선택한 채 다시 제출해 같은 실패를 반복하지 않도록.
+                    selectedExperienceIds = it.selectedExperienceIds.intersect(experiences.map { e -> e.id }.toSet()),
+                    selectedTargetId = it.selectedTargetId?.takeIf { id -> targets.any { t -> t.id == id } },
+                    selectedTemplateId = it.selectedTemplateId?.takeIf { id -> templates.any { t -> t.id == id } },
                     errorMessage = errorMessage,
                 )
             }
@@ -207,21 +224,46 @@ class ArtifactCreateViewModel(
         }
     }
 
-    private fun applyGenerationResult(result: ApiResult<GenerationJobResponse>) = _state.update {
-        when (result) {
-            // 제출 성공(202): 작업이 만들어졌으므로 산출물 목록으로 이동해 진행 상황을 보게 한다(완료는 목록이 폴링).
-            is ApiResult.Success -> it.copy(generating = false, submitted = true)
-            is ApiResult.Failure -> it.copy(
-                generating = false,
-                generationError = result.message,
-                generationErrorCode = result.code,
-                generationAction = result.action,
-            )
+    private fun applyGenerationResult(result: ApiResult<GenerationJobResponse>) {
+        if (result is ApiResult.Success) {
+            // 프리필(EDIT_INPUTS) 진입이었다면, 새 작업을 성공 제출했으니 원본 실패 작업을 지운다(잔존 실패 기록
+            // 정리 — 사용자 혼란 방지). 실패해도 새 제출은 이미 성공이라 베스트에포트로 무시한다.
+            sourceFailedJobId?.let { jobId -> viewModelScope.launch { artifactApi.deleteJob(jobId) } }
+        }
+        _state.update {
+            when (result) {
+                // 제출 성공(202): 작업이 만들어졌으므로 산출물 목록으로 이동해 진행 상황을 보게 한다(완료는 목록이 폴링).
+                is ApiResult.Success -> it.copy(generating = false, submitted = true)
+                is ApiResult.Failure -> it.copy(
+                    generating = false,
+                    generationError = result.message,
+                    generationErrorCode = result.code,
+                    generationAction = result.action,
+                )
+            }
         }
     }
 
     companion object {
         /** 1차 생성 일일 한도 초과 에러 코드(서버 `CountingGenerationQuotaGuard`와 1:1, 429). */
         const val GENERATION_QUOTA_EXCEEDED = "GENERATION_QUOTA_EXCEEDED"
+
+        /**
+         * 프리필 작업으로 초기 상태를 만든다(EDIT_INPUTS 재시도). 실패 작업이 보관한 종류·경험·목표·양식을 선택으로
+         * 채운다. 이력서면서 양식 미지정(null)이었던 경로는 'AI 양식 자동'으로 복원한다(원래 AI 생성 양식 경로).
+         * 프리필이 없으면 빈 폼(기본값)으로 시작한다. 존재하지 않는 항목 솎아내기는 재료 로드 후 [load]가 처리한다.
+         */
+        private fun initialState(prefillJob: GenerationJobResponse?): ArtifactCreateUiState {
+            if (prefillJob == null) return ArtifactCreateUiState()
+            val isResume = prefillJob.kind == ArtifactKind.RESUME
+            return ArtifactCreateUiState(
+                kind = prefillJob.kind,
+                selectedExperienceIds = prefillJob.experienceIds.toSet(),
+                selectedTargetId = prefillJob.targetId.takeIf { it.isNotBlank() },
+                selectedTemplateId = prefillJob.templateId,
+                // 이력서인데 지정 양식이 없었으면(=AI 생성 양식 경로) '양식 자동'을 선택한 상태로 복원한다.
+                useAiTemplate = isResume && prefillJob.templateId == null,
+            )
+        }
     }
 }

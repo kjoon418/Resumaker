@@ -37,6 +37,20 @@ enum class GenerationJobStatus {
 }
 
 /**
+ * 생성 실패 작업의 '다시 만들기' 분류(서버 `GenerationJobRetryMode`와 1:1). 분류 책임은 서버가 가지며 클라이언트는
+ * 이 값만 보고 버튼 문구·동작을 정한다(스스로 실패 코드를 재분류하지 않음).
+ * - IN_PLACE    : 일시적 실패. 저장된 입력 그대로 목록에서 바로 다시 만든다(제작 화면 이동 없음).
+ * - EDIT_INPUTS : 입력 관련 실패. 입력을 미리 채운 제작 화면으로 이동해 사용자가 고쳐 다시 만든다.
+ * - NONE        : 다시 만들기를 제공하지 않는다(한도 초과·활성·성공).
+ */
+@Serializable
+enum class GenerationJobRetryMode {
+    IN_PLACE,
+    EDIT_INPUTS,
+    NONE,
+}
+
+/**
  * 생성 항목의 종류(서버 `artifact.domain.SectionKind`와 1:1).
  * - 이력서: SUMMARY(요약형), CAREER(경력형).
  * - 포트폴리오: EXPERIENCE_NARRATIVE(선택 경험과 1:1).

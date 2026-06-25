@@ -56,11 +56,30 @@ class ArtifactCreateViewModelTest {
         experiences: List<watson.resumaker.model.dto.ExperienceResponse> = listOf(sampleExperience(id = "e-1")),
         targets: List<TargetResponse> = listOf(target("t-1")),
         templates: List<TemplateResponse> = listOf(template("tpl-1")),
+        prefillJob: GenerationJobResponse? = null,
     ) = ArtifactCreateViewModel(
         artifactApi = artifactApi,
         experienceApi = FakeExperienceApi(getAllResult = ApiResult.Success(experiences)),
         targetApi = FakeTargetApi(getAllResult = ApiResult.Success(targets)),
         templateApi = FakeTemplateApi(getAllResult = ApiResult.Success(templates)),
+        prefillJob = prefillJob,
+    )
+
+    /** EDIT_INPUTS 재시도 프리필 작업(실패 작업이 보관한 입력). */
+    private fun prefill(
+        jobId: String = "job-failed",
+        kind: ArtifactKind = ArtifactKind.RESUME,
+        experienceIds: List<String> = listOf("e-1"),
+        targetId: String = "t-1",
+        templateId: String? = "tpl-1",
+    ) = GenerationJobResponse(
+        jobId = jobId,
+        kind = kind,
+        status = GenerationJobStatus.FAILED,
+        createdAt = "2026-06-22T00:00:00Z",
+        experienceIds = experienceIds,
+        targetId = targetId,
+        templateId = templateId,
     )
 
     @Test
@@ -295,6 +314,59 @@ class ArtifactCreateViewModelTest {
         assertEquals(2, api.generateResumeCallCount)
         assertNull(vm.state.value.generationError)
         assertTrue(vm.state.value.submitted)
+    }
+
+    @Test
+    fun prefillJobRestoresSelectionsAndIsSubmittable() = runTest(dispatcher) {
+        // EDIT_INPUTS 재시도: 실패 작업의 입력(경험·목표·양식)이 그대로 채워져 바로 다시 만들 수 있다.
+        val vm = vmWith(FakeArtifactApi(), prefillJob = prefill())
+        testScheduler.advanceUntilIdle()
+
+        assertEquals(ArtifactKind.RESUME, vm.state.value.kind)
+        assertEquals(setOf("e-1"), vm.state.value.selectedExperienceIds)
+        assertEquals("t-1", vm.state.value.selectedTargetId)
+        assertEquals("tpl-1", vm.state.value.selectedTemplateId)
+        assertTrue(vm.state.value.canSubmit)
+    }
+
+    @Test
+    fun prefillWithNullTemplateRestoresAiTemplateChoice() = runTest(dispatcher) {
+        // 이력서이면서 양식 미지정(null)이었던 실패 작업은 'AI 양식 자동' 선택으로 복원된다(원래 AI 생성 양식 경로).
+        val vm = vmWith(FakeArtifactApi(), prefillJob = prefill(templateId = null))
+        testScheduler.advanceUntilIdle()
+
+        assertTrue(vm.state.value.useAiTemplate)
+        assertNull(vm.state.value.selectedTemplateId)
+        assertTrue(vm.state.value.canSubmit)
+    }
+
+    @Test
+    fun prefillPrunesSelectionsThatNoLongerExist() = runTest(dispatcher) {
+        // SOURCE_MISSING처럼 경험·목표가 삭제된 뒤 프리필되면, 존재하지 않는 선택을 솎아내 같은 실패를 반복하지 않는다.
+        val vm = vmWith(
+            FakeArtifactApi(),
+            experiences = listOf(sampleExperience(id = "e-keep")),
+            prefillJob = prefill(experienceIds = listOf("e-gone"), targetId = "t-gone", templateId = null),
+        )
+        testScheduler.advanceUntilIdle()
+
+        assertTrue(vm.state.value.selectedExperienceIds.isEmpty()) // e-gone 솎아냄
+        assertNull(vm.state.value.selectedTargetId)                // t-gone 솎아냄
+        assertFalse(vm.state.value.canSubmit)                      // 다시 골라야 제출 가능
+    }
+
+    @Test
+    fun prefillDeletesSourceFailedJobAfterSuccessfulSubmit() = runTest(dispatcher) {
+        // 새 작업을 성공 제출하면 원본 실패 작업을 삭제해 잔존 실패 기록을 정리한다.
+        val api = FakeArtifactApi(generateResumeResult = ApiResult.Success(job("job-new")))
+        val vm = vmWith(api, prefillJob = prefill(jobId = "job-failed"))
+        testScheduler.advanceUntilIdle()
+
+        vm.generate()
+        testScheduler.advanceUntilIdle()
+
+        assertTrue(vm.state.value.submitted)
+        assertEquals("job-failed", api.deletedJobId)
     }
 
     @Test

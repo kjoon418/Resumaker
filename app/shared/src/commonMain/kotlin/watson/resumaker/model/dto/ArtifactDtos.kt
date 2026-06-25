@@ -3,6 +3,7 @@ package watson.resumaker.model.dto
 import kotlinx.serialization.Serializable
 import watson.resumaker.model.type.ArtifactKind
 import watson.resumaker.model.type.FactKind
+import watson.resumaker.model.type.GenerationJobRetryMode
 import watson.resumaker.model.type.GenerationJobStatus
 import watson.resumaker.model.type.SectionKind
 import watson.resumaker.model.type.SectionStatus
@@ -71,6 +72,9 @@ data class EditSectionContentRequest(
  *
  * [status]가 SUCCEEDED면 [artifactId]가 채워져 완성 산출물을 가리킨다. FAILED면 [errorCode]/[errorMessage]로
  * 실패 원인을 표면화한다(가짜 성공 금지). PENDING·RUNNING은 활성 상태로, 목록 화면이 폴링으로 완료를 확인한다.
+ *
+ * [retryMode]는 '다시 만들기' 동작 분류(서버 단일 책임). [GenerationJobRetryMode.EDIT_INPUTS]일 때 제작 화면을
+ * 프리필하도록 제출 당시 입력([experienceIds]·[targetId]·[templateId])을 함께 받는다. 기본값은 기존 응답 호환용.
  */
 @Serializable
 data class GenerationJobResponse(
@@ -82,6 +86,10 @@ data class GenerationJobResponse(
     val errorMessage: String? = null,
     val targetCompany: String? = null,
     val createdAt: String,
+    val retryMode: GenerationJobRetryMode = GenerationJobRetryMode.NONE,
+    val experienceIds: List<String> = emptyList(),
+    val targetId: String = "",
+    val templateId: String? = null,
 )
 
 /**
