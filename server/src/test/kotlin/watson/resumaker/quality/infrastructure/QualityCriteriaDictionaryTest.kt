@@ -80,6 +80,26 @@ class QualityCriteriaDictionaryTest {
     }
 
     @Test
+    fun 어절_재배열_의미중복을_어절_자카드로_잡는다() {
+        // given (AI-11) — 같은 어절을 순서만 바꿔 쓴 두 항목. 글자 n-그램은 어순이 달라 못 잡지만 어절 집합은 동일.
+        val a = "결제 시스템 설계 배포 자동화 담당"
+        val b = "배포 자동화 결제 시스템 설계 담당"
+
+        // then — 어절 자카드(=1.0)로 중복 검출.
+        assertThat(dictionary.isDuplicate(a, b)).isTrue()
+    }
+
+    @Test
+    fun 어절이_거의_겹치지_않으면_중복으로_보지_않는다() {
+        // given (AI-11 오탐 가드) — 서로 다른 내용.
+        val a = "결제 시스템 설계와 배포 자동화를 담당했어요."
+        val b = "추천 알고리즘 성능을 개선하고 지표를 분석했어요."
+
+        // then
+        assertThat(dictionary.isDuplicate(a, b)).isFalse()
+    }
+
+    @Test
     fun 같은_라틴_용어의_표기_변형을_검출한다() {
         // given/then (AI-09·K2) — "API"와 "Api"는 같은 용어의 다른 표기.
         val variant = dictionary.findNotationVariant("API를 설계하고 Api 문서를 작성했어요.")

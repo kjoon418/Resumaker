@@ -82,11 +82,31 @@ class QualityCriteriaDictionary(
     }
 
     /**
-     * C3 중복(DUPLICATION): 두 항목 텍스트의 문자 n-그램(shingle) 자카드 유사도가 임계 이상이면 겹친다고 본다.
-     * 공백·개행을 제거해 표기 흔들림에 둔감하게 만든다. 짧은 텍스트(샤이클 미만)는 유사도 0으로 본다(오탐 방지).
+     * C3 중복(DUPLICATION, AI-11): 두 신호 중 **하나라도** 임계를 넘으면 겹친다고 본다.
+     * - 문자 n-그램(shingle) 자카드: 표기·어순이 비슷한 중복을 잡는다(공백 제거로 표기 흔들림에 둔감).
+     * - 어절 토큰 자카드: 글자 n-그램이 놓치는 **재배열·재서술 의미 중복**을 어절 집합 겹침으로 보완한다.
+     *   짧은 항목도 어절 단위로 비교한다. 오탐을 키우지 않도록 최소 어절 수([MIN_WORD_TOKENS]) 가드를 두고
+     *   어절 임계는 글자보다 높게 둔다(어절은 josa로 표면형이 갈려 우연 겹침이 적다 — 보수적).
      */
     fun isDuplicate(a: String, b: String): Boolean =
-        jaccardSimilarity(a, b) >= properties.duplicationThreshold
+        jaccardSimilarity(a, b) >= properties.duplicationThreshold ||
+            wordJaccardSimilarity(a, b) >= properties.duplicationWordThreshold
+
+    /** 어절 토큰 자카드(AI-11). 최소 어절 수 미만이면 0(짧은 단편의 우연 겹침 오탐 방지). */
+    private fun wordJaccardSimilarity(a: String, b: String): Double {
+        val ta = wordTokens(a)
+        val tb = wordTokens(b)
+        if (ta.size < MIN_WORD_TOKENS || tb.size < MIN_WORD_TOKENS) return 0.0
+        val intersection = ta.intersect(tb).size.toDouble()
+        val union = ta.union(tb).size.toDouble()
+        return if (union == 0.0) 0.0 else intersection / union
+    }
+
+    private fun wordTokens(text: String): Set<String> =
+        text.lowercase().split(WHITESPACE_REGEX)
+            .map { token -> token.trim { ch -> !ch.isLetterOrDigit() } }
+            .filter { it.isNotBlank() }
+            .toSet()
 
     private fun jaccardSimilarity(a: String, b: String): Double {
         val sa = shingles(a)
@@ -135,5 +155,8 @@ class QualityCriteriaDictionary(
 
         /** K1 단조 판정 최소 반복 횟수(문장 수 임계 겸용). */
         private const val MONOTONY_MIN_REPEAT = 3
+
+        /** 어절 토큰 자카드(AI-11) 최소 어절 수 가드(짧은 단편 우연 겹침 오탐 방지). */
+        private const val MIN_WORD_TOKENS = 3
     }
 }

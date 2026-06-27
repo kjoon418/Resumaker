@@ -18,6 +18,8 @@ import org.springframework.boot.context.properties.ConfigurationProperties
  * - [maxSectionLength]: 항목 길이 상한(C1). 초과하면 LENGTH 소견(자동 — 결정적).
  * - [duplicationShingleSize]·[duplicationThreshold]: 중복 판정(C3). n-그램(글자) 자카드 유사도가 임계 이상이면
  *   두 항목이 겹친다고 본다.
+ * - [duplicationWordThreshold]: 중복 판정(C3·AI-11) 어절 토큰 자카드 임계. 글자 n-그램이 못 잡는 재배열·재서술
+ *   의미 중복을 어절 집합 겹침으로 보완한다(짧은 항목도 어절 단위로 비교). 글자·어절 둘 중 하나라도 넘으면 중복.
  */
 @ConfigurationProperties(prefix = "resumaker.quality-criteria")
 data class QualityCriteriaProperties(
@@ -29,6 +31,7 @@ data class QualityCriteriaProperties(
     val maxSectionLength: Int = 600,
     val duplicationShingleSize: Int = 6,
     val duplicationThreshold: Double = 0.5,
+    val duplicationWordThreshold: Double = 0.6,
 ) {
     companion object {
         /** 약한 동사 시드(I1·AP1·AP9). 책임 나열형 — 행동·성취 동사로 바꿀 후보. */
