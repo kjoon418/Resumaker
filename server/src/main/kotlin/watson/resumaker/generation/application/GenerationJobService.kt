@@ -6,6 +6,8 @@ import watson.resumaker.account.domain.UserId
 import watson.resumaker.artifact.domain.ArtifactKind
 import watson.resumaker.common.domain.ConflictException
 import watson.resumaker.common.domain.ResourceNotFoundException
+import watson.resumaker.experience.domain.ExperienceRecordId
+import watson.resumaker.experience.infrastructure.ExperienceRecordRepository
 import watson.resumaker.generation.domain.GenerationJob
 import watson.resumaker.generation.domain.GenerationJobId
 import watson.resumaker.generation.domain.GenerationJobRetryMode
@@ -28,12 +30,17 @@ import java.time.Instant
  * 대기열 적재 방지). 실제 차감은 워커가 호출하는 [ArtifactGenerationService] 내부 tx2에서 일어난다(워커가 따로
  * 차감하지 않는다 — 제출 시 점검과 워커 내부 점검이 중복되지만 무해하다).
  *
+ * **제출 시 경험 존재·소유 검증(B7):** 목표와 동형으로 경험도 제출 시 배치 조회로 존재·소유를 검증한다(미존재·타소유는
+ * 404). 트레이드오프 — 제출 시 배치 쿼리 1회로 지연이 미미하게 늘지만, 워커에서야 SOURCE_MISSING으로 비대칭하게
+ * 실패하던 것을 목표와 같은 즉시 피드백으로 맞춘다(빠른 피드백 우선).
+ *
  * **소유 격리:** 모든 조회는 ownerId 조건(findByIdAndOwnerId 등). 타인 소유·미존재는 동일하게 404로 매핑한다.
  */
 @Service
 class GenerationJobService(
     private val jobRepository: GenerationJobRepository,
     private val targetRepository: TargetBriefRepository,
+    private val experienceRepository: ExperienceRecordRepository,
     private val quotaGuard: GenerationQuotaGuard,
     private val mapper: GenerationJobMapper,
     private val clock: Clock,
@@ -42,6 +49,7 @@ class GenerationJobService(
     @Transactional
     fun submitResume(ownerId: UserId, command: GenerateResumeCommand): GenerationJobResponse {
         quotaGuard.checkInitialGeneration(ownerId)
+        validateExperiencesOwned(ownerId, command.experienceIds)
         val target = loadTarget(ownerId, command.targetId)
         val job = GenerationJob.create(
             ownerId = ownerId,
@@ -58,6 +66,7 @@ class GenerationJobService(
     @Transactional
     fun submitPortfolio(ownerId: UserId, command: GeneratePortfolioCommand): GenerationJobResponse {
         quotaGuard.checkInitialGeneration(ownerId)
+        validateExperiencesOwned(ownerId, command.experienceIds)
         val target = loadTarget(ownerId, command.targetId)
         val job = GenerationJob.create(
             ownerId = ownerId,
@@ -131,4 +140,17 @@ class GenerationJobService(
     private fun loadTarget(ownerId: UserId, targetId: TargetBriefId): TargetBrief =
         targetRepository.findByIdAndOwnerId(targetId, ownerId)
             ?: throw ResourceNotFoundException("선택한 목표 정보를 찾을 수 없어요.")
+
+    /**
+     * 제출 시 경험 존재·소유를 배치 조회 1회로 검증한다(B7 — 목표 동기 404 검증과 동형). 요청한 고유 식별자가 모두
+     * 조회돼야 한다(미존재·타소유는 결과에서 빠지므로 수 비교로 검출). 빈 묶음은 제출 DTO @NotEmpty가 거른다.
+     */
+    private fun validateExperiencesOwned(ownerId: UserId, experienceIds: List<ExperienceRecordId>) {
+        if (experienceIds.isEmpty()) return
+        val distinctIds = experienceIds.distinct()
+        val found = experienceRepository.findAllByIdInAndOwnerId(distinctIds.map { it.value }, ownerId)
+        if (found.size != distinctIds.size) {
+            throw ResourceNotFoundException("선택한 경험 중 일부를 찾을 수 없어요.")
+        }
+    }
 }

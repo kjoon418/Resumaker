@@ -14,7 +14,13 @@ import watson.resumaker.artifact.domain.ArtifactKind
 import watson.resumaker.common.domain.ConflictException
 import watson.resumaker.common.domain.QuotaExceededException
 import watson.resumaker.common.domain.ResourceNotFoundException
+import watson.resumaker.experience.domain.ExperienceBody
+import watson.resumaker.experience.domain.ExperienceDetail
+import watson.resumaker.experience.domain.ExperienceRecord
 import watson.resumaker.experience.domain.ExperienceRecordId
+import watson.resumaker.experience.domain.ExperienceTitle
+import watson.resumaker.experience.domain.ExperienceType
+import watson.resumaker.experience.infrastructure.ExperienceRecordRepository
 import watson.resumaker.generation.domain.GenerationJob
 import watson.resumaker.generation.domain.GenerationJobId
 import watson.resumaker.generation.domain.GenerationJobStatus
@@ -40,11 +46,13 @@ class GenerationJobServiceTest {
 
     private val jobRepository: GenerationJobRepository = mock()
     private val targetRepository: TargetBriefRepository = mock()
+    private val experienceRepository: ExperienceRecordRepository = mock()
     private val quotaGuard: GenerationQuotaGuard = mock()
     private val mapper = GenerationJobMapper()
     private val clock: Clock = Clock.fixed(Instant.parse("2026-06-22T00:00:00Z"), ZoneOffset.UTC)
 
-    private val service = GenerationJobService(jobRepository, targetRepository, quotaGuard, mapper, clock)
+    private val service =
+        GenerationJobService(jobRepository, targetRepository, experienceRepository, quotaGuard, mapper, clock)
 
     private val ownerId = UserId(UUID.randomUUID())
     private val targetId = TargetBriefId(UUID.randomUUID())
@@ -58,11 +66,30 @@ class GenerationJobServiceTest {
         job = null,
     )
 
+    /** 제출 시 경험 존재·소유 검증(B7)이 통과하도록 요청 경험을 그대로 돌려주는 stub. */
+    private fun stubExperiencesPresent() {
+        whenever(experienceRepository.findAllByIdInAndOwnerId(any(), any())).thenAnswer { invocation ->
+            @Suppress("UNCHECKED_CAST")
+            val ids = invocation.arguments[0] as Collection<UUID>
+            ids.map { id ->
+                ExperienceRecord.retrieve(
+                    id = ExperienceRecordId(id),
+                    ownerId = ownerId,
+                    title = ExperienceTitle("경험"),
+                    type = ExperienceType.PROJECT,
+                    body = ExperienceBody("본문"),
+                    detail = ExperienceDetail.EMPTY,
+                )
+            }
+        }
+    }
+
     private fun resumeCommand() = GenerateResumeCommand(listOf(expId), targetId, templateId = null)
 
     @Test
     fun 이력서_제출하면_PENDING_작업을_만들고_jobId를_반환한다() {
         // given
+        stubExperiencesPresent()
         whenever(targetRepository.findByIdAndOwnerId(targetId, ownerId)).thenReturn(target())
         whenever(jobRepository.save(any<GenerationJob>())).thenAnswer { it.arguments[0] }
 
@@ -81,6 +108,7 @@ class GenerationJobServiceTest {
     @Test
     fun 포트폴리오_제출하면_PENDING_PORTFOLIO_작업을_만든다() {
         // given
+        stubExperiencesPresent()
         whenever(targetRepository.findByIdAndOwnerId(targetId, ownerId)).thenReturn(target())
         whenever(jobRepository.save(any<GenerationJob>())).thenAnswer { it.arguments[0] }
 
@@ -106,12 +134,25 @@ class GenerationJobServiceTest {
 
     @Test
     fun 목표가_없으면_404() {
-        // given (소유 격리) — 목표 미존재·타인 소유 모두 404.
+        // given (소유 격리) — 목표 미존재·타인 소유 모두 404. 경험은 존재하도록 stub해 목표 검증까지 도달한다.
+        stubExperiencesPresent()
         whenever(targetRepository.findByIdAndOwnerId(targetId, ownerId)).thenReturn(null)
 
         // when and then
         assertThatThrownBy { service.submitResume(ownerId, resumeCommand()) }
             .isInstanceOf(ResourceNotFoundException::class.java)
+        verify(jobRepository, never()).save(any<GenerationJob>())
+    }
+
+    @Test
+    fun 제출_시_경험이_미존재거나_타소유면_404이고_작업을_만들지_않는다() {
+        // given (B7) — 경험 배치 조회가 요청보다 적게 돌아오면(미존재·타소유) 목표와 동형으로 즉시 404.
+        whenever(experienceRepository.findAllByIdInAndOwnerId(any(), any())).thenReturn(emptyList())
+
+        // when and then — 목표 적재·작업 저장 전에 막힌다.
+        assertThatThrownBy { service.submitResume(ownerId, resumeCommand()) }
+            .isInstanceOf(ResourceNotFoundException::class.java)
+        verify(targetRepository, never()).findByIdAndOwnerId(any(), any())
         verify(jobRepository, never()).save(any<GenerationJob>())
     }
 
