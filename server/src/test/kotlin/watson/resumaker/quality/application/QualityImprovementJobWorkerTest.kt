@@ -319,6 +319,22 @@ class QualityImprovementJobWorkerTest {
     }
 
     @Test
+    fun 처치_입력_라벨에_구체_위반_토큰을_정박한다() {
+        // given (AI-04) — 약한 동사("담당했다") 소견(I1). 처치 입력 라벨에 그 표현이 정박돼야 한다.
+        val (artifact, sectionId) = resumeArtifactWithSection()
+        val job = pendingJob(artifact, sectionId) // findingIds = [{sectionId}:I1]
+        whenever(artifactRepository.findByIdAndOwnerId(any(), any())).thenReturn(artifact)
+        val captor = org.mockito.kotlin.argumentCaptor<QualityImprovementInput>()
+        whenever(processor.process(captor.capture())).thenReturn(candidate())
+
+        // when
+        worker.process(job)
+
+        // then — 라벨에 위반 토큰("담당했다")이 실렸다(과도 재작성 방지 정박).
+        assertThat(captor.firstValue.criteria).anyMatch { it.contains("담당했다") }
+    }
+
+    @Test
     fun 클레임_성공하면_reload후_처치한다() {
         // given
         val (artifact, sectionId) = resumeArtifactWithSection()

@@ -199,12 +199,34 @@ class QualityImprovementJobWorker(
                 sectionKind = section.sectionKind,
                 originalContent = section.content.value,
                 criteria = criteria,
+                // AI-04: 라벨에 구체 위반 토큰(evidenceText)을 결정적으로 재산출해 정박한다("이 표현('담당했다')을"식).
+                criteriaPrompts = criteria.map { criterionPrompt(it, section.content.value) },
                 sourceExperienceIds = section.sourceExperienceIds,
                 experiences = experiences.map { it.toSnapshot() },
                 target = artifact.targetSnapshot.toGenerationTarget(),
                 // AI-03: 중복(C3) 처치면 겹치는 짝 항목 본문을 함께 싣는다(처치가 겹침을 보고 덜어낼 수 있게).
                 duplicatedWith = duplicatedBodyFor(section, criteria, active.sections),
             )
+        }
+    }
+
+    /**
+     * AI-04: 처치 라벨에 구체 위반 토큰을 정박한다. findingId가 evidenceText를 싣지 않으므로 진단과 같은 검사기로
+     * 결정적으로 다시 찾아(스키마 무변경) "이 표현('담당했다')을 그 부분만 고치라"고 지시해 과도한 재작성을 줄인다.
+     * 토큰 evidence가 없는 기준(길이·중복 등)은 라벨만 둔다.
+     */
+    private fun criterionPrompt(criterion: QualityCriterion, content: String): String {
+        val evidence = when (criterion) {
+            QualityCriterion.STRONG_VERB -> checks.findWeakVerb(content)
+            QualityCriterion.ACTIVE_VOICE -> checks.findPassiveVoice(content)
+            QualityCriterion.BUZZWORD -> checks.findBuzzword(content)
+            QualityCriterion.VAGUE_METRIC -> checks.findVagueMetric(content)
+            else -> null
+        }
+        return if (evidence != null) {
+            "${criterion.label} (특히 ‘$evidence’ 표현을 정박해 그 부분만 고치고, 나머지는 가능한 한 그대로 두세요)"
+        } else {
+            criterion.label
         }
     }
 
@@ -268,6 +290,7 @@ class QualityImprovementJobWorker(
         val sectionKind: watson.resumaker.artifact.domain.SectionKind,
         val originalContent: String,
         val criteria: List<QualityCriterion>,
+        val criteriaPrompts: List<String>,
         val sourceExperienceIds: List<ExperienceRecordId>,
         val experiences: List<ExperienceSnapshot>,
         val target: TargetSnapshot,
@@ -279,7 +302,7 @@ class QualityImprovementJobWorker(
             definitionKey = definitionKey,
             sectionKind = sectionKind,
             originalContent = originalContent,
-            criteria = criteria.map { it.label },
+            criteria = criteriaPrompts,
             target = target,
             experiences = experiences,
             sourceExperienceIds = sourceExperienceIds,
