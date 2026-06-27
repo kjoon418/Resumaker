@@ -55,3 +55,18 @@ class QuotaExceededException(
     val code: String,
     val action: String? = null,
 ) : DomainException(message)
+
+/**
+ * 외부 AI 생성이 일시적으로 산출물(또는 재생성 항목)을 만들지 못한 경우(B4). 인프라 예외
+ * ([watson.resumaker.generation.infrastructure.ClaudeCliException])와 달리 "재생성 실패"·"전 항목 일시 실패" 같은
+ * **도메인 의미를 메시지로 보존**하되, 사용자가 고칠 입력이 없는 일시적 불가이므로 HTTP 503(RETRY_LATER)로 매핑한다.
+ *
+ * 입력성 거부(근거 0 등 → 400/EDIT_INPUTS)와 의미를 분리한다. 인프라 예외를 재사용하면 핸들러가 메시지를 고정 문구
+ * ("AI 생성을 사용할 수 없어요")로 덮어 "재생성 실패" 의미가 흐려지므로, 도메인 예외로 분리해 문구를 보존한다.
+ *
+ * @param action 사용자가 취할 수 있는 행동 힌트(기본 RETRY_LATER — 잠시 후 다시 시도).
+ */
+class GenerationUnavailableException(
+    message: String,
+    val action: String? = "RETRY_LATER",
+) : DomainException(message)

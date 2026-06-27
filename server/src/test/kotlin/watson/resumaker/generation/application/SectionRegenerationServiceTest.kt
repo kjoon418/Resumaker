@@ -235,16 +235,18 @@ class SectionRegenerationServiceTest {
 
     @Test
     fun 포트가_대상_항목을_끝내_누락하면_503계열_AI일시실패로_던진다() {
-        // given (B4) — 외부 LLM이 대상 키 항목을 끝내 못 돌려준 AI 일시 실패. 근거 0 같은 입력성 거부와 구분해
-        // ClaudeCliException(→503/RETRY_LATER)로 던져야 한다(400 INVALID_REQUEST가 아님).
+        // given (B4 잔여) — 외부 LLM이 대상 키 항목을 끝내 못 돌려준 AI 일시 실패. 근거 0 같은 입력성 거부와 구분해
+        // 도메인 예외 GenerationUnavailableException(→503/RETRY_LATER, "재생성 실패" 문구 보존)으로 던져야 한다.
+        // 인프라 예외(ClaudeCliException) 재사용을 끊어 도메인 의미를 분리한다.
         val (artifact, summaryId, _) = resumeArtifact()
         whenever(artifactRepository.findByIdAndOwnerId(artifact.id, ownerId)).thenReturn(artifact)
         stubLoads()
         val port = FakePort(GenerationOutput(emptyList()))
 
-        // when and then — 새 버전·저장 없이 503 계열 예외 전파.
+        // when and then — 새 버전·저장 없이 도메인 503 계열 예외를 "재생성 실패" 문구와 함께 전파.
         assertThatThrownBy { service(port).regenerateSection(ownerId, command(artifact.id, summaryId)) }
-            .isInstanceOf(watson.resumaker.generation.infrastructure.ClaudeCliException::class.java)
+            .isInstanceOf(watson.resumaker.common.domain.GenerationUnavailableException::class.java)
+            .hasMessageContaining("다시 만들지 못했어요")
         verify(artifactRepository, never()).save(any<Artifact>())
     }
 

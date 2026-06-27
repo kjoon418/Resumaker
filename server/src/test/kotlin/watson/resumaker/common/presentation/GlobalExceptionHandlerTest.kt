@@ -11,6 +11,7 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 import watson.resumaker.common.domain.ConflictException
 import watson.resumaker.common.domain.DomainValidationException
 import watson.resumaker.common.domain.EmptyExperienceSelectionException
+import watson.resumaker.common.domain.GenerationUnavailableException
 import watson.resumaker.common.domain.QuotaExceededException
 import watson.resumaker.common.domain.ResourceNotFoundException
 import watson.resumaker.common.domain.UnauthorizedException
@@ -154,6 +155,22 @@ class GlobalExceptionHandlerTest {
         assertThat(response.body!!.message).contains("AI 생성")
         // 내부 진단 메시지(stderr 등)는 응답 본문에 노출되지 않는다.
         assertThat(response.body!!.message).doesNotContain("API key")
+    }
+
+    @Test
+    fun GenerationUnavailableException은_503으로_매핑되고_도메인_문구와_재시도_action을_보존한다() {
+        // given (B4 잔여) — 재생성 항목 누락 등 AI 일시 실패의 도메인 예외. ClaudeCliException과 같은 503이되
+        // 고정 문구로 덮지 않고 "재생성 실패" 도메인 메시지를 보존해야 한다.
+        val exception = GenerationUnavailableException("항목을 다시 만들지 못했어요. 잠시 후 다시 시도해 주세요.")
+
+        // when
+        val response = handler.handleGenerationUnavailable(exception)
+
+        // then — 503 + AI_GENERATION_UNAVAILABLE + RETRY_LATER + 도메인 메시지 보존.
+        assertThat(response.statusCode).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE)
+        assertThat(response.body!!.code).isEqualTo("AI_GENERATION_UNAVAILABLE")
+        assertThat(response.body!!.action).isEqualTo("RETRY_LATER")
+        assertThat(response.body!!.message).isEqualTo("항목을 다시 만들지 못했어요. 잠시 후 다시 시도해 주세요.")
     }
 
     @Test

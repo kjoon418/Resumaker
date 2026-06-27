@@ -12,12 +12,12 @@ import watson.resumaker.artifact.domain.SectionStatus
 import watson.resumaker.artifact.infrastructure.ArtifactRepository
 import watson.resumaker.common.domain.ConflictException
 import watson.resumaker.common.domain.DomainValidationException
+import watson.resumaker.common.domain.GenerationUnavailableException
 import watson.resumaker.common.domain.ResourceNotFoundException
 import watson.resumaker.experience.domain.ExperienceRecord
 import watson.resumaker.experience.domain.ExperienceRecordId
 import watson.resumaker.experience.infrastructure.ExperienceRecordRepository
 import watson.resumaker.generation.infrastructure.ArtifactVersioningProperties
-import watson.resumaker.generation.infrastructure.ClaudeCliException
 import watson.resumaker.generation.presentation.ArtifactResponse
 import java.time.Clock
 import java.time.Instant
@@ -179,8 +179,9 @@ class SectionRegenerationService(
             ?: throw ResourceNotFoundException("요청하신 산출물을 찾을 수 없어요.")
         if (resolved == null) {
             // 포트가 그 키 항목을 끝내 못 돌려줬다(외부 LLM이 대상 항목을 누락한 AI 일시 실패). 입력성 거부(근거 0 등)와
-            // 달리 사용자가 고칠 게 없으므로 503 계열로 던져 RETRY_LATER로 안내한다(B4). 새 버전은 만들지 않는다.
-            throw ClaudeCliException("항목을 다시 만들지 못했어요. 잠시 후 다시 시도해 주세요.")
+            // 달리 사용자가 고칠 게 없으므로 503 계열로 던져 RETRY_LATER로 안내한다(B4). 인프라 예외(ClaudeCliException)
+            // 대신 도메인 예외를 던져 "재생성 실패" 문구를 보존한다(핸들러가 고정 문구로 덮지 않음). 새 버전은 만들지 않는다.
+            throw GenerationUnavailableException("항목을 다시 만들지 못했어요. 잠시 후 다시 시도해 주세요.")
         }
         val adopted = SectionContent.of(resolved.section.content)
         val now = Instant.now(clock)

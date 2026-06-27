@@ -10,6 +10,7 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 import watson.resumaker.common.domain.ConflictException
 import watson.resumaker.common.domain.DomainValidationException
 import watson.resumaker.common.domain.EmptyExperienceSelectionException
+import watson.resumaker.common.domain.GenerationUnavailableException
 import watson.resumaker.common.domain.QuotaExceededException
 import watson.resumaker.common.domain.ResourceNotFoundException
 import watson.resumaker.common.domain.UnauthorizedException
@@ -145,6 +146,23 @@ class GlobalExceptionHandler {
                     code = "AI_GENERATION_UNAVAILABLE",
                     message = "지금은 AI 생성을 사용할 수 없어요. 잠시 후 다시 시도해 주세요.",
                     action = "RETRY_LATER",
+                ),
+            )
+
+    /**
+     * 외부 AI 생성이 일시적으로 결과를 못 만든 **도메인** 실패(재생성 항목 누락·전 항목 일시 실패 등) → 503 + 재시도 안내(B4).
+     * 인프라 예외([ClaudeCliException])와 같은 503이되, 도메인 메시지("항목을 다시 만들지 못했어요" 등)를 보존해
+     * "재생성 실패"가 "AI 생성을 사용할 수 없어요"로 흐려지지 않게 한다(인프라 예외와 도메인 의미 분리).
+     */
+    @ExceptionHandler(GenerationUnavailableException::class)
+    fun handleGenerationUnavailable(exception: GenerationUnavailableException): ResponseEntity<ErrorResponse> =
+        ResponseEntity
+            .status(HttpStatus.SERVICE_UNAVAILABLE)
+            .body(
+                ErrorResponse(
+                    code = "AI_GENERATION_UNAVAILABLE",
+                    message = exception.message ?: "지금은 AI 생성을 사용할 수 없어요. 잠시 후 다시 시도해 주세요.",
+                    action = exception.action,
                 ),
             )
 
