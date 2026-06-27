@@ -252,6 +252,43 @@ class QualityImprovementJobWorkerTest {
         assertThat(freshGuard.qualityRecorded).isEqualTo(1)
     }
 
+    @Test
+    fun 차감이_실패해도_후보_영속과_작업완료는_유실되지_않는다() {
+        // given (B8) — 점검은 통과하나 차감(recordQualityImprovement)이 실패하는 상황(예: loadUser 부재). 차감이 후보
+        // 영속과 한 tx면 처치 성공까지 롤백되지만, 보상 단계로 분리하면 이미 커밋된 처치·작업완료를 잃지 않아야 한다.
+        val (artifact, sectionId) = resumeArtifactWithSection()
+        val job = pendingJob(artifact, sectionId)
+        whenever(artifactRepository.findByIdAndOwnerId(any(), any())).thenReturn(artifact)
+        whenever(processor.process(any())).thenReturn(candidate())
+        val recordFailingGuard = RecordFailingQuotaGuard()
+        val worker = QualityImprovementJobWorker(
+            jobRepository, candidateRepository, artifactRepository, experienceRepository,
+            processor, checks, recordFailingGuard, properties, transactionTemplate, clock,
+        )
+
+        // when
+        worker.process(job)
+
+        // then — 차감 실패가 처치(후보)·작업완료를 무효화하지 않는다(SUCCEEDED 유지, 후보 영속).
+        assertThat(job.status).isEqualTo(QualityImprovementJobStatus.SUCCEEDED)
+        verify(candidateRepository).saveAll(any<List<QualityCandidate>>())
+        assertThat(recordFailingGuard.recordAttempted).isEqualTo(1)
+    }
+
+    /** 점검은 통과하나 차감 시 예외를 던지는 fake 가드(B8 — 차감 실패와 처치 영속의 분리 검증용). */
+    private class RecordFailingQuotaGuard : watson.resumaker.generation.application.GenerationQuotaGuard {
+        var recordAttempted = 0
+        override fun checkInitialGeneration(ownerId: UserId) {}
+        override fun recordInitialGeneration(ownerId: UserId) {}
+        override fun checkRegeneration(ownerId: UserId, artifactId: watson.resumaker.artifact.domain.ArtifactId, definitionKey: String) {}
+        override fun recordRegeneration(ownerId: UserId, artifactId: watson.resumaker.artifact.domain.ArtifactId, definitionKey: String) {}
+        override fun checkQualityImprovement(ownerId: UserId) {}
+        override fun recordQualityImprovement(ownerId: UserId) {
+            recordAttempted++
+            throw watson.resumaker.common.domain.ResourceNotFoundException("사용자 정보를 찾을 수 없어요.")
+        }
+    }
+
     /** 품질 개선 한도를 소진 상태로 시뮬레이트하는 fake 가드. checkQualityImprovement만 의미 있게 구현한다. */
     private class ExhaustibleQuotaGuard(
         private val qualityExhausted: Boolean,

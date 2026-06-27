@@ -121,15 +121,16 @@ class QualityImprovementJobWorker(
                 }
             }
 
-            // 3. (tx) 후보 영속 + 상태 확정 + 차감. 채택 가능 후보 ≥1이면 성공·차감, 0건이면 실패·미차감(QC7).
-            transactionTemplate.execute {
-                if (candidates.isEmpty()) {
+            // 3. (tx) 후보 영속 + 상태 확정. 채택 가능 후보 ≥1이면 성공, 0건이면 실패(QC7). 차감은 아래 보상 단계로 분리.
+            val shouldRecordQuota = transactionTemplate.execute {
+                val record = if (candidates.isEmpty()) {
                     // 전 항목 검증/생성 실패 → 미차감(QC7), 원본 유지.
                     job.markFailed(
                         "QUALITY_IMPROVEMENT_NO_CANDIDATE",
                         "안전하게 다듬을 수 있는 항목이 없어 원본을 유지했어요.",
                         now,
                     )
+                    false
                 } else {
                     // B2: 처리 시점 재점검(1차 생성 워커의 tx 점검과 대칭). 점검은 접수 시점, 차감은 처리 시점이라
                     // 시차에 여러 건을 빠르게 접수하면 모두 0회에서 통과해 상한을 초과 차감하던 우회를 막는다.
@@ -146,16 +147,27 @@ class QualityImprovementJobWorker(
                             "오늘 품질 개선 횟수를 모두 써서 이 작업을 진행하지 못했어요. 내일 다시 시도하거나 항목을 직접 편집해 보세요.",
                             now,
                         )
+                        false
                     } else {
                         candidateRepository.saveAll(candidates)
                         job.markSucceeded(now)
-                        // 차감(QC7): 채택 가능 후보가 영속된 같은 tx2에서 사용자당 1회 차감한다(작업 성공 = 채택 가능 후보 ≥1).
-                        // 차감은 채택(adopt) 시점이 아니라 작업 성공 시점이다(오너 확정 §5.1-3). incrementOrInsert는 saveAndFlush
-                        // 경유라 후보 INSERT가 clearAutomatically로 폐기되지 않는다(ecfc116 미저장 회귀 방지).
-                        quotaGuard.recordQualityImprovement(job.ownerId)
+                        true
                     }
                 }
                 jobRepository.save(job)
+                record
+            } ?: false
+
+            // B8: 차감(QC7)을 후보 영속·작업완료가 커밋된 뒤 **별도 보상 단계**로 분리한다. 한 tx2에 saveAll+record를
+            // 함께 두면 차감(카운터 영속)이 실패할 때 처치(후보)·작업완료까지 롤백돼 처치 성공이 유실되던 B8을 막는다.
+            // 차감 실패는 이미 커밋된 처치를 무효화하지 않는다(소프트캡 — 최악의 경우 1회 미차감, 처치 유실보다 안전).
+            // 차감 시점은 채택(adopt)이 아니라 작업 성공 시점이다(오너 확정 §5.1-3). B2 재점검(처리 시점)은 위 tx2에 유지된다.
+            if (shouldRecordQuota) {
+                try {
+                    transactionTemplate.execute { quotaGuard.recordQualityImprovement(job.ownerId) }
+                } catch (ignored: Exception) {
+                    // 보상 차감 실패는 처치·작업완료를 되돌리지 않는다(가드 TOCTOU 소프트캡 주석과 동궤). 작업은 SUCCEEDED 유지.
+                }
             }
         } catch (exception: ClaudeCliException) {
             job.markFailed("QUALITY_IMPROVEMENT_UNAVAILABLE", "지금은 AI 개선을 사용할 수 없어요. 잠시 후 다시 시도해 주세요.", now)
