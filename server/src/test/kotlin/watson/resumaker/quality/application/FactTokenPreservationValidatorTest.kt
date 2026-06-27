@@ -141,6 +141,52 @@ class FactTokenPreservationValidatorTest {
         assertThat(preserved).isTrue()
     }
 
+    // ── AI-08: 경험 제목·본문의 한글 고유명사 후보로 일반화·삭제 차단 ──────────────────
+
+    @Test
+    fun 처치가_경험의_한글_고유명사를_일반어로_흐리면_실패한다() {
+        // given (AI-08) — 경험 본문에 "토스"가 영문("Pay")과 인접해 등장(고유명사 후보). 처치가 "토스 결제"를
+        //                 "한 핀테크 결제"로 흐리면 보존 실패로 잡아야 한다(skillTag로 선언되지 않았어도).
+        val experiences = listOf(
+            ExperienceSnapshot(
+                id = ExperienceRecordId(UUID.randomUUID()),
+                title = "결제 시스템 구축",
+                body = "토스 Pay 팀에서 결제 시스템을 만들었다.",
+                situation = null, action = null, result = null,
+                skillTags = emptyList(),
+            ),
+        )
+        val original = "토스 결제 시스템을 구축했다."
+        val candidate = "한 핀테크 결제 시스템을 구축했어요."
+
+        // then — "토스"가 후보 사전에 들고 후보에서 사라졌으므로 보존 실패.
+        assertThat(validator.preserves(original, candidate, experiences)).isFalse()
+        assertThat(validator.missingTokens(original, candidate, experiences)).contains("토스")
+    }
+
+    @Test
+    fun 경험의_한글_고유명사를_그대로_유지하면_통과한다() {
+        // given — 같은 후보("토스")를 그대로 남기고 표현만 다듬은 경우.
+        val experiences = listOf(
+            ExperienceSnapshot(
+                id = ExperienceRecordId(UUID.randomUUID()),
+                title = "결제 시스템 구축",
+                body = "토스 Pay 팀에서 결제 시스템을 만들었다.",
+                situation = null, action = null, result = null,
+                skillTags = emptyList(),
+            ),
+        )
+
+        // then
+        assertThat(
+            validator.preserves(
+                "토스 결제 시스템을 구축했다.",
+                "토스에서 결제 시스템을 안정적으로 구축했어요.",
+                experiences,
+            ),
+        ).isTrue()
+    }
+
     private fun experience(skillTags: List<String>) = ExperienceSnapshot(
         id = ExperienceRecordId(UUID.randomUUID()),
         title = "결제 서버 구축",

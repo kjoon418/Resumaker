@@ -100,6 +100,32 @@ class FactTokenExtractor {
         return candidates.filter { it.first.isNotBlank() }
     }
 
+    /**
+     * 한글 고유명사 후보(AI-08, **보존 검증 전용**). 따옴표 없는 순수 한글 고유명사는 결정적 추출이 불가하므로
+     * (일반 한글 명사와 구별 불가 — 위 한계), 경험 제목·본문 같은 출처 텍스트에서 **보수적 휴리스틱**으로 후보를 모은다:
+     * - **(a) 영문 인접:** 라틴 토큰과 바로 붙어(공백 1개 허용) 등장하는 한글 토큰(기술명·제품명이 영문과 섞이는 패턴).
+     * - **(b) 반복 등장:** 출처 코퍼스에 2회 이상 등장하는 한글 토큰(살아있는 고유 명칭일 가능성이 큼).
+     *
+     * 한글 토큰은 길이 2+ 음절 연속이다. **과추출(과보존)은 안전 실패라 허용**한다 — 이 후보는 보존 검증을 *더 엄격하게*
+     * 만들 뿐(처치가 출처 명칭을 흐리면 보존 실패) 1차 생성 grounding 검증엔 쓰지 않는다(거기선 과추출이 정당 산출물을
+     * 드롭하므로 — §427 한계 유지). 정규화는 [normalizeForNoun]과 동일.
+     */
+    fun koreanProperNounCandidates(texts: List<String>): Set<String> {
+        val candidates = mutableSetOf<String>()
+        // (a) 영문 인접 한글 토큰.
+        texts.forEach { text ->
+            LATIN_THEN_HANGUL_REGEX.findAll(text).forEach { candidates += it.groupValues[1] }
+            HANGUL_THEN_LATIN_REGEX.findAll(text).forEach { candidates += it.groupValues[1] }
+        }
+        // (b) 반복 등장(2회 이상) 한글 토큰.
+        val counts = HashMap<String, Int>()
+        texts.forEach { text ->
+            HANGUL_RUN_REGEX.findAll(text).forEach { counts.merge(it.value, 1, Int::plus) }
+        }
+        counts.forEach { (token, count) -> if (count >= 2) candidates += token }
+        return candidates.map { normalizeForNoun(it) }.filter { it.isNotBlank() }.toSet()
+    }
+
     // ----- 정규화 -----
 
     /** 콤마 제거 후 BigDecimal 값으로 정규화(스케일 무시: 3.0 ≡ 3). 실패 시 null. */
@@ -197,6 +223,15 @@ class FactTokenExtractor {
         private val QUOTED_REGEX = Regex("""[\"'「『]([^\"'」』]{1,40})[\"'」』]""")
 
         private val WHITESPACE_REGEX = Regex("""\s+""")
+
+        /** 한글 음절 2자 이상 연속 토큰(AI-08 후보 추출용). */
+        private val HANGUL_RUN_REGEX = Regex("""[가-힣]{2,}""")
+
+        /** 라틴 토큰 바로 뒤(공백 1개 허용)의 한글 토큰(group1). */
+        private val LATIN_THEN_HANGUL_REGEX = Regex("""[A-Za-z][A-Za-z0-9.+#/-]*\s?([가-힣]{2,})""")
+
+        /** 한글 토큰 바로 뒤(공백 1개 허용)에 라틴 토큰이 오는 경우의 한글 토큰(group1). */
+        private val HANGUL_THEN_LATIN_REGEX = Regex("""([가-힣]{2,})\s?[A-Za-z]""")
 
         const val MAX_QUOTED_NOUN_LENGTH = 40
     }

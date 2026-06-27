@@ -76,20 +76,25 @@ class FactTokenPreservationValidator(
 
         val missingFactTokens = missingNouns + fabricatedNumerics
 
-        // M2: 사용자 선언 skillTags를 고유명사 사전으로. 원본에 있던 태그가 후보에서 사라지면 누락으로 본다.
+        // M2 + AI-08: 한글 고유명사 사전을 두 출처로 만든다.
+        //  - M2: 사용자가 직접 선언한 skillTags(거짓 양성 위험이 거의 없음).
+        //  - AI-08: 경험 제목·본문에서 휴리스틱으로 뽑은 한글 고유명사 후보(영문 인접·반복 등장). 처치가 출처
+        //    명칭을 일반어로 흐리거나(예: "토스 결제"→"한 핀테크 결제") 삭제하면 보존 실패로 잡는다.
+        // 둘 다 원본에 있던 사전 토큰이 후보에서 사라지면 누락으로 본다(보존을 더 엄격하게 — 과보존은 안전 실패).
         // 추출기의 경계 포함 매칭(라틴 끝은 단어경계, 한글 끝은 위치 무관)을 재사용해 짧은 토큰 오매칭을 막는다.
         val normalizedOriginal = extractor.normalizeForNoun(original)
         val normalizedCandidate = extractor.normalizeForNoun(candidate)
-        val missingSkillTags = experiences
-            .flatMap { it.skillTags }
-            .map { extractor.normalizeForNoun(it) }
+        val koreanDictionary = (
+            experiences.flatMap { it.skillTags }.map { extractor.normalizeForNoun(it) } +
+                extractor.koreanProperNounCandidates(experiences.flatMap { listOf(it.title, it.body) })
+            )
             .filter { it.isNotBlank() }
             .distinct()
-            .filter { tag ->
-                extractor.containsQuotedPhrase(normalizedOriginal, tag) &&
-                    !extractor.containsQuotedPhrase(normalizedCandidate, tag)
-            }
+        val missingKoreanNouns = koreanDictionary.filter { token ->
+            extractor.containsQuotedPhrase(normalizedOriginal, token) &&
+                !extractor.containsQuotedPhrase(normalizedCandidate, token)
+        }
 
-        return (missingFactTokens + missingSkillTags).distinct()
+        return (missingFactTokens + missingKoreanNouns).distinct()
     }
 }

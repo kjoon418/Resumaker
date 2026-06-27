@@ -75,6 +75,35 @@ class FactTokenExtractorTest {
     }
 
     @Test
+    fun 영문_인접_한글_토큰은_고유명사_후보로_추출된다() {
+        // given (AI-08) — "토스"가 라틴 토큰("Pay")과 인접해 등장.
+        val candidates = extractor.koreanProperNounCandidates(listOf("토스 Pay 팀에서 결제를 만들었다."))
+
+        // then
+        assertThat(candidates).contains("토스")
+    }
+
+    @Test
+    fun 반복_등장_한글_토큰은_고유명사_후보로_추출된다() {
+        // given (AI-08) — "카프카"가 코퍼스에 2회 등장.
+        val candidates = extractor.koreanProperNounCandidates(
+            listOf("카프카 도입", "카프카 컨슈머를 운영했다."),
+        )
+
+        // then
+        assertThat(candidates).contains("카프카")
+    }
+
+    @Test
+    fun 한_번만_등장하고_영문_인접도_아닌_한글_토큰은_후보가_아니다() {
+        // given (AI-08) — "결제"가 한 번만, 영문 인접도 아님.
+        val candidates = extractor.koreanProperNounCandidates(listOf("결제 시스템을 만들었다."))
+
+        // then — 보수적 휴리스틱이라 단발 일반 명사는 후보로 잡지 않는다.
+        assertThat(candidates).doesNotContain("결제")
+    }
+
+    @Test
     fun 라틴_단어_경계_매칭은_부분문자열_통과를_막는다() {
         // given — "go"는 "google"·"cargo"의 부분문자열이지만 경계가 다르다.
         val corpus = extractor.normalizeForNoun("Google Cloud와 cargo 빌드")
