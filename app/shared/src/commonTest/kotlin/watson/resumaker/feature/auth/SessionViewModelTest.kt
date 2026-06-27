@@ -103,7 +103,8 @@ class SessionViewModelTest {
     }
 
     @Test
-    fun failedLoginShowsGenericSnackbarAndDoesNotAuthenticate() = runTest(dispatcher) {
+    fun failedLoginShowsInlineFormErrorAndDoesNotAuthenticate() = runTest(dispatcher) {
+        // UX-09: 로그인 실패는 사라지는 토스트가 아니라 폼에 머무는 인라인 메시지(formError)로 노출한다.
         val api = FakeAccountApi(loginResult = ApiResult.Failure("이메일 또는 비밀번호가 일치하지 않아요."))
         val session = FakeSessionStore()
         val vm = SessionViewModel(api, session)
@@ -114,9 +115,27 @@ class SessionViewModelTest {
         vm.submit()
         testScheduler.advanceUntilIdle()
 
-        assertEquals("이메일 또는 비밀번호가 일치하지 않아요.", vm.state.value.snackbarMessage)
+        assertEquals("이메일 또는 비밀번호가 일치하지 않아요.", vm.state.value.formError)
+        assertNull(vm.state.value.snackbarMessage)
         assertNull(vm.state.value.authenticatedUserId)
         assertNull(session.currentUserId())
+    }
+
+    @Test
+    fun editingInputClearsLoginFormError() = runTest(dispatcher) {
+        // 인라인 오류는 사용자가 입력을 고치면 즉시 사라진다(머물되 방해하지 않음).
+        val api = FakeAccountApi(loginResult = ApiResult.Failure("이메일 또는 비밀번호가 일치하지 않아요."))
+        val vm = SessionViewModel(api, FakeSessionStore())
+
+        vm.selectMode(SessionMode.LOGIN)
+        vm.onEmailChange("name@example.com")
+        vm.onPasswordChange("wrongpass")
+        vm.submit()
+        testScheduler.advanceUntilIdle()
+        assertNotNull(vm.state.value.formError)
+
+        vm.onPasswordChange("another")
+        assertNull(vm.state.value.formError)
     }
 
     @Test

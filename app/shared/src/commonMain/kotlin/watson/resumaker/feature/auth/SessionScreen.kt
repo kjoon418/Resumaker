@@ -126,6 +126,14 @@ fun SessionScreen(
                 }
 
                 SessionMode.LOGIN -> {
+                    // 로그인 실패는 사라지는 토스트가 아니라 폼에 머무는 인라인 메시지로 보여준다(UX-09).
+                    state.formError?.let { error ->
+                        Text(
+                            text = error,
+                            style = RmTextStyles.bodyS,
+                            color = colors.danger,
+                        )
+                    }
                     PrimaryButton(
                         text = "로그인",
                         onClick = viewModel::submit,

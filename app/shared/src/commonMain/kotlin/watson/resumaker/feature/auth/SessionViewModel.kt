@@ -26,6 +26,11 @@ data class SessionUiState(
     val password: String = "",
     val emailError: String? = null,
     val passwordError: String? = null,
+    /**
+     * 폼 하단에 지속적으로 보여주는 인라인 오류(특정 필드에 귀속되지 않는 실패). 로그인 실패는 계정 열거 방지를 위해
+     * 이메일/비번을 구분하지 않으므로 여기로 모은다 — 사라지는 토스트 대신 머무는 메시지로 보여준다(UX-09).
+     */
+    val formError: String? = null,
     val submitting: Boolean = false,
     val snackbarMessage: String? = null,
     /** 사용자가 진입을 확정한 userId(상위가 관찰해 홈으로 이동). */
@@ -47,10 +52,10 @@ class SessionViewModel(
     val state: StateFlow<SessionUiState> = _state.asStateFlow()
 
     fun selectMode(mode: SessionMode) =
-        _state.update { it.copy(mode = mode, emailError = null, passwordError = null) }
+        _state.update { it.copy(mode = mode, emailError = null, passwordError = null, formError = null) }
 
-    fun onEmailChange(value: String) = _state.update { it.copy(email = value, emailError = null) }
-    fun onPasswordChange(value: String) = _state.update { it.copy(password = value, passwordError = null) }
+    fun onEmailChange(value: String) = _state.update { it.copy(email = value, emailError = null, formError = null) }
+    fun onPasswordChange(value: String) = _state.update { it.copy(password = value, passwordError = null, formError = null) }
 
     fun consumeSnackbar() = _state.update { it.copy(snackbarMessage = null) }
 
@@ -104,7 +109,7 @@ class SessionViewModel(
             return
         }
 
-        _state.update { it.copy(submitting = true) }
+        _state.update { it.copy(submitting = true, formError = null) }
         viewModelScope.launch {
             val result = accountApi.login(
                 LoginRequest(email = current.email.trim(), password = current.password),
@@ -116,8 +121,9 @@ class SessionViewModel(
                     _state.update { it.copy(submitting = false, authenticatedUserId = userId) }
                 }
                 is ApiResult.Failure -> _state.update {
-                    // 계정 열거 방지를 위해 서버는 이메일/비번을 구분하지 않는 일반 메시지를 준다 → 스낵바로 노출.
-                    it.copy(submitting = false, snackbarMessage = result.message)
+                    // 계정 열거 방지를 위해 서버는 이메일/비번을 구분하지 않는 일반 메시지를 준다. 사라지는 토스트가
+                    // 아니라 폼에 머무는 인라인 메시지로 노출한다(UX-09 — 가입 실패와 동일하게 지속 표시).
+                    it.copy(submitting = false, formError = result.message)
                 }
             }
         }
