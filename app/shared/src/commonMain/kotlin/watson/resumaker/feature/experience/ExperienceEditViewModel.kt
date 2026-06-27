@@ -42,7 +42,8 @@ data class ExperienceEditUiState(
     /** 저장 성공 시 true(상위가 목록으로 복귀). */
     val saved: Boolean = false,
     /**
-     * 경험 점검(결정적 보강 유도) 소견. 편집 모드 로드 시·저장 후 갱신한다. null=아직 점검 안 함(패널 숨김),
+     * 경험 점검(결정적 보강 유도) 소견. 편집 모드 진입 시 1회 채운다(저장은 즉시 목록으로 복귀하므로 저장 후
+     * 재점검은 하지 않는다 — 보강 결과는 목록에서 다시 들어와 확인한다). null=아직 점검 안 함(패널 숨김),
      * 빈 목록=점검했고 보강할 게 없음(긍정 빈 상태). 신규(미저장) 경험에는 점검하지 않는다.
      */
     val reviewFindings: List<ExperienceReviewFindingDto>? = null,
