@@ -11,7 +11,9 @@ import org.springframework.boot.context.properties.ConfigurationProperties
  *
  * - [weakVerbs]: 약한 동사 사전(I1). 책임 나열형("담당했다") 표현. 매칭되면 STRONG_VERB 소견.
  * - [buzzwords]: 버즈워드 사전(C2). 막연한 형용사·자기소개 상투구. 매칭되면 BUZZWORD 소견.
- * - [vagueMetricTerms]: 모호 수치·규모어 사전(I4). "대용량", "200% 증가" 류 추상 규모어. 매칭되면 VAGUE_METRIC 소견.
+ * - [vagueMetricTerms]: 모호 수치·규모어 사전(I4). "대용량" 류 추상 규모어. 매칭되면 VAGUE_METRIC 소견.
+ * - [vagueMetricPatterns]: 모호 수치 정규식(I4·AP5). 기준선 없는 퍼센트 변화("200% 증가"·"30% 개선"), "N배",
+ *   "수십·수백" 류. 시드 사전과 **합집합**으로 본다(둘 중 하나라도 매칭되면 VAGUE_METRIC).
  * - [passiveSuffixes]: 수동태 종결 패턴(I2). 매칭되면 ACTIVE_VOICE 소견.
  * - [maxSectionLength]: 항목 길이 상한(C1). 초과하면 LENGTH 소견(자동 — 결정적).
  * - [duplicationShingleSize]·[duplicationThreshold]: 중복 판정(C3). n-그램(글자) 자카드 유사도가 임계 이상이면
@@ -22,6 +24,7 @@ data class QualityCriteriaProperties(
     val weakVerbs: List<String> = DEFAULT_WEAK_VERBS,
     val buzzwords: List<String> = DEFAULT_BUZZWORDS,
     val vagueMetricTerms: List<String> = DEFAULT_VAGUE_METRIC_TERMS,
+    val vagueMetricPatterns: List<String> = DEFAULT_VAGUE_METRIC_PATTERNS,
     val passiveSuffixes: List<String> = DEFAULT_PASSIVE_SUFFIXES,
     val maxSectionLength: Int = 600,
     val duplicationShingleSize: Int = 6,
@@ -44,6 +47,18 @@ data class QualityCriteriaProperties(
         private val DEFAULT_VAGUE_METRIC_TERMS = listOf(
             "대용량", "대규모", "다수의", "수많은", "상당한", "획기적", "비약적", "크게 향상", "대폭",
             "중요한 역할", "복잡한",
+        )
+
+        /**
+         * 모호 수치 정규식 시드(I4·AP5 핵심 안티패턴). 시드 사전이 못 잡는 **수치형 모호 표현**을 패턴으로 잡는다.
+         * - 기준선 없는 퍼센트 변화: "200% 증가", "30% 개선/향상/단축/감소/절감/상승/성장".
+         * - 배수 표현: "2배", "10배 향상" 류("N배").
+         * - 추상 규모 수사: "수십", "수백", "수천", "수만".
+         */
+        private val DEFAULT_VAGUE_METRIC_PATTERNS = listOf(
+            """\d+\s*%\s*(증가|증대|개선|향상|단축|감소|절감|상승|성장)""",
+            """\d+\s*배""",
+            """수(십|백|천|만)""",
         )
 
         /** 수동태 종결 패턴 시드(I2·AP13). "~되었다/~되어/~지다" 류. */

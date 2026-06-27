@@ -18,6 +18,9 @@ class QualityCriteriaDictionary(
     private val properties: QualityCriteriaProperties,
 ) {
 
+    /** 모호 수치 정규식(AI-01·AP5)을 1회만 컴파일해 둔다. */
+    private val vagueMetricRegexes: List<Regex> = properties.vagueMetricPatterns.map { Regex(it) }
+
     /** I1 약한 동사(STRONG_VERB): 어절 시작 경계에서 매칭된 첫 약한 동사를 근거로 돌려준다(없으면 null). */
     fun findWeakVerb(content: String): String? =
         properties.weakVerbs.firstOrNull { containsAtWordStart(content, it) }
@@ -26,9 +29,14 @@ class QualityCriteriaDictionary(
     fun findBuzzword(content: String): String? =
         properties.buzzwords.firstOrNull { containsAtWordStart(content, it) }
 
-    /** I4 모호 수치·규모어(VAGUE_METRIC): 어절 시작 경계에서 매칭된 첫 규모어를 근거로 돌려준다. */
+    /**
+     * I4 모호 수치·규모어(VAGUE_METRIC, AI-01): 시드 규모어 사전과 모호 수치 정규식(AP5)의 **합집합**으로 본다.
+     * 어절 시작 경계에서 매칭된 첫 규모어를 근거로, 없으면 정규식이 잡은 첫 모호 수치 표현(매칭 문자열)을 근거로 돌려준다.
+     * 둘 다 없으면 null.
+     */
     fun findVagueMetric(content: String): String? =
         properties.vagueMetricTerms.firstOrNull { containsAtWordStart(content, it) }
+            ?: vagueMetricRegexes.firstNotNullOfOrNull { it.find(content)?.value }
 
     /**
      * I2 수동태(ACTIVE_VOICE): 매칭된 첫 수동 종결 패턴을 근거로 돌려준다.

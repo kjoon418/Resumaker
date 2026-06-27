@@ -38,6 +38,28 @@ class QualityCriteriaDictionaryTest {
     }
 
     @Test
+    fun 모호수치_퍼센트_변화는_정규식으로_검출된다() {
+        // given/then (AI-01·AP5) — 기준선 없는 "200% 증가"·"30% 개선"을 시드 사전이 아닌 정규식이 잡는다.
+        assertThat(dictionary.findVagueMetric("매출을 200% 증가시켰어요.")).isEqualTo("200% 증가")
+        assertThat(dictionary.findVagueMetric("응답 속도를 30% 개선했어요.")).isEqualTo("30% 개선")
+    }
+
+    @Test
+    fun 모호수치_배수와_규모수사도_검출된다() {
+        // given/then (AI-01·AP5) — "N배", "수십·수백" 류.
+        assertThat(dictionary.findVagueMetric("처리량이 10배 늘었어요.")).isEqualTo("10배")
+        assertThat(dictionary.findVagueMetric("수십 개의 기능을 만들었어요.")).isEqualTo("수십")
+    }
+
+    @Test
+    fun 시드_규모어와_정규식은_합집합으로_본다() {
+        // given/then — 시드 규모어("대용량")는 여전히 잡고, 둘 다 없으면 null.
+        assertThat(dictionary.findVagueMetric("대용량 트래픽을 처리했어요.")).isEqualTo("대용량")
+        assertThat(dictionary.findVagueMetric("응답 속도를 40% 단축해 320ms를 달성했어요.")).isEqualTo("40% 단축")
+        assertThat(dictionary.findVagueMetric("결제 모듈을 구현했어요.")).isNull()
+    }
+
+    @Test
     fun 수동태_종결은_어간_뒤_접미에서도_매칭된다() {
         // given/then — 수동 종결("되어")은 어간("구현")에 붙는 접미라 경계 매칭을 쓰지 않고 그대로 잡는다.
         assertThat(dictionary.findPassiveVoice("결제 모듈이 구현되어 운영됐어요.")).isEqualTo("되어")
