@@ -106,6 +106,15 @@ class QualityReviewServiceTest {
         detail = ExperienceDetail.EMPTY,
     )
 
+    private fun experienceWithResult(body: String, result: String): ExperienceRecord = ExperienceRecord.retrieve(
+        id = exp1,
+        ownerId = ownerId,
+        title = ExperienceTitle("경험"),
+        type = ExperienceType.PROJECT,
+        body = ExperienceBody(body),
+        detail = ExperienceDetail.of(null, null, result, null, emptyList()),
+    )
+
     @Test
     fun 약한_동사_버즈워드_수동태를_소견으로_검출한다() {
         // given — 약한 동사("담당했다")·버즈워드("열정적")·수동태("개선되었다")가 한 항목에 섞여 있다.
@@ -210,6 +219,38 @@ class QualityReviewServiceTest {
         assertThat(reviewed.sectionId).isEqualTo(dirty.id)
         // 모든 소견의 sectionId가 표시 맥락 항목으로 매칭된다(클라이언트 묶음 키 정합).
         assertThat(report.findings.map { it.sectionId }.toSet()).containsExactly(dirty.id)
+    }
+
+    @Test
+    fun 경험_성과의_수치가_항목에_반영되지_않으면_개선제안을_낸다() {
+        // given (AI-09·I3) — 출처 경험의 result에 수치(320ms)가 있으나 항목 본문엔 수치가 없다.
+        val artifact = resume(section("결제 시스템을 새로 설계해 안정적으로 운영했어요."))
+        whenever(artifactRepository.findByIdAndOwnerId(any(), any())).thenReturn(artifact)
+        whenever(experienceRepository.findAllByIdInAndOwnerId(any(), any()))
+            .thenReturn(listOf(experienceWithResult("결제 시스템 개발", "응답 속도를 320ms 단축했다.")))
+
+        // when
+        val report = service.review(ownerId, artifact.id.value)
+
+        // then — I3가 SUGGESTION으로 잡히고 대상 경험을 가리킨다(텍스트는 바꾸지 않음 → 유료 처치 아님).
+        val finding = report.findings.first { it.criterion == QualityCriterion.RESULT_NOT_REFLECTED }
+        assertThat(finding.treatmentKind).isEqualTo(TreatmentKind.SUGGESTION)
+        assertThat(finding.suggestionGuide!!.targetExperienceId).isEqualTo(exp1)
+    }
+
+    @Test
+    fun 경험_성과의_수치가_항목에_반영되면_I3를_내지_않는다() {
+        // given (I3) — 항목 본문이 경험 성과 수치(320)를 담고 있으면 미반영 소견을 내지 않는다.
+        val artifact = resume(section("결제 응답 속도를 320ms 단축했어요."))
+        whenever(artifactRepository.findByIdAndOwnerId(any(), any())).thenReturn(artifact)
+        whenever(experienceRepository.findAllByIdInAndOwnerId(any(), any()))
+            .thenReturn(listOf(experienceWithResult("결제 시스템 개발", "응답 속도를 320ms 단축했다.")))
+
+        // when
+        val report = service.review(ownerId, artifact.id.value)
+
+        // then
+        assertThat(report.findings.map { it.criterion }).doesNotContain(QualityCriterion.RESULT_NOT_REFLECTED)
     }
 
     @Test

@@ -131,7 +131,50 @@ class QualityReviewService(
                 )
             }
         }
+        // K1 끝맺음 단조(AI-09) — 표현 다듬기지만 유료 처치 남발을 피해 개선 제안(SUGGESTION)으로만 안내.
+        checks.findMonotonousEnding(content)?.let { ending ->
+            findings += finding(
+                section, QualityCriterion.MONOTONOUS_ENDING, TreatmentKind.SUGGESTION, evidenceText = ending,
+                suggestionGuide = SuggestionGuide(message = "‘…$ending’ 같은 끝맺음이 반복돼요. 문장 끝을 다양하게 바꾸면 읽기 좋아요."),
+            )
+        }
+        // K2 표기 변형(AI-09) — 같은 용어의 표기를 섞어 쓴 경우. 자동 통일은 의도와 어긋날 수 있어 개선 제안으로 둔다.
+        checks.findNotationVariant(content)?.let { variants ->
+            findings += finding(
+                section, QualityCriterion.NOTATION_VARIANT, TreatmentKind.SUGGESTION, evidenceText = variants,
+                suggestionGuide = SuggestionGuide(message = "‘$variants’처럼 같은 용어의 표기가 섞여 있어요. 하나로 통일해 주세요."),
+            )
+        }
+        // I3 성과 미반영(AI-09) — 출처 경험에 측정 가능한 성과(result의 수치)가 있는데 항목에 반영되지 않았으면 보강 안내.
+        findResultNotReflected(section, content, experiencesById)?.let { targetId ->
+            findings += finding(
+                section, QualityCriterion.RESULT_NOT_REFLECTED, TreatmentKind.SUGGESTION,
+                suggestionGuide = SuggestionGuide(
+                    message = "이 경험에는 성과(수치)가 있는데 항목에 드러나지 않았어요. 성과를 반영하면 설득력이 높아져요.",
+                    targetExperienceId = targetId,
+                ),
+            )
+        }
         return findings
+    }
+
+    /**
+     * I3(AI-09): 항목의 출처 경험 중 **result에 수치가 있는데** 항목 본문이 그 수치를 하나도 담지 않은 첫 경험 id를
+     * 돌려준다(없으면 null). 측정 가능한 성과가 이력서에서 누락된 결정적 신호다.
+     */
+    private fun findResultNotReflected(
+        section: ArtifactSection,
+        content: String,
+        experiencesById: Map<ExperienceRecordId, ExperienceRecord>,
+    ): ExperienceRecordId? {
+        val sectionNumbers = factTokenExtractor.extractNumericValues(content)
+        return section.sourceExperienceIds.firstOrNull { id ->
+            val experience = experiencesById[id] ?: return@firstOrNull false
+            val result = experience.detail.result
+            if (result.isNullOrBlank()) return@firstOrNull false
+            val resultNumbers = factTokenExtractor.extractNumericValues(result)
+            resultNumbers.isNotEmpty() && resultNumbers.none { it in sectionNumbers }
+        }
     }
 
     /** 항목 간 중복(C3): 모든 항목 쌍을 비교해 유사하면 **뒤 항목**에 소견을 단다(앞 항목으로 통합 — 자동 적용). */

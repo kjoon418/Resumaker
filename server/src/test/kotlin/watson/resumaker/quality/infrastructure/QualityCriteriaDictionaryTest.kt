@@ -64,4 +64,28 @@ class QualityCriteriaDictionaryTest {
         // given/then — 수동 종결("되어")은 어간("구현")에 붙는 접미라 경계 매칭을 쓰지 않고 그대로 잡는다.
         assertThat(dictionary.findPassiveVoice("결제 모듈이 구현되어 운영됐어요.")).isEqualTo("되어")
     }
+
+    @Test
+    fun 같은_끝맺음이_세_문장_이상_반복되면_단조로_검출된다() {
+        // given/then (AI-09·K1) — "했다"가 세 문장에서 반복.
+        assertThat(dictionary.findMonotonousEnding("결제를 설계했다. 서버를 구현했다. 배포를 자동화했다."))
+            .isEqualTo("했다")
+    }
+
+    @Test
+    fun 끝맺음이_다양하면_단조로_보지_않는다() {
+        // given/then (K1) — 끝맺음이 제각각이면 null.
+        assertThat(dictionary.findMonotonousEnding("결제를 설계했어요. 서버를 구현했고 안정화했습니다. 배포를 자동화함."))
+            .isNull()
+    }
+
+    @Test
+    fun 같은_라틴_용어의_표기_변형을_검출한다() {
+        // given/then (AI-09·K2) — "API"와 "Api"는 같은 용어의 다른 표기.
+        val variant = dictionary.findNotationVariant("API를 설계하고 Api 문서를 작성했어요.")
+        assertThat(variant).isNotNull
+        assertThat(variant!!.lowercase()).contains("api")
+        // 표기가 일관되면 null.
+        assertThat(dictionary.findNotationVariant("API를 일관되게 설계했어요.")).isNull()
+    }
 }

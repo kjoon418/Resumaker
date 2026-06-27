@@ -54,6 +54,34 @@ class QualityCriteriaDictionary(
     fun isEmptyContent(content: String): Boolean = content.isBlank()
 
     /**
+     * K1 끝맺음 단조(MONOTONOUS_ENDING, AI-09): 문장들을 종결부로 나눠 끝 2음절을 세고, 한 끝맺음이
+     * [MONOTONY_MIN_REPEAT]회 이상 반복되면 그 끝맺음을 근거로 돌려준다(없으면 null). 결정적·순수.
+     * 문장이 [MONOTONY_MIN_REPEAT] 미만이면 단조 판단을 하지 않는다(짧은 항목 오탐 방지).
+     */
+    fun findMonotonousEnding(content: String): String? {
+        val endings = content.split(SENTENCE_SPLIT_REGEX)
+            .map { it.trim().trimEnd { ch -> !ch.isLetterOrDigit() } }
+            .filter { it.length >= 2 }
+            .map { it.takeLast(2) }
+        if (endings.size < MONOTONY_MIN_REPEAT) return null
+        val (ending, count) = endings.groupingBy { it }.eachCount().maxByOrNull { it.value } ?: return null
+        return if (count >= MONOTONY_MIN_REPEAT) ending else null
+    }
+
+    /**
+     * K2 표기 변형(NOTATION_VARIANT, AI-09): 같은 라틴 토큰을 대소문자 등 **다른 표기**로 섞어 쓰면 그 변형 쌍을
+     * 근거로 돌려준다(예: "API"와 "Api", "GitHub"와 "Github"). 케이스 폴딩으로 같은데 표면형이 2가지 이상이면 검출.
+     * 결정적·순수. 길이 2+ 라틴 토큰만 본다(한 글자 약어 오탐 방지).
+     */
+    fun findNotationVariant(content: String): String? {
+        val variants = LATIN_TOKEN_REGEX.findAll(content).map { it.value }.filter { it.length >= 2 }
+            .groupBy { it.lowercase() }
+            .values.firstOrNull { group -> group.distinct().size >= 2 }
+            ?: return null
+        return variants.distinct().joinToString("/")
+    }
+
+    /**
      * C3 중복(DUPLICATION): 두 항목 텍스트의 문자 n-그램(shingle) 자카드 유사도가 임계 이상이면 겹친다고 본다.
      * 공백·개행을 제거해 표기 흔들림에 둔감하게 만든다. 짧은 텍스트(샤이클 미만)는 유사도 0으로 본다(오탐 방지).
      */
@@ -98,5 +126,14 @@ class QualityCriteriaDictionary(
 
     companion object {
         private val WHITESPACE_REGEX = Regex("""\s+""")
+
+        /** 문장 분할(K1): 종결 부호·개행으로 끊는다. */
+        private val SENTENCE_SPLIT_REGEX = Regex("""[.!?\n]+""")
+
+        /** 라틴 토큰(K2 표기 변형 검출용). */
+        private val LATIN_TOKEN_REGEX = Regex("""[A-Za-z][A-Za-z0-9.+#/-]*""")
+
+        /** K1 단조 판정 최소 반복 횟수(문장 수 임계 겸용). */
+        private const val MONOTONY_MIN_REPEAT = 3
     }
 }
