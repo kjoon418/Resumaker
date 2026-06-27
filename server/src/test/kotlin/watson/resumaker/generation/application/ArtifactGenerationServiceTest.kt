@@ -294,6 +294,26 @@ class ArtifactGenerationServiceTest {
     }
 
     @Test
+    fun 전_항목이_생성실패면_일시적_예외로_던져_IN_PLACE_재시도로_보낸다() {
+        // given (B5) — 포트가 항목을 돌려줬으나 전부 succeeded=false(전 항목 일시 실패). 근거 0 입력 문제(NO_CONTENT)와
+        // 달리 같은 입력 재시도로 성공 가능하므로 GenerationUnavailableException(일시적)으로 던져야 한다.
+        stubResumeMaterial()
+        val output = GenerationOutput(
+            listOf(
+                generated("section-0-요약", SectionKind.SUMMARY, "", succeeded = false, sources = listOf(exp1)),
+                generated("section-1-경력", SectionKind.CAREER, "", succeeded = false, sources = listOf(exp1)),
+            ),
+        )
+        val port = FakePort(output)
+
+        // when and then — 저장·차감 없이 일시적 예외 전파(빈 GENERATION_FAILED 산출물을 만들지 않음).
+        assertThatThrownBy { service(port).generateResume(ownerId, resumeCommand()) }
+            .isInstanceOf(watson.resumaker.common.domain.GenerationUnavailableException::class.java)
+        verify(artifactRepository, never()).save(any<Artifact>())
+        assertThat(quotaGuard.initialRecorded).isEqualTo(0)
+    }
+
+    @Test
     fun 포트폴리오는_선택_경험당_1항목을_재료로_넘긴다() {
         // given (도메인 이해 §357)
         stubPortfolioMaterial()

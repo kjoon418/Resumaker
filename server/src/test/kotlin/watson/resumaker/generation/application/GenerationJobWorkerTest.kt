@@ -175,6 +175,23 @@ class GenerationJobWorkerTest {
     }
 
     @Test
+    fun 전_항목_일시실패_예외는_AI_UNAVAILABLE로_FAILED되어_IN_PLACE로_분류된다() {
+        // given (B5) — 파이프라인이 전 항목 일시 실패를 GenerationUnavailableException으로 던지면, 입력 수정이 아니라
+        // 같은 입력 재시도(IN_PLACE)로 가도록 AI_UNAVAILABLE로 매핑해야 한다(NO_CONTENT가 아님).
+        val job = pendingResume()
+        whenever(generationService.generateResume(any(), any(), anyOrNull()))
+            .thenThrow(watson.resumaker.common.domain.GenerationUnavailableException("지금은 생성 결과를 만들지 못했어요."))
+
+        // when
+        worker.process(job)
+
+        // then — AI_UNAVAILABLE 코드 → retryMode IN_PLACE.
+        assertThat(job.status).isEqualTo(GenerationJobStatus.FAILED)
+        assertThat(job.errorCode).isEqualTo("AI_GENERATION_UNAVAILABLE")
+        assertThat(job.retryMode()).isEqualTo(watson.resumaker.generation.domain.GenerationJobRetryMode.IN_PLACE)
+    }
+
+    @Test
     fun 원본_삭제_미존재_예외는_SOURCE_MISSING으로_FAILED() {
         // given
         val job = pendingResume()

@@ -3,6 +3,7 @@ package watson.resumaker.generation.application
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Component
 import watson.resumaker.common.domain.DomainValidationException
+import watson.resumaker.common.domain.GenerationUnavailableException
 import watson.resumaker.common.domain.QuotaExceededException
 import watson.resumaker.common.domain.ResourceNotFoundException
 import watson.resumaker.experience.domain.ExperienceRecordId
@@ -115,6 +116,10 @@ class GenerationJobWorker(
         } catch (exception: ClaudeCliException) {
             // 외부 AI 일시 불가(API 키 없음·CLI 비정상 종료·파싱 오류 등).
             fail(job, GenerationErrorCode.AI_UNAVAILABLE, "지금은 AI 생성을 사용할 수 없어요. 잠시 후 다시 시도해 주세요.")
+        } catch (exception: GenerationUnavailableException) {
+            // B5: 전 항목 일시 실패(LLM이 본문을 끝내 못 만듦) — 입력 문제가 아니므로 같은 입력으로 다시 만들 수 있게
+            // AI_UNAVAILABLE(IN_PLACE)로 분류한다. 근거 0/구조 불일치(NO_CONTENT→EDIT_INPUTS)와 구분.
+            fail(job, GenerationErrorCode.AI_UNAVAILABLE, exception.message ?: "지금은 생성 결과를 만들지 못했어요. 잠시 후 다시 시도해 주세요.")
         } catch (exception: DomainValidationException) {
             // 전 항목 실패 등으로 만들 산출물이 없는 경우(파이프라인이 "생성할 수 있는 항목이 없어요…"를 던짐).
             fail(job, GenerationErrorCode.NO_CONTENT, exception.message ?: "생성할 수 있는 항목이 없어요.")

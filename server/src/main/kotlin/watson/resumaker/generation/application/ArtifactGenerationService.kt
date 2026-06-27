@@ -16,6 +16,7 @@ import watson.resumaker.artifact.domain.TemplateSnapshot
 import watson.resumaker.artifact.infrastructure.ArtifactRepository
 import watson.resumaker.common.domain.DomainValidationException
 import watson.resumaker.common.domain.EmptyExperienceSelectionException
+import watson.resumaker.common.domain.GenerationUnavailableException
 import watson.resumaker.common.domain.ResourceNotFoundException
 import watson.resumaker.experience.domain.ExperienceRecord
 import watson.resumaker.experience.domain.ExperienceRecordId
@@ -277,9 +278,16 @@ class ArtifactGenerationService(
         // 결정적 정합화(Cycle B 책임): 양식/구조 불변식에 어긋나는 고아·중복·종류 불일치 항목을 사전 드롭해
         // 도메인 init의 전체 hard-throw로 유료 생성이 통째 손실되지 않게 한다(§357·§371, 수용 기준 21/22).
         val reconciled = reconcileSections(kind, material, resolved)
+        // B5: 포트가 항목을 돌려줬으나 **전부 생성 실패**(succeeded=false → GENERATION_FAILED)면, 근거 0 입력 문제가
+        // 아니라 외부 LLM의 일시적 전 항목 실패다. 같은 입력 재시도로 성공 가능하므로 입력성 거부(NO_CONTENT→EDIT_INPUTS)와
+        // 구분해 일시적 예외로 던진다(워커가 IN_PLACE로 분류). 빈 GENERATION_FAILED 산출물을 만들어 두지 않는다.
+        if (resolved.isNotEmpty() && resolved.all { it.status == SectionStatus.GENERATION_FAILED }) {
+            throw GenerationUnavailableException("지금은 생성 결과를 만들지 못했어요. 잠시 후 다시 시도해 주세요.")
+        }
         val sections = reconciled.map { it.toArtifactSection() }
         if (sections.isEmpty()) {
-            // 실체화 항목 0(전 섹션 근거 0 등) — 도메인 불변식상 빈 버전은 성립하지 않으므로 거부한다.
+            // 실체화 항목 0(전 섹션 근거 0·구조 불일치 등) — 도메인 불변식상 빈 버전은 성립하지 않으므로 거부한다.
+            // 같은 입력으론 또 실패하므로 입력 수정(EDIT_INPUTS)으로 보낸다(전 항목 일시 실패는 위에서 분기됨).
             // (수용 기준 23: 근거 0 섹션은 미실체화하되, 전부 미실체화면 만들 산출물이 없다 — 사용자 안내 경로.)
             throw DomainValidationException("생성할 수 있는 항목이 없어요. 관련 경험을 추가하거나 다른 경험을 골라 주세요.")
         }
