@@ -253,9 +253,11 @@ class QualityImprovementJobWorkerTest {
     }
 
     @Test
-    fun 차감이_실패해도_후보_영속과_작업완료는_유실되지_않는다() {
-        // given (B8) — 점검은 통과하나 차감(recordQualityImprovement)이 실패하는 상황(예: loadUser 부재). 차감이 후보
-        // 영속과 한 tx면 처치 성공까지 롤백되지만, 보상 단계로 분리하면 이미 커밋된 처치·작업완료를 잃지 않아야 한다.
+    fun 차감_증가_실패는_미차감_성공으로_굳지_않고_롤백된다() {
+        // given (B8 개정) — 점검(checkQualityImprovement→loadUser)은 통과하나 차감 증가(recordQualityImprovement)가
+        // 실패하는 상황. 차감을 후보 영속·작업완료와 한 tx2에 두므로(생성 B3와 대칭) 차감 실패 시 SUCCEEDED로 굳지
+        // 않고 전체가 롤백돼 FAILED로 끝나야 한다. 차감을 보상 단계로 분리하면 "커밋과 차감 사이 크래시 시 미차감
+        // 성공"이라는 비용 가드레일 누수가 생기는데, record→markSucceeded 순서로 한 tx에 둬 그 창을 닫는다.
         val (artifact, sectionId) = resumeArtifactWithSection()
         val job = pendingJob(artifact, sectionId)
         whenever(artifactRepository.findByIdAndOwnerId(any(), any())).thenReturn(artifact)
@@ -269,13 +271,13 @@ class QualityImprovementJobWorkerTest {
         // when
         worker.process(job)
 
-        // then — 차감 실패가 처치(후보)·작업완료를 무효화하지 않는다(SUCCEEDED 유지, 후보 영속).
-        assertThat(job.status).isEqualTo(QualityImprovementJobStatus.SUCCEEDED)
-        verify(candidateRepository).saveAll(any<List<QualityCandidate>>())
+        // then — 차감을 시도했지만(1회) markSucceeded 전에 실패해 SUCCEEDED로 굳지 않는다(미차감 성공 없음).
         assertThat(recordFailingGuard.recordAttempted).isEqualTo(1)
+        assertThat(job.status).isNotEqualTo(QualityImprovementJobStatus.SUCCEEDED)
+        assertThat(job.status).isEqualTo(QualityImprovementJobStatus.FAILED)
     }
 
-    /** 점검은 통과하나 차감 시 예외를 던지는 fake 가드(B8 — 차감 실패와 처치 영속의 분리 검증용). */
+    /** 점검은 통과하나 차감 증가에서 예외를 던지는 fake 가드(B8 — 차감 실패 시 미차감 성공 방지 검증용). */
     private class RecordFailingQuotaGuard : watson.resumaker.generation.application.GenerationQuotaGuard {
         var recordAttempted = 0
         override fun checkInitialGeneration(ownerId: UserId) {}
