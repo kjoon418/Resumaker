@@ -33,6 +33,8 @@ interface QualityImprovementPort {
  * @param target        작성 전략·채용 방향(다듬기 방향 정렬용 — 1차 생성과 동일 블록).
  * @param experiences   항목 출처 경험 스냅샷(근거 산출·검증 corpus용).
  * @param sourceExperienceIds 항목 출처 경험 식별자(출력 sourceExperienceIds로 보존).
+ * @param duplicatedWith 중복(C3) 처치일 때 **겹치는 짝 항목의 본문**(AI-03). 처치가 이 본문을 함께 보고 겹치는
+ *   내용을 덜어내 두 항목이 서로를 반복하지 않게 한다. 중복 소견이 아니면 null(짝 본문 없음).
  */
 data class QualityImprovementInput(
     val definitionKey: String,
@@ -42,4 +44,5 @@ data class QualityImprovementInput(
     val target: TargetSnapshot,
     val experiences: List<ExperienceSnapshot>,
     val sourceExperienceIds: List<watson.resumaker.experience.domain.ExperienceRecordId>,
+    val duplicatedWith: String? = null,
 )

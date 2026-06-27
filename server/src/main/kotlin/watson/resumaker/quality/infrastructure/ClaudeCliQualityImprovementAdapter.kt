@@ -55,6 +55,14 @@ class ClaudeCliQualityImprovementAdapter(
         sb.appendLine(input.originalContent)
         sb.appendLine()
 
+        // AI-03: 중복 처치면 겹치는 짝 항목 본문을 함께 보여, 그 항목과 겹치는 내용을 덜어내 서로 반복하지 않게 한다.
+        input.duplicatedWith?.let { other ->
+            sb.appendLine("## 겹치는 다른 항목(이 항목과 내용이 겹쳐요)")
+            sb.appendLine(other)
+            sb.appendLine("- 위 '다듬을 항목'에서 이 항목과 **겹치는 내용은 덜어내** 서로 반복되지 않게 하세요. 단, 다듬을 항목의 수치·고유명사·성과는 그대로 보존하세요.")
+            sb.appendLine()
+        }
+
         sb.appendLine("## 개선 방향(아래 점을 개선하되, 사실은 불변)")
         input.criteria.forEach { sb.appendLine("- $it") }
         sb.appendLine("- 위 원본의 수치·고유명사·성과는 **그대로 보존**하세요(누락·변형 금지). 표현·구조·강조·간결만 다듬으세요.")

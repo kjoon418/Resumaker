@@ -48,6 +48,7 @@ class QualityImprovementJobWorker(
     private val artifactRepository: ArtifactRepository,
     private val experienceRepository: ExperienceRecordRepository,
     private val processor: QualityImprovementProcessor,
+    private val checks: watson.resumaker.quality.infrastructure.QualityCriteriaDictionary,
     private val quotaGuard: GenerationQuotaGuard,
     private val properties: QualityImprovementJobProperties,
     private val transactionTemplate: TransactionTemplate,
@@ -201,8 +202,27 @@ class QualityImprovementJobWorker(
                 sourceExperienceIds = section.sourceExperienceIds,
                 experiences = experiences.map { it.toSnapshot() },
                 target = artifact.targetSnapshot.toGenerationTarget(),
+                // AI-03: 중복(C3) 처치면 겹치는 짝 항목 본문을 함께 싣는다(처치가 겹침을 보고 덜어낼 수 있게).
+                duplicatedWith = duplicatedBodyFor(section, criteria, active.sections),
             )
         }
+    }
+
+    /**
+     * AI-03: 항목 기준에 중복(C3)이 있으면 활성 버전에서 이 항목과 겹치는 **다른 항목의 본문**을 찾아 돌려준다
+     * (없으면 null). 진단의 중복 판정(checks.isDuplicate)을 그대로 재사용해 짝을 재식별한다(findingId가 짝 키를
+     * 싣지 않으므로 워커가 결정적으로 다시 찾는다 — 스키마 무변경).
+     */
+    private fun duplicatedBodyFor(
+        section: ArtifactSection,
+        criteria: List<QualityCriterion>,
+        allSections: List<ArtifactSection>,
+    ): String? {
+        if (!criteria.contains(QualityCriterion.DUPLICATION)) return null
+        return allSections.firstOrNull { other ->
+            other.id != section.id && other.content.value.isNotBlank() &&
+                checks.isDuplicate(section.content.value, other.content.value)
+        }?.content?.value
     }
 
     private fun parseFinding(findingId: String): Pair<SectionId, QualityCriterion>? {
@@ -251,6 +271,7 @@ class QualityImprovementJobWorker(
         val sourceExperienceIds: List<ExperienceRecordId>,
         val experiences: List<ExperienceSnapshot>,
         val target: TargetSnapshot,
+        val duplicatedWith: String? = null,
     ) {
         val criterionIds: List<String> get() = criteria.map { it.criterionId }
 
@@ -262,6 +283,7 @@ class QualityImprovementJobWorker(
             target = target,
             experiences = experiences,
             sourceExperienceIds = sourceExperienceIds,
+            duplicatedWith = duplicatedWith,
         )
     }
 }

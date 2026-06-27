@@ -66,10 +66,13 @@ class QualityImprovementJobWorkerTest {
     }
 
     private val quotaGuard = watson.resumaker.generation.application.AllowingGenerationQuotaGuard()
+    private val checks = watson.resumaker.quality.infrastructure.QualityCriteriaDictionary(
+        watson.resumaker.quality.infrastructure.QualityCriteriaProperties(),
+    )
 
     private val worker = QualityImprovementJobWorker(
         jobRepository, candidateRepository, artifactRepository, experienceRepository,
-        processor, quotaGuard, properties, transactionTemplate, clock,
+        processor, checks, quotaGuard, properties, transactionTemplate, clock,
     )
 
     private val ownerId = UserId(UUID.randomUUID())
@@ -214,7 +217,7 @@ class QualityImprovementJobWorkerTest {
         val exhaustedGuard = ExhaustibleQuotaGuard(qualityExhausted = true)
         val quotaAwareWorker = QualityImprovementJobWorker(
             jobRepository, candidateRepository, artifactRepository, experienceRepository,
-            processor, exhaustedGuard, properties, transactionTemplate, clock,
+            processor, checks, exhaustedGuard, properties, transactionTemplate, clock,
         )
 
         // when
@@ -237,7 +240,7 @@ class QualityImprovementJobWorkerTest {
         val freshGuard = ExhaustibleQuotaGuard(qualityExhausted = false)
         val quotaAwareWorker = QualityImprovementJobWorker(
             jobRepository, candidateRepository, artifactRepository, experienceRepository,
-            processor, freshGuard, properties, transactionTemplate, clock,
+            processor, checks, freshGuard, properties, transactionTemplate, clock,
         )
 
         // when
@@ -268,6 +271,51 @@ class QualityImprovementJobWorkerTest {
             }
         }
         override fun recordQualityImprovement(ownerId: UserId) { qualityRecorded++ }
+    }
+
+    @Test
+    fun 중복_처치는_겹치는_짝_항목_본문을_처치_입력에_싣는다() {
+        // given (AI-03) — 같은 내용의 두 항목이 있고, 뒤 항목에 중복(C3) 소견이 달렸다.
+        val dupBody = "결제 시스템을 새로 설계하고 배포를 자동화했어요."
+        val first = ArtifactSection.create(
+            definitionKey = "section-0-요약", sectionKind = SectionKind.SUMMARY,
+            content = SectionContent.of(dupBody), status = SectionStatus.GENERATED,
+            sourceExperienceIds = emptyList(), factGroundings = emptyList(),
+        )
+        val second = ArtifactSection.create(
+            definitionKey = "section-1-경력", sectionKind = SectionKind.CAREER,
+            content = SectionContent.of(dupBody), status = SectionStatus.GENERATED,
+            sourceExperienceIds = emptyList(), factGroundings = emptyList(),
+        )
+        val artifact = Artifact.create(
+            ownerId = ownerId,
+            kind = ArtifactKind.RESUME,
+            targetSnapshot = ArtifactTargetSnapshot.of(RecruitDirection("백엔드 신입"), null, null),
+            templateSnapshot = TemplateSnapshot.of(
+                listOf(
+                    SnapshotSection.of("section-0-요약", "요약", SectionKind.SUMMARY, required = true),
+                    SnapshotSection.of("section-1-경력", "경력", SectionKind.CAREER, required = true),
+                ),
+            ),
+            initialSections = listOf(first, second),
+            createdAt = now,
+        )
+        val job = QualityImprovementJob.create(
+            ownerId = ownerId,
+            artifactId = artifact.id.value,
+            versionId = artifact.activeVersion().id.value,
+            findingIds = listOf("${second.id.value}:C3"),
+            createdAt = now.minusSeconds(10),
+        )
+        whenever(artifactRepository.findByIdAndOwnerId(any(), any())).thenReturn(artifact)
+        val captor = org.mockito.kotlin.argumentCaptor<QualityImprovementInput>()
+        whenever(processor.process(captor.capture())).thenReturn(candidate())
+
+        // when
+        worker.process(job)
+
+        // then — 처치 입력에 짝 항목 본문이 실렸다.
+        assertThat(captor.firstValue.duplicatedWith).isEqualTo(dupBody)
     }
 
     @Test
