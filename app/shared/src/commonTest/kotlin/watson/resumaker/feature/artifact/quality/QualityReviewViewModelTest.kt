@@ -385,6 +385,33 @@ class QualityReviewViewModelTest {
     }
 
     @Test
+    fun `resume - 후보가 전부 제외되면 막다른 길 대신 직접 편집 출구를 노출한다`() = runTest(dispatcher) {
+        // UX-10: 개선 결과가 성공했지만 후보가 0건(전부 검증 제외)이면, allCandidatesExcluded로 직접 편집 CTA를 띄운다.
+        val api = FakeQualityApi(
+            getJobResult = ApiResult.Success(succeededJob(excluded = 2)),
+        )
+        val vm = vm(api, resumeJobId = "j-1")
+        testScheduler.advanceUntilIdle()
+
+        assertEquals(QualityStep.CANDIDATES, vm.state.value.step)
+        assertTrue(vm.state.value.candidates.isEmpty())
+        assertTrue(vm.state.value.allCandidatesExcluded)
+        assertEquals(2, vm.state.value.excludedCandidateCount)
+    }
+
+    @Test
+    fun `resume - 후보가 있으면 allCandidatesExcluded는 false다`() = runTest(dispatcher) {
+        val api = FakeQualityApi(
+            getJobResult = ApiResult.Success(succeededJob(sampleCandidate("c-1"))),
+        )
+        val vm = vm(api, resumeJobId = "j-1")
+        testScheduler.advanceUntilIdle()
+
+        assertEquals(QualityStep.CANDIDATES, vm.state.value.step)
+        assertFalse(vm.state.value.allCandidatesExcluded)
+    }
+
+    @Test
     fun `resume - 아직 준비 전이면 점검 화면으로 안내한다`() = runTest(dispatcher) {
         val api = FakeQualityApi(getJobResult = ApiResult.Success(pendingJob()))
         val vm = vm(api, resumeJobId = "j-1")

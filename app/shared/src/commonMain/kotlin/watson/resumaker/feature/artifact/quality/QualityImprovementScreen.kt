@@ -82,40 +82,56 @@ fun QualityImprovementScreen(
                 .padding(top = RmSpacing.space6, bottom = RmSpacing.space10),
             verticalArrangement = Arrangement.spacedBy(RmSpacing.space4),
         ) {
-            // 검증 실패로 제외된 후보가 있으면 고지(가짜 성공 금지 — 정직성 원칙).
-            if (state.excludedCandidateCount > 0) {
-                InfoCard(icon = RmIcons.Info, title = "일부 항목은 유지했어요") {
+            if (state.allCandidatesExcluded) {
+                // 후보가 전부 제외됨 — 채택할 게 없으니 비활성 버튼만 남기지 않고 직접 편집 출구를 준다(UX-10).
+                InfoCard(icon = RmIcons.Info, title = "이번엔 다듬을 항목이 없었어요") {
                     Text(
-                        text = "이 부분은 안전하게 다듬기 어려워 원본을 유지했어요. " +
-                            "직접 편집하거나 다시 시도해 보세요.",
+                        text = "안전하게 다듬을 수 있는 항목을 찾지 못했어요. 원본은 그대로 두었으니 직접 편집해 고쳐 보세요.",
                         style = RmTextStyles.bodyS,
                         color = RmTheme.colors.onPrimaryContainer,
                     )
                 }
-            }
+                PrimaryButton(
+                    text = "직접 편집하러 가기",
+                    onClick = onAdopted,
+                    modifier = androidx.compose.ui.Modifier.fillMaxWidth(),
+                )
+            } else {
+                // 검증 실패로 제외된 후보가 있으면 고지(가짜 성공 금지 — 정직성 원칙).
+                if (state.excludedCandidateCount > 0) {
+                    InfoCard(icon = RmIcons.Info, title = "일부 항목은 유지했어요") {
+                        Text(
+                            text = "이 부분은 안전하게 다듬기 어려워 원본을 유지했어요. " +
+                                "직접 편집하거나 다시 시도해 보세요.",
+                            style = RmTextStyles.bodyS,
+                            color = RmTheme.colors.onPrimaryContainer,
+                        )
+                    }
+                }
 
-            Text(
-                text = "개선된 항목을 원하는 대로 선택해 채택하세요. 선택하지 않은 항목은 그대로 유지돼요.",
-                style = RmTextStyles.bodyS,
-                color = RmTheme.colors.textSecondary,
-            )
+                Text(
+                    text = "개선된 항목을 원하는 대로 선택해 채택하세요. 선택하지 않은 항목은 그대로 유지돼요.",
+                    style = RmTextStyles.bodyS,
+                    color = RmTheme.colors.textSecondary,
+                )
 
-            // 후보 비교 카드 목록.
-            state.candidates.forEach { candidate ->
-                CandidateCompareCard(
-                    candidate = candidate,
-                    onToggle = { viewModel.toggleCandidate(candidate.candidateId) },
+                // 후보 비교 카드 목록.
+                state.candidates.forEach { candidate ->
+                    CandidateCompareCard(
+                        candidate = candidate,
+                        onToggle = { viewModel.toggleCandidate(candidate.candidateId) },
+                    )
+                }
+
+                // 일괄 채택 버튼: 선택된 후보가 없으면 비활성.
+                PrimaryButton(
+                    text = if (state.selectedCandidates.isEmpty()) "채택할 항목 선택" else "선택한 ${state.selectedCandidates.size}건 채택하기",
+                    onClick = viewModel::adoptSelected,
+                    enabled = state.selectedCandidates.isNotEmpty(),
+                    loading = state.adopting,
+                    modifier = androidx.compose.ui.Modifier.fillMaxWidth(),
                 )
             }
-
-            // 일괄 채택 버튼: 선택된 후보가 없으면 비활성.
-            PrimaryButton(
-                text = if (state.selectedCandidates.isEmpty()) "채택할 항목 선택" else "선택한 ${state.selectedCandidates.size}건 채택하기",
-                onClick = viewModel::adoptSelected,
-                enabled = state.selectedCandidates.isNotEmpty(),
-                loading = state.adopting,
-                modifier = androidx.compose.ui.Modifier.fillMaxWidth(),
-            )
         }
     }
 }

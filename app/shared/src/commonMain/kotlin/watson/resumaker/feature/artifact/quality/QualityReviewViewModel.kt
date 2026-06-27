@@ -156,6 +156,13 @@ data class QualityReviewUiState(
     /** 선택된 후보(CANDIDATES 단계). */
     val selectedCandidates: List<CandidateUi>
         get() = candidates.filter { it.selected }
+
+    /**
+     * 후보가 전부 제외돼 채택할 게 하나도 없는 상태(CANDIDATES 단계에서 후보 0건). true면 화면이 "채택할 항목 선택"
+     * 비활성 버튼만 남는 약한 막다른 길 대신, 직접 편집 출구를 보여준다(UX-10).
+     */
+    val allCandidatesExcluded: Boolean
+        get() = step == QualityStep.CANDIDATES && candidates.isEmpty()
 }
 
 /**
