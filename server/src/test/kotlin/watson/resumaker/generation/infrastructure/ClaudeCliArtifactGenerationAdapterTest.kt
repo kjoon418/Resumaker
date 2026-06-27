@@ -155,6 +155,31 @@ class ClaudeCliArtifactGenerationAdapterTest {
     }
 
     @Test
+    fun 이력서_프롬프트에_품질_지침_강한동사_버즈워드절제_간결_어조가_포함된다() {
+        // given (AI-05) — 저비용 품질 보강이 1차 생성 프롬프트에 실린다(신뢰성 규칙 하위).
+        val (adapter, runner) = adapter("""{"sections":[]}""")
+        val material = GenerationMaterial(
+            kind = GenerationKind.RESUME,
+            experiences = listOf(experienceSnapshot(exp1, "경험A")),
+            target = target,
+            templateSections = listOf(
+                TemplateSectionSpec("section-0-요약", "요약", SectionKind.SUMMARY, required = true),
+            ),
+            selectedExperienceIds = emptyList(),
+        )
+
+        // when
+        adapter.generate(material)
+
+        // then — 강한 동사·버즈워드 절제·간결·어조 일관 지침이 모두 들어간다.
+        assertThat(runner.capturedStdin).contains("작성 품질 지침")
+        assertThat(runner.capturedStdin).contains("담당했다")
+        assertThat(runner.capturedStdin).contains("버즈워드")
+        assertThat(runner.capturedStdin).contains("간결")
+        assertThat(runner.capturedStdin).contains("어조")
+    }
+
+    @Test
     fun 항목_단위_부분_실패가_succeeded_false로_매핑된다() {
         // given (수용 기준 9)
         val resultJson = """

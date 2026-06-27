@@ -102,6 +102,8 @@ class ClaudeCliArtifactGenerationAdapter(
         sections.forEach {
             sb.appendLine("  - definitionKey=\"${it.definitionKey}\", name=\"${it.name}\", sectionKind=${it.sectionKind}, required=${it.required}")
         }
+        sb.appendLine()
+        appendQualityInstructions(sb)
     }
 
     private fun appendPortfolioInstructions(sb: StringBuilder, experiences: List<ExperienceSnapshot>) {
@@ -111,6 +113,21 @@ class ClaudeCliArtifactGenerationAdapter(
         experiences.forEach {
             sb.appendLine("  - definitionKey=\"${it.id.value}\" (경험: ${it.title})")
         }
+        sb.appendLine()
+        appendQualityInstructions(sb)
+    }
+
+    /**
+     * 저비용 품질 보강(AI-05, 기획 §217·§220): 1차 생성물이 약한 동사 나열·버즈워드·장황체로 나와 곧바로 유료 처치를
+     * 재요구하는 것을 줄인다. **신뢰성 절대 규칙(없는 수치·고유명사 날조 금지)의 하위 지침**이며 그를 약화시키지 않는다.
+     * 어떤 지침이 충돌하면 위의 신뢰성 절대 규칙을 우선한다.
+     */
+    private fun appendQualityInstructions(sb: StringBuilder) {
+        sb.appendLine("## 작성 품질 지침(신뢰성 절대 규칙의 하위 — 충돌 시 위 절대 규칙 우선)")
+        sb.appendLine("- 행동·성취 동사로 쓰세요. \"담당했다\"·\"수행했다\"·\"참여했다\" 같은 약한 동사 대신 무엇을 만들고 바꾸고 이뤘는지 드러내는 동사를 쓰세요.")
+        sb.appendLine("- 버즈워드와 막연한 미사여구(예: \"열정\", \"최선을 다해\", \"다양한\", \"많은\")를 절제하고, 구체적인 행동과 결과로 대체하세요. 단, 경험 기록에 없는 사실을 지어내지는 마세요.")
+        sb.appendLine("- 각 항목은 간결하게 쓰세요. 한 항목은 핵심만 담아 길지 않게(요약은 1~2문장, 그 외 항목도 군더더기 없이) 작성하세요.")
+        sb.appendLine("- 어조를 항목 전반에 일관되게 유지하세요(위 권장 어조가 있으면 그에 맞추고, 없으면 담백한 평서체로 통일).")
     }
 
     private fun ExperienceSnapshot.toPromptBlock(): String {
