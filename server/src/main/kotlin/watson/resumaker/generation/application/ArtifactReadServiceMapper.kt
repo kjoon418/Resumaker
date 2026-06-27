@@ -83,5 +83,7 @@ class ArtifactReadServiceMapper {
             content = section.content.value,
             status = section.status,
             sourceExperienceIds = section.sourceExperienceIds.map { it.value.toString() },
+            // AI-13: 빈 항목(주로 GENERATION_FAILED)을 명시해 열람 화면이 보강 고지로 분리 노출하게 한다.
+            empty = section.content.value.isBlank(),
         )
 }

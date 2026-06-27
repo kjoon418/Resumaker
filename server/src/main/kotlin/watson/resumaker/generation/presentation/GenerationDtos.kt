@@ -46,6 +46,9 @@ data class GenerationResponse(
 
 /**
  * 생성된 한 항목의 응답 DTO. status로 성공/실패를 구분한다(GENERATED | GENERATION_FAILED).
+ *
+ * [empty]는 내용이 비어 있는지(주로 GENERATION_FAILED 빈 항목) 명시한다(AI-13). 클라이언트가 빈 본문을 그대로
+ * 빈약하게 보여주는 대신 "보강 고지"로 분리해 노출하도록 신호한다. 정상 항목은 false.
  */
 data class GeneratedSectionResponse(
     val sectionId: String,
@@ -55,6 +58,7 @@ data class GeneratedSectionResponse(
     val status: SectionStatus,
     val sourceExperienceIds: List<String>,
     val factGroundings: List<FactGroundingResponse>,
+    val empty: Boolean = false,
 )
 
 /**
@@ -178,6 +182,9 @@ data class VersionHistoryResponse(
 
 /**
  * 열람용 항목 응답 DTO. 항목 출처(sourceExperienceIds)는 표시용이며, 상태로 부분 실패를 구분한다.
+ *
+ * [empty]는 내용이 비어 있는지(주로 GENERATION_FAILED 빈 항목) 명시한다(AI-13). 클라이언트가 빈 본문을 그대로
+ * 빈약하게 보여주지 않고 "보강 고지"로 분리해 노출하도록 신호한다(기존 호출 호환을 위해 기본값 false).
  */
 data class ArtifactSectionResponse(
     val id: String,
@@ -186,4 +193,5 @@ data class ArtifactSectionResponse(
     val content: String,
     val status: SectionStatus,
     val sourceExperienceIds: List<String>,
+    val empty: Boolean = false,
 )

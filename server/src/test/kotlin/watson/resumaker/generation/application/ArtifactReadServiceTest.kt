@@ -81,6 +81,42 @@ class ArtifactReadServiceTest {
     }
 
     @Test
+    fun 빈_실패_항목은_empty_플래그로_명시된다() {
+        // given (AI-13) — GENERATION_FAILED 빈 항목과 정상 항목이 공존.
+        val snapshot = TemplateSnapshot.of(
+            listOf(
+                SnapshotSection.of("section-0-요약", "요약", SectionKind.SUMMARY, required = true),
+                SnapshotSection.of("section-1-경력", "경력", SectionKind.CAREER, required = true),
+            ),
+        )
+        val ok = ArtifactSection.create(
+            definitionKey = "section-0-요약", sectionKind = SectionKind.SUMMARY,
+            content = SectionContent.of("요약 본문"), status = SectionStatus.GENERATED,
+            sourceExperienceIds = listOf(exp1), factGroundings = emptyList(),
+        )
+        val failedEmpty = ArtifactSection.create(
+            definitionKey = "section-1-경력", sectionKind = SectionKind.CAREER,
+            content = SectionContent.EMPTY, status = SectionStatus.GENERATION_FAILED,
+            sourceExperienceIds = emptyList(), factGroundings = emptyList(),
+        )
+        val artifact = Artifact.create(
+            ownerId = ownerId, kind = ArtifactKind.RESUME,
+            targetSnapshot = ArtifactTargetSnapshot.of(RecruitDirection("백엔드 신입"), null, null),
+            templateSnapshot = snapshot, initialSections = listOf(ok, failedEmpty),
+            createdAt = Instant.parse("2026-06-16T00:00:00Z"),
+        )
+        whenever(artifactRepository.findByIdAndOwnerId(artifact.id, ownerId)).thenReturn(artifact)
+
+        // when
+        val response = service.getArtifact(ownerId, artifact.id)
+
+        // then — 정상 항목은 empty=false, 빈 실패 항목은 empty=true.
+        val sections = response.activeVersion.sections.associateBy { it.definitionKey }
+        assertThat(sections.getValue("section-0-요약").empty).isFalse()
+        assertThat(sections.getValue("section-1-경력").empty).isTrue()
+    }
+
+    @Test
     fun 타인_소유이거나_미존재면_찾을_수_없음_예외() {
         // given (소유 격리, 수용 기준 13) — findByIdAndOwnerId가 null을 돌려준다(존재 노출 최소화 → 404).
         whenever(artifactRepository.findByIdAndOwnerId(artifactId, ownerId)).thenReturn(null)

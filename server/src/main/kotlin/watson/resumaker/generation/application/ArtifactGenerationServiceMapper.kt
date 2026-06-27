@@ -38,6 +38,8 @@ class ArtifactGenerationServiceMapper {
             status = section.status,
             sourceExperienceIds = section.sourceExperienceIds.map { it.value.toString() },
             factGroundings = section.factGroundings.map { toGroundingResponse(it) },
+            // AI-13: 빈 항목(주로 GENERATION_FAILED)을 명시해 클라이언트가 보강 고지로 분리 노출하게 한다.
+            empty = section.content.value.isBlank(),
         )
 
     private fun toGroundingResponse(grounding: FactGrounding): FactGroundingResponse =
