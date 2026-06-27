@@ -456,6 +456,40 @@ class CoreValueFlowE2ETest {
         fun inMemoryAuthTokenStore(): AuthTokenStore = InMemoryAuthTokenStore()
 
         /**
+         * RT-1: 백그라운드 @Scheduled 워커(생성·품질)가 테스트의 수동 [GenerationJobWorker.poll]과 **같은 전역 큐**를
+         * 클레임해 핵심 흐름 E2E가 플래키하던 문제를 막는다. @EnableScheduling이 명시돼 있어 `spring.task.scheduling.enabled=false`
+         * 만으로는 폴백 스케줄러가 여전히 @Scheduled를 실행하므로, @Scheduled가 등록될 **단일 TaskScheduler를 아무 것도
+         * 실행하지 않는 no-op**으로 제공해 스케줄 실행 자체를 끈다. 큐는 테스트가 수동 poll()로만 결정적으로 구동한다.
+         */
+        @Bean
+        fun noOpTaskScheduler(): org.springframework.scheduling.TaskScheduler =
+            object : org.springframework.scheduling.TaskScheduler {
+                private val noOp = NoOpScheduledFuture
+                // fixedDelay 등록은 trigger 변형으로 들어와 null을 돌려줘도 무방하다(실행 안 함).
+                override fun schedule(
+                    task: Runnable,
+                    trigger: org.springframework.scheduling.Trigger,
+                ): java.util.concurrent.ScheduledFuture<*>? = null
+
+                override fun schedule(task: Runnable, startTime: java.time.Instant): java.util.concurrent.ScheduledFuture<*> = noOp
+                override fun scheduleAtFixedRate(task: Runnable, startTime: java.time.Instant, period: java.time.Duration): java.util.concurrent.ScheduledFuture<*> = noOp
+                override fun scheduleAtFixedRate(task: Runnable, period: java.time.Duration): java.util.concurrent.ScheduledFuture<*> = noOp
+                override fun scheduleWithFixedDelay(task: Runnable, startTime: java.time.Instant, delay: java.time.Duration): java.util.concurrent.ScheduledFuture<*> = noOp
+                override fun scheduleWithFixedDelay(task: Runnable, delay: java.time.Duration): java.util.concurrent.ScheduledFuture<*> = noOp
+            }
+
+        /** 아무 것도 하지 않는 완료 상태 ScheduledFuture(no-op 스케줄러의 비-null 반환용). */
+        private object NoOpScheduledFuture : java.util.concurrent.ScheduledFuture<Any?> {
+            override fun getDelay(unit: java.util.concurrent.TimeUnit): Long = 0
+            override fun compareTo(other: java.util.concurrent.Delayed): Int = 0
+            override fun cancel(mayInterruptIfRunning: Boolean): Boolean = false
+            override fun isCancelled(): Boolean = false
+            override fun isDone(): Boolean = true
+            override fun get(): Any? = null
+            override fun get(timeout: Long, unit: java.util.concurrent.TimeUnit): Any? = null
+        }
+
+        /**
          * 붙여넣기 양식 해석을 결정적으로 만든다(운영은 ClaudeCliResumeTemplateInterpreter). 운영 빈이 @Primary이고
          * UnavailableResumeTemplateInterpreter도 공존하므로, 이름 오버라이드 + @Primary로 모호성 없이 교체한다.
          */
