@@ -62,7 +62,17 @@ class ArtifactGenerationService(
     private val clock: Clock,
 ) {
 
-    fun generateResume(ownerId: UserId, command: GenerateResumeCommand): GenerationResponse {
+    /**
+     * @param onPersisted 산출물 영속·차감과 **같은 tx2 안에서** 실행되는 완료 훅(B3). 비동기 워커가 작업 완료
+     *   (markSucceeded+save)를 이 훅에 실어, 산출물·차감·작업완료가 원자적으로 함께 커밋/롤백되게 한다. tx2 커밋과
+     *   작업 완료 저장이 분리돼 그 사이 크래시 시 "성공 산출물 + IN_PLACE 재시도 이중 차감"이 나던 비원자 완료를 막는다.
+     *   동기 직접 호출(null)은 기존과 동일하게 동작한다. 인자는 생성된 산출물 식별자(String).
+     */
+    fun generateResume(
+        ownerId: UserId,
+        command: GenerateResumeCommand,
+        onPersisted: ((String) -> Unit)? = null,
+    ): GenerationResponse {
         // 1. (tx) 재료 적재·검증 + 가드레일 점검
         // 양식 지정 시 양식 스냅샷을 tx1에서 적재한다. 미지정(AI 생성 양식)이면 섹션은 tx 밖에서 채운다.
         val loaded = requireNotNull(
@@ -104,12 +114,18 @@ class ArtifactGenerationService(
                 val response = persistAndMap(ownerId, ArtifactKind.RESUME, prepared.targetSnapshot, templateSnapshot, resolved, prepared.material, templateOrigin)
                 // persistAndMap이 빈 결과면 throw하므로 여기 도달 = 최소 1항목 영속 성공 → 1차 생성 1회 차감(§396).
                 quotaGuard.recordInitialGeneration(ownerId)
+                // B3: 작업 완료(SUCCEEDED 저장)를 산출물·차감과 같은 tx2에서 원자적으로 처리한다.
+                onPersisted?.invoke(response.artifactId)
                 response
             },
         ) { "이력서 영속 트랜잭션이 응답을 돌려주지 못했어요." }
     }
 
-    fun generatePortfolio(ownerId: UserId, command: GeneratePortfolioCommand): GenerationResponse {
+    fun generatePortfolio(
+        ownerId: UserId,
+        command: GeneratePortfolioCommand,
+        onPersisted: ((String) -> Unit)? = null,
+    ): GenerationResponse {
         // 1. (tx) 재료 적재·검증 + 가드레일 점검
         val prepared = requireNotNull(
             transactionTemplate.execute {
@@ -135,6 +151,8 @@ class ArtifactGenerationService(
                 val response = persistAndMap(ownerId, ArtifactKind.PORTFOLIO, prepared.targetSnapshot, templateSnapshot = null, resolved = resolved, material = prepared.material, templateOrigin = TemplateOrigin.NONE)
                 // persistAndMap이 빈 결과면 throw하므로 여기 도달 = 최소 1항목 영속 성공 → 1차 생성 1회 차감(§396).
                 quotaGuard.recordInitialGeneration(ownerId)
+                // B3: 작업 완료(SUCCEEDED 저장)를 산출물·차감과 같은 tx2에서 원자적으로 처리한다.
+                onPersisted?.invoke(response.artifactId)
                 response
             },
         ) { "포트폴리오 영속 트랜잭션이 응답을 돌려주지 못했어요." }

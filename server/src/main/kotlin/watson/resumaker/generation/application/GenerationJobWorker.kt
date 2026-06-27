@@ -82,48 +82,54 @@ class GenerationJobWorker(
      * [ArtifactGenerationService] 내부에서 일어난다(워커가 따로 차감하지 않음).
      */
     fun process(job: GenerationJob) {
-        val now = Instant.now(clock)
         try {
-            val artifactId = when (job.kind) {
-                watson.resumaker.artifact.domain.ArtifactKind.RESUME -> {
-                    val response = generationService.generateResume(
-                        job.ownerId,
-                        GenerateResumeCommand(
-                            experienceIds = job.experienceIds.map { ExperienceRecordId(it) },
-                            targetId = TargetBriefId(job.targetId),
-                            templateId = job.templateId?.let { ResumeTemplateId(it) },
-                        ),
-                    )
-                    response.artifactId
-                }
-                watson.resumaker.artifact.domain.ArtifactKind.PORTFOLIO -> {
-                    val response = generationService.generatePortfolio(
-                        job.ownerId,
-                        GeneratePortfolioCommand(
-                            experienceIds = job.experienceIds.map { ExperienceRecordId(it) },
-                            targetId = TargetBriefId(job.targetId),
-                        ),
-                    )
-                    response.artifactId
-                }
+            // B3: 작업 완료(SUCCEEDED 저장)를 산출물 영속·차감과 같은 tx2에서 원자적으로 처리한다. tx2 커밋과
+            // markSucceeded 저장이 분리돼 그 사이 크래시 시 "성공 산출물 + IN_PLACE 재시도 이중 차감"이 나던
+            // 비원자 완료를 막는다. 훅이 실행되면 산출물·차감·작업완료가 함께 커밋되거나 함께 롤백된다.
+            val onPersisted: (String) -> Unit = { artifactId ->
+                job.markSucceeded(UUID.fromString(artifactId), Instant.now(clock))
+                jobRepository.save(job)
             }
-            job.markSucceeded(UUID.fromString(artifactId), now)
+            when (job.kind) {
+                watson.resumaker.artifact.domain.ArtifactKind.RESUME -> generationService.generateResume(
+                    job.ownerId,
+                    GenerateResumeCommand(
+                        experienceIds = job.experienceIds.map { ExperienceRecordId(it) },
+                        targetId = TargetBriefId(job.targetId),
+                        templateId = job.templateId?.let { ResumeTemplateId(it) },
+                    ),
+                    onPersisted,
+                )
+                watson.resumaker.artifact.domain.ArtifactKind.PORTFOLIO -> generationService.generatePortfolio(
+                    job.ownerId,
+                    GeneratePortfolioCommand(
+                        experienceIds = job.experienceIds.map { ExperienceRecordId(it) },
+                        targetId = TargetBriefId(job.targetId),
+                    ),
+                    onPersisted,
+                )
+            }
         } catch (exception: QuotaExceededException) {
             // 가드레일 상한(제출 후 다른 생성으로 소진된 경우). 클라이언트 안내용 코드·메시지를 그대로 보존한다.
-            job.markFailed(exception.code, exception.message ?: "오늘 만들 수 있는 횟수를 모두 썼어요.", now)
+            fail(job, exception.code, exception.message ?: "오늘 만들 수 있는 횟수를 모두 썼어요.")
         } catch (exception: ClaudeCliException) {
             // 외부 AI 일시 불가(API 키 없음·CLI 비정상 종료·파싱 오류 등).
-            job.markFailed(GenerationErrorCode.AI_UNAVAILABLE, "지금은 AI 생성을 사용할 수 없어요. 잠시 후 다시 시도해 주세요.", now)
+            fail(job, GenerationErrorCode.AI_UNAVAILABLE, "지금은 AI 생성을 사용할 수 없어요. 잠시 후 다시 시도해 주세요.")
         } catch (exception: DomainValidationException) {
             // 전 항목 실패 등으로 만들 산출물이 없는 경우(파이프라인이 "생성할 수 있는 항목이 없어요…"를 던짐).
-            job.markFailed(GenerationErrorCode.NO_CONTENT, exception.message ?: "생성할 수 있는 항목이 없어요.", now)
+            fail(job, GenerationErrorCode.NO_CONTENT, exception.message ?: "생성할 수 있는 항목이 없어요.")
         } catch (exception: ResourceNotFoundException) {
             // 제출 후 경험·목표가 삭제돼 생성 재료를 적재하지 못한 경우.
-            job.markFailed(GenerationErrorCode.SOURCE_MISSING, "생성에 쓸 경험이나 목표를 찾을 수 없어요.", now)
+            fail(job, GenerationErrorCode.SOURCE_MISSING, "생성에 쓸 경험이나 목표를 찾을 수 없어요.")
         } catch (exception: Throwable) {
             // 그 외 예기치 못한 실패. 내부 정보는 노출하지 않고 일반 안내로 종료한다.
-            job.markFailed(GenerationErrorCode.GENERATION_FAILED, "생성 중 문제가 생겼어요. 다시 시도해 주세요.", now)
+            fail(job, GenerationErrorCode.GENERATION_FAILED, "생성 중 문제가 생겼어요. 다시 시도해 주세요.")
         }
+    }
+
+    /** 작업을 실패로 종료해 영속한다. 완료 시각은 호출 시점 시계로 새로 찍는다(catch 경계를 넘는 지역 변수 의존 제거). */
+    private fun fail(job: GenerationJob, code: String, message: String) {
+        job.markFailed(code, message, Instant.now(clock))
         jobRepository.save(job)
     }
 }
