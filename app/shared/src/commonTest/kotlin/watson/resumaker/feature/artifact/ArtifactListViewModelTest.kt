@@ -17,6 +17,7 @@ import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -117,6 +118,63 @@ class ArtifactListViewModelTest {
         assertFalse(vm.state.value.hasActiveJobs)
         // load 1회만 호출(폴링 미가동).
         assertEquals(1, api.listJobsCallCount)
+    }
+
+    @Test
+    fun requestDeleteJobOpensConfirmationAndDoesNotCallApi() = runTest(dispatcher) {
+        // UX-08: '기록 삭제'는 무확인 즉시 삭제가 아니라 확인 다이얼로그를 먼저 띄운다(파괴적 동작 일관성).
+        val api = FakeArtifactApi(
+            listJobsResult = ApiResult.Success(listOf(job("j-1", GenerationJobStatus.FAILED))),
+            deleteJobResult = ApiResult.Success(Unit),
+        )
+        val vm = ArtifactListViewModel(api)
+        testScheduler.advanceUntilIdle()
+
+        vm.requestDeleteJob(job("j-1", GenerationJobStatus.FAILED))
+        testScheduler.advanceUntilIdle()
+
+        // 다이얼로그만 열렸고 아직 삭제 API는 호출되지 않았다.
+        assertEquals("j-1", vm.state.value.pendingDeleteJob?.jobId)
+        assertNull(api.deletedJobId)
+        assertEquals(listOf("j-1"), vm.state.value.jobs.map { it.jobId })
+    }
+
+    @Test
+    fun cancelDeleteJobClosesConfirmationWithoutDeleting() = runTest(dispatcher) {
+        // UX-08: 확인 취소 시 아무것도 삭제하지 않고 다이얼로그만 닫는다.
+        val api = FakeArtifactApi(
+            listJobsResult = ApiResult.Success(listOf(job("j-1", GenerationJobStatus.FAILED))),
+            deleteJobResult = ApiResult.Success(Unit),
+        )
+        val vm = ArtifactListViewModel(api)
+        testScheduler.advanceUntilIdle()
+
+        vm.requestDeleteJob(job("j-1", GenerationJobStatus.FAILED))
+        vm.cancelDeleteJob()
+        testScheduler.advanceUntilIdle()
+
+        assertNull(vm.state.value.pendingDeleteJob)
+        assertNull(api.deletedJobId)
+        assertEquals(listOf("j-1"), vm.state.value.jobs.map { it.jobId })
+    }
+
+    @Test
+    fun confirmingDeleteRemovesJobAndClearsPending() = runTest(dispatcher) {
+        // UX-08: 확인하면 실제 삭제가 일어나고 대기 상태가 비워진다.
+        val api = FakeArtifactApi(
+            listJobsResult = ApiResult.Success(listOf(job("j-1", GenerationJobStatus.FAILED))),
+            deleteJobResult = ApiResult.Success(Unit),
+        )
+        val vm = ArtifactListViewModel(api)
+        testScheduler.advanceUntilIdle()
+
+        vm.requestDeleteJob(job("j-1", GenerationJobStatus.FAILED))
+        vm.deleteJob(job("j-1", GenerationJobStatus.FAILED))
+        testScheduler.advanceUntilIdle()
+
+        assertEquals("j-1", api.deletedJobId)
+        assertNull(vm.state.value.pendingDeleteJob)
+        assertTrue(vm.state.value.jobs.isEmpty())
     }
 
     @Test

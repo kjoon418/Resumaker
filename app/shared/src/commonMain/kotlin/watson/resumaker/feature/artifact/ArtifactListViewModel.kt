@@ -32,6 +32,11 @@ data class ArtifactListUiState(
     val deletingJobIds: Set<String> = emptySet(),
     /** '다시 만들기'(IN_PLACE) 진행 중인 작업 id 집합(버튼 비활성·중복 호출 방지). */
     val retryingJobIds: Set<String> = emptySet(),
+    /**
+     * 삭제 확인 대기 중인 실패 작업(ConfirmDialog 표시). null이면 다이얼로그 숨김. 경험·목표·양식 삭제와 동일하게
+     * 무확인 즉시 삭제 대신 경량 확인을 거친다(UX-08 — 파괴적 동작 일관성).
+     */
+    val pendingDeleteJob: GenerationJobResponse? = null,
     /** 완료/삭제 등 1회성 안내(스낵바). 화면이 소비 후 [consumeSnackbar]로 클리어. */
     val snackbarMessage: String? = null,
 ) {
@@ -107,10 +112,16 @@ class ArtifactListViewModel(
         }
     }
 
-    /** 생성 실패 작업 "기록 삭제"(DELETE /generation-jobs/{id}). 성공 시 목록에서 제거한다. */
+    /** "기록 삭제" 클릭 → 삭제 확인 다이얼로그를 띄운다(파괴적 동작 일관성 — UX-08). */
+    fun requestDeleteJob(job: GenerationJobResponse) = _state.update { it.copy(pendingDeleteJob = job) }
+
+    /** 삭제 확인 다이얼로그를 닫는다(취소). */
+    fun cancelDeleteJob() = _state.update { it.copy(pendingDeleteJob = null) }
+
+    /** 생성 실패 작업 "기록 삭제"(DELETE /generation-jobs/{id}). 확인 후 호출되며, 성공 시 목록에서 제거한다. */
     fun deleteJob(job: GenerationJobResponse) {
         if (job.jobId in _state.value.deletingJobIds) return
-        _state.update { it.copy(deletingJobIds = it.deletingJobIds + job.jobId) }
+        _state.update { it.copy(deletingJobIds = it.deletingJobIds + job.jobId, pendingDeleteJob = null) }
         viewModelScope.launch {
             when (val result = artifactApi.deleteJob(job.jobId)) {
                 is ApiResult.Success -> _state.update {

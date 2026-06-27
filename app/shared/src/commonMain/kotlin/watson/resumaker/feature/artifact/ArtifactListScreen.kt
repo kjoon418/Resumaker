@@ -29,6 +29,7 @@ import watson.resumaker.model.type.GenerationJobStatus
 import watson.resumaker.ui.component.AppHeader
 import watson.resumaker.ui.component.AppScaffold
 import watson.resumaker.ui.component.Badge
+import watson.resumaker.ui.component.ConfirmDialog
 import watson.resumaker.ui.component.ContentWidth
 import watson.resumaker.ui.component.EmptyState
 import watson.resumaker.ui.component.GhostButton
@@ -134,7 +135,7 @@ fun ArtifactListScreen(
                         retrying = job.jobId in state.retryingJobIds,
                         onRetryInPlace = { viewModel.retryJob(job) },
                         onEditInputs = { onEditInputs(job) },
-                        onDelete = { viewModel.deleteJob(job) },
+                        onDelete = { viewModel.requestDeleteJob(job) },
                     )
                 }
                 // 완성 산출물(하단, 최신순).
@@ -145,6 +146,17 @@ fun ArtifactListScreen(
                     )
                 }
             }
+        }
+
+        // 실패 기록 삭제 확인(UX-08 — 경험·목표·양식과 동일한 경량 확인). 무엇이 사라지는지 명시(되돌릴 수 없음).
+        state.pendingDeleteJob?.let { job ->
+            ConfirmDialog(
+                title = "이 기록을 삭제할까요?",
+                description = "‘${jobTitle(job.kind, job.targetCompany)}’ 실패 기록이 삭제되며 되돌릴 수 없어요.",
+                confirmText = "삭제",
+                onConfirm = { viewModel.deleteJob(job) },
+                onDismiss = { viewModel.cancelDeleteJob() },
+            )
         }
     }
 }
