@@ -9,6 +9,7 @@ import watson.resumaker.artifact.domain.ArtifactSection
 import watson.resumaker.artifact.domain.ArtifactTargetSnapshot
 import watson.resumaker.artifact.domain.SectionId
 import watson.resumaker.artifact.infrastructure.ArtifactRepository
+import watson.resumaker.common.domain.QuotaExceededException
 import watson.resumaker.experience.domain.ExperienceRecord
 import watson.resumaker.experience.domain.ExperienceRecordId
 import watson.resumaker.experience.infrastructure.ExperienceRecordRepository
@@ -129,12 +130,29 @@ class QualityImprovementJobWorker(
                         now,
                     )
                 } else {
-                    candidateRepository.saveAll(candidates)
-                    job.markSucceeded(now)
-                    // 차감(QC7): 채택 가능 후보가 영속된 같은 tx2에서 사용자당 1회 차감한다(작업 성공 = 채택 가능 후보 ≥1).
-                    // 차감은 채택(adopt) 시점이 아니라 작업 성공 시점이다(오너 확정 §5.1-3). incrementOrInsert는 saveAndFlush
-                    // 경유라 후보 INSERT가 clearAutomatically로 폐기되지 않는다(ecfc116 미저장 회귀 방지).
-                    quotaGuard.recordQualityImprovement(job.ownerId)
+                    // B2: 처리 시점 재점검(1차 생성 워커의 tx 점검과 대칭). 점검은 접수 시점, 차감은 처리 시점이라
+                    // 시차에 여러 건을 빠르게 접수하면 모두 0회에서 통과해 상한을 초과 차감하던 우회를 막는다.
+                    // 한도가 이미 소진됐으면 후보 영속·차감 없이 QUOTA 초과로 종료한다.
+                    val quotaExceededCode = try {
+                        quotaGuard.checkQualityImprovement(job.ownerId)
+                        null
+                    } catch (exceeded: QuotaExceededException) {
+                        exceeded.code
+                    }
+                    if (quotaExceededCode != null) {
+                        job.markFailed(
+                            quotaExceededCode,
+                            "오늘 품질 개선 횟수를 모두 써서 이 작업을 진행하지 못했어요. 내일 다시 시도하거나 항목을 직접 편집해 보세요.",
+                            now,
+                        )
+                    } else {
+                        candidateRepository.saveAll(candidates)
+                        job.markSucceeded(now)
+                        // 차감(QC7): 채택 가능 후보가 영속된 같은 tx2에서 사용자당 1회 차감한다(작업 성공 = 채택 가능 후보 ≥1).
+                        // 차감은 채택(adopt) 시점이 아니라 작업 성공 시점이다(오너 확정 §5.1-3). incrementOrInsert는 saveAndFlush
+                        // 경유라 후보 INSERT가 clearAutomatically로 폐기되지 않는다(ecfc116 미저장 회귀 방지).
+                        quotaGuard.recordQualityImprovement(job.ownerId)
+                    }
                 }
                 jobRepository.save(job)
             }

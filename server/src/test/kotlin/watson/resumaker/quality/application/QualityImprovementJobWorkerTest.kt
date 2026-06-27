@@ -205,6 +205,72 @@ class QualityImprovementJobWorkerTest {
     }
 
     @Test
+    fun 처리시점_한도소진이면_차감_없이_QUOTA초과로_종료한다() {
+        // given (B2) — 접수는 통과했지만 처리 시점엔 한도가 소진됐다(시차 우회 시뮬레이션).
+        val (artifact, sectionId) = resumeArtifactWithSection()
+        val job = pendingJob(artifact, sectionId)
+        whenever(artifactRepository.findByIdAndOwnerId(any(), any())).thenReturn(artifact)
+        whenever(processor.process(any())).thenReturn(candidate())
+        val exhaustedGuard = ExhaustibleQuotaGuard(qualityExhausted = true)
+        val quotaAwareWorker = QualityImprovementJobWorker(
+            jobRepository, candidateRepository, artifactRepository, experienceRepository,
+            processor, exhaustedGuard, properties, transactionTemplate, clock,
+        )
+
+        // when
+        quotaAwareWorker.process(job)
+
+        // then — 후보 미영속·미차감, QUOTA 초과 코드로 FAILED.
+        assertThat(job.status).isEqualTo(QualityImprovementJobStatus.FAILED)
+        assertThat(job.errorCode).isEqualTo("QUALITY_IMPROVEMENT_QUOTA_EXCEEDED")
+        verify(candidateRepository, never()).saveAll(any<List<QualityCandidate>>())
+        assertThat(exhaustedGuard.qualityRecorded).isEqualTo(0)
+    }
+
+    @Test
+    fun 처리시점_한도_여유면_후보영속하고_차감한다() {
+        // given (B2 대칭) — 처리 시점 점검 통과면 평소대로 후보 영속·차감.
+        val (artifact, sectionId) = resumeArtifactWithSection()
+        val job = pendingJob(artifact, sectionId)
+        whenever(artifactRepository.findByIdAndOwnerId(any(), any())).thenReturn(artifact)
+        whenever(processor.process(any())).thenReturn(candidate())
+        val freshGuard = ExhaustibleQuotaGuard(qualityExhausted = false)
+        val quotaAwareWorker = QualityImprovementJobWorker(
+            jobRepository, candidateRepository, artifactRepository, experienceRepository,
+            processor, freshGuard, properties, transactionTemplate, clock,
+        )
+
+        // when
+        quotaAwareWorker.process(job)
+
+        // then
+        assertThat(job.status).isEqualTo(QualityImprovementJobStatus.SUCCEEDED)
+        verify(candidateRepository).saveAll(any<List<QualityCandidate>>())
+        assertThat(freshGuard.qualityRecorded).isEqualTo(1)
+    }
+
+    /** 품질 개선 한도를 소진 상태로 시뮬레이트하는 fake 가드. checkQualityImprovement만 의미 있게 구현한다. */
+    private class ExhaustibleQuotaGuard(
+        private val qualityExhausted: Boolean,
+    ) : watson.resumaker.generation.application.GenerationQuotaGuard {
+        var qualityRecorded = 0
+        override fun checkInitialGeneration(ownerId: UserId) {}
+        override fun recordInitialGeneration(ownerId: UserId) {}
+        override fun checkRegeneration(ownerId: UserId, artifactId: watson.resumaker.artifact.domain.ArtifactId, definitionKey: String) {}
+        override fun recordRegeneration(ownerId: UserId, artifactId: watson.resumaker.artifact.domain.ArtifactId, definitionKey: String) {}
+        override fun checkQualityImprovement(ownerId: UserId) {
+            if (qualityExhausted) {
+                throw watson.resumaker.common.domain.QuotaExceededException(
+                    message = "한도 초과",
+                    code = "QUALITY_IMPROVEMENT_QUOTA_EXCEEDED",
+                    action = "EDIT_MANUALLY",
+                )
+            }
+        }
+        override fun recordQualityImprovement(ownerId: UserId) { qualityRecorded++ }
+    }
+
+    @Test
     fun 클레임_성공하면_reload후_처치한다() {
         // given
         val (artifact, sectionId) = resumeArtifactWithSection()
