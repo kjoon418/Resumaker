@@ -200,6 +200,39 @@ class QualityReviewServiceTest {
     }
 
     @Test
+    fun 연도_인원만_있는_경험은_모호수치를_보강안내로_돌린다() {
+        // given (AI-10) — 출처 경험에 연도(2021)·인원(5명)만 있다. 객관화에 쓸 값이 없으므로 SUGGESTION이어야 한다
+        //                 (유료 AUTO_REWRITE 오라우팅 방지).
+        val artifact = resume(section("대규모 트래픽을 처리했다."))
+        whenever(artifactRepository.findByIdAndOwnerId(any(), any())).thenReturn(artifact)
+        whenever(experienceRepository.findAllByIdInAndOwnerId(any(), any()))
+            .thenReturn(listOf(experience("2021년에 팀원 5명과 협업했다.")))
+
+        // when
+        val report = service.review(ownerId, artifact.id.value)
+
+        // then
+        val finding = report.findings.first { it.criterion == QualityCriterion.VAGUE_METRIC }
+        assertThat(finding.treatmentKind).isEqualTo(TreatmentKind.SUGGESTION)
+    }
+
+    @Test
+    fun 연도와_함께_실측값이_있으면_모호수치를_자동적용으로_분기한다() {
+        // given (AI-10) — 연도(2021)는 제외하되 실측값(500건)이 있으면 AUTO_REWRITE 유지.
+        val artifact = resume(section("대규모 트래픽을 처리했다."))
+        whenever(artifactRepository.findByIdAndOwnerId(any(), any())).thenReturn(artifact)
+        whenever(experienceRepository.findAllByIdInAndOwnerId(any(), any()))
+            .thenReturn(listOf(experience("2021년에 초당 500건을 처리했다.")))
+
+        // when
+        val report = service.review(ownerId, artifact.id.value)
+
+        // then
+        val finding = report.findings.first { it.criterion == QualityCriterion.VAGUE_METRIC }
+        assertThat(finding.treatmentKind).isEqualTo(TreatmentKind.AUTO_REWRITE)
+    }
+
+    @Test
     fun 소견이_달린_항목만_이름과_내용을_담아_돌려준다() {
         // given — 약점 있는 항목(담당했다)과 깨끗한 항목(설계했어요)이 함께 있다.
         val dirty = section("결제를 담당했다.", key = "요약")

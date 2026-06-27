@@ -199,15 +199,35 @@ class QualityReviewService(
 
     // ----- 처치 분기 보조 -----
 
-    /** 항목의 출처 경험 본문에 정량 수치(NUMERIC 토큰)가 하나라도 있으면 true(I4 자동 적용 가능 조건 — §203). */
+    /**
+     * 항목의 출처 경험 본문에 **객관화에 쓸 만한** 정량 수치가 하나라도 있으면 true(I4 자동 적용 가능 조건 — §203).
+     *
+     * AI-10: 연도(19xx/20xx)·순수 인원(단위 "명")처럼 모호 수치 객관화와 **무관한 숫자**는 근거에서 제외한다.
+     * 이런 숫자만 있는 경험을 근거로 AUTO_REWRITE(유료)로 오라우팅하면, 막상 객관화할 값이 없어 비용만 낭비된다.
+     * 제외 후 남는 수치가 없으면 SUGGESTION(무비용 보강 안내)으로 돌린다(비용 가드레일상 안전한 방향).
+     */
     private fun hasNumericEvidence(
         section: ArtifactSection,
         experiencesById: Map<ExperienceRecordId, ExperienceRecord>,
     ): Boolean =
         section.sourceExperienceIds.any { id ->
             val experience = experiencesById[id] ?: return@any false
-            factTokenExtractor.extractNumericValues(corpusOf(experience)).isNotEmpty()
+            factTokenExtractor.extractNumericFacts(corpusOf(experience)).any { it.isObjectifiable() }
         }
+
+    /** 객관화에 쓸 만한 수치인가(AI-10): 연도·순수 인원은 제외. */
+    private fun watson.resumaker.generation.application.NumericFact.isObjectifiable(): Boolean {
+        if (unit == "명") return false // 순수 인원 수는 모호 수치 객관화와 무관.
+        if (unit == "년") return false // "2021년" 류 연도.
+        // 단위 없는 4자리 연도(1900~2099 정수)도 제외.
+        if (unit == null && isYearLike(value)) return false
+        return true
+    }
+
+    private fun isYearLike(value: java.math.BigDecimal): Boolean {
+        if (value.stripTrailingZeros().scale() > 0) return false // 정수만 연도 후보.
+        return value >= YEAR_MIN && value <= YEAR_MAX
+    }
 
     private fun guideFor(
         section: ArtifactSection,
@@ -253,5 +273,10 @@ class QualityReviewService(
         experience.detail.action?.let { append(it).append('\n') }
         experience.detail.result?.let { append(it).append('\n') }
         if (experience.detail.skillTags.isNotEmpty()) append(experience.detail.skillTags.joinToString(" ") { it.value })
+    }
+
+    companion object {
+        private val YEAR_MIN = java.math.BigDecimal(1900)
+        private val YEAR_MAX = java.math.BigDecimal(2099)
     }
 }
