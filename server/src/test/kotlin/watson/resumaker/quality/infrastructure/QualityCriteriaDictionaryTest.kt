@@ -60,6 +60,20 @@ class QualityCriteriaDictionaryTest {
     }
 
     @Test
+    fun 모호수치_정규식은_단어_가운데서는_오탐하지_않는다() {
+        // given/then (AI-01 후속) — 어절 경계 앵커. "보수만큼/접수만"의 "수만", "1024배열/3배수"의 "배"는 단어
+        // 가운데라 모호수치가 아니다(AI-06이 없애려던 유료 AUTO_REWRITE 오발 부류). 사전 매칭과 같은 어절 시작
+        // 규율을 정규식에도 적용한 결과다.
+        assertThat(dictionary.findVagueMetric("보수만큼의 보상을 받았어요.")).isNull()
+        assertThat(dictionary.findVagueMetric("접수만 빠르게 처리했어요.")).isNull()
+        assertThat(dictionary.findVagueMetric("1024배열을 순회하며 집계했어요.")).isNull()
+        assertThat(dictionary.findVagueMetric("3배수로 데이터를 묶었어요.")).isNull()
+        // 어절 경계의 진짜 모호수치는 그대로 잡는다.
+        assertThat(dictionary.findVagueMetric("수만 명이 가입했어요.")).isEqualTo("수만")
+        assertThat(dictionary.findVagueMetric("성능을 2배 향상했어요.")).isEqualTo("2배")
+    }
+
+    @Test
     fun 수동태_종결은_어간_뒤_접미에서도_매칭된다() {
         // given/then — 수동 종결("되어")은 어간("구현")에 붙는 접미라 경계 매칭을 쓰지 않고 그대로 잡는다.
         assertThat(dictionary.findPassiveVoice("결제 모듈이 구현되어 운영됐어요.")).isEqualTo("되어")
