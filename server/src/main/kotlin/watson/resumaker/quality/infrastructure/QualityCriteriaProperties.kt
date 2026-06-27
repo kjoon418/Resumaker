@@ -14,6 +14,9 @@ import org.springframework.boot.context.properties.ConfigurationProperties
  * - [vagueMetricTerms]: 모호 수치·규모어 사전(I4). "대용량" 류 추상 규모어. 매칭되면 VAGUE_METRIC 소견.
  * - [vagueMetricPatterns]: 모호 수치 정규식(I4·AP5). 기준선 없는 퍼센트 변화("200% 증가"·"30% 개선"), "N배",
  *   "수십·수백" 류. 시드 사전과 **합집합**으로 본다(둘 중 하나라도 매칭되면 VAGUE_METRIC).
+ * - [vagueRoleAdjectives]: 모호 표현 중 **역할/규모 형용사**(AI-12). "중요한 역할"·"복잡한"처럼 수치로 객관화하는 게
+ *   아니라 *근거(행동·기술)* 를 적어야 하는 부류. [vagueMetricTerms]·[vagueMetricPatterns]의 수치형과 안내 문구를
+ *   분기하는 데만 쓴다(검출 자체는 동일 VAGUE_METRIC).
  * - [passiveSuffixes]: 수동태 종결 패턴(I2). 매칭되면 ACTIVE_VOICE 소견.
  * - [maxSectionLength]: 항목 길이 상한(C1). 초과하면 LENGTH 소견(자동 — 결정적).
  * - [duplicationShingleSize]·[duplicationThreshold]: 중복 판정(C3). n-그램(글자) 자카드 유사도가 임계 이상이면
@@ -27,6 +30,7 @@ data class QualityCriteriaProperties(
     val buzzwords: List<String> = DEFAULT_BUZZWORDS,
     val vagueMetricTerms: List<String> = DEFAULT_VAGUE_METRIC_TERMS,
     val vagueMetricPatterns: List<String> = DEFAULT_VAGUE_METRIC_PATTERNS,
+    val vagueRoleAdjectives: List<String> = DEFAULT_VAGUE_ROLE_ADJECTIVES,
     val passiveSuffixes: List<String> = DEFAULT_PASSIVE_SUFFIXES,
     val maxSectionLength: Int = 600,
     val duplicationShingleSize: Int = 6,
@@ -62,6 +66,14 @@ data class QualityCriteriaProperties(
             """\d+\s*%\s*(증가|증대|개선|향상|단축|감소|절감|상승|성장)""",
             """\d+\s*배""",
             """수(십|백|천|만)""",
+        )
+
+        /**
+         * 역할/규모 형용사 시드(AI-12). 수치로 객관화할 대상이 아니라 *근거(행동·기술)* 를 적어야 하는 모호 표현.
+         * [DEFAULT_VAGUE_METRIC_TERMS]의 부분집합으로, 안내 문구를 수치형과 다르게 분기하는 데 쓴다.
+         */
+        private val DEFAULT_VAGUE_ROLE_ADJECTIVES = listOf(
+            "중요한 역할", "복잡한", "상당한",
         )
 
         /** 수동태 종결 패턴 시드(I2·AP13). "~되었다/~되어/~지다" 류. */

@@ -233,6 +233,39 @@ class QualityReviewServiceTest {
     }
 
     @Test
+    fun 역할_규모_형용사는_수치_대신_근거_보강_안내로_분기한다() {
+        // given (AI-12) — "복잡한"은 수치 객관화 대상이 아니라 근거(행동·기술)를 적어야 하는 형용사형 모호 표현.
+        val artifact = resume(section("복잡한 시스템을 다뤘어요."))
+        whenever(artifactRepository.findByIdAndOwnerId(any(), any())).thenReturn(artifact)
+        whenever(experienceRepository.findAllByIdInAndOwnerId(any(), any()))
+            .thenReturn(listOf(experience("시스템을 다뤘다.")))
+
+        // when
+        val report = service.review(ownerId, artifact.id.value)
+
+        // then — SUGGESTION이며 안내가 "행동·기술" 근거를 요구한다(수치 객관화 문구가 아니다).
+        val finding = report.findings.first { it.criterion == QualityCriterion.VAGUE_METRIC }
+        assertThat(finding.treatmentKind).isEqualTo(TreatmentKind.SUGGESTION)
+        assertThat(finding.suggestionGuide!!.message).contains("행동·기술")
+    }
+
+    @Test
+    fun 수치형_규모어는_구체값_안내로_분기한다() {
+        // given (AI-12) — "대용량"은 수치 객관화 대상.
+        val artifact = resume(section("대용량 트래픽을 처리했어요."))
+        whenever(artifactRepository.findByIdAndOwnerId(any(), any())).thenReturn(artifact)
+        whenever(experienceRepository.findAllByIdInAndOwnerId(any(), any()))
+            .thenReturn(listOf(experience("많은 트래픽을 처리했다.")))
+
+        // when
+        val report = service.review(ownerId, artifact.id.value)
+
+        // then — 구체적인 값 안내.
+        val finding = report.findings.first { it.criterion == QualityCriterion.VAGUE_METRIC }
+        assertThat(finding.suggestionGuide!!.message).contains("구체적인 값")
+    }
+
+    @Test
     fun 소견이_달린_항목만_이름과_내용을_담아_돌려준다() {
         // given — 약점 있는 항목(담당했다)과 깨끗한 항목(설계했어요)이 함께 있다.
         val dirty = section("결제를 담당했다.", key = "요약")

@@ -78,6 +78,20 @@ class ExperienceReviewServiceTest {
     }
 
     @Test
+    fun 역할_규모_형용사는_수치_대신_근거_보강_문구로_안내한다() {
+        // given (AI-12) — "복잡한"은 수치 객관화가 아니라 행동·기술 근거를 적어야 하는 형용사형 모호 표현.
+        val record = experience("복잡한 레거시 시스템을 다뤘습니다.", result = "안정화했습니다.")
+
+        // when
+        val review = service.review(record)
+
+        // then — 모호 표현 소견이되 안내가 "행동·기술" 근거를 요구한다(수치 문구가 아니다).
+        val finding = review.findings.single { it.criterion == ExperienceReviewCriterion.VAGUE_METRIC }
+        assertThat(finding.evidenceText).isEqualTo("복잡한")
+        assertThat(finding.message).contains("행동·기술")
+    }
+
+    @Test
     fun 성과_칸이_비어_있으면_성과_보강을_유도한다() {
         // given — 결과(result)가 비어 있다(본문은 충분히 길어 빈약 소견을 배제).
         val record = experience("결제 시스템을 새로 설계하고 캐시를 도입했습니다.", result = null)

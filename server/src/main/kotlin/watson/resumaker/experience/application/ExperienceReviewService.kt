@@ -48,10 +48,16 @@ class ExperienceReviewService(
         //    이력서가 자동으로 객관화할 수 있으므로 소견을 내지 않는다(이력서 점검의 hasNumericEvidence와 동형).
         val vagueTerm = criteria.findVagueMetric(corpus)
         if (vagueTerm != null && factTokenExtractor.extractNumericValues(corpus).isEmpty()) {
+            // AI-12: 역할/규모 형용사("중요한 역할"·"복잡한")는 수치가 아니라 근거(행동·기술)를 적도록 안내한다.
+            val message = if (criteria.isVagueRoleAdjective(vagueTerm)) {
+                "‘$vagueTerm’ 같은 표현이 모호해요. 어떤 행동·기술로 그렇게 판단했는지 구체적으로 적으면 이력서에서 더 강하게 보여줄 수 있어요."
+            } else {
+                "‘$vagueTerm’ 같은 표현이 있어요. 구체적인 수치를 적으면 이력서에서 더 강하게 보여줄 수 있어요(예: ‘대용량’→‘초당 500건’)."
+            }
             findings += ExperienceReviewFinding(
                 criterion = ExperienceReviewCriterion.VAGUE_METRIC,
                 field = ExperienceReviewField.BODY,
-                message = "‘$vagueTerm’ 같은 표현이 있어요. 구체적인 수치를 적으면 이력서에서 더 강하게 보여줄 수 있어요(예: ‘대용량’→‘초당 500건’).",
+                message = message,
                 evidenceText = vagueTerm,
             )
         }

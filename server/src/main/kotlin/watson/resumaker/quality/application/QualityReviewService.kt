@@ -122,12 +122,15 @@ class QualityReviewService(
             if (hasNumericEvidence(section, experiencesById)) {
                 findings += finding(section, QualityCriterion.VAGUE_METRIC, TreatmentKind.AUTO_REWRITE, evidenceText = term)
             } else {
+                // AI-12: 역할/규모 형용사("중요한 역할"·"복잡한")는 수치 객관화가 아니라 근거(행동·기술)를 적도록 안내한다.
+                val message = if (checks.isVagueRoleAdjective(term)) {
+                    "‘$term’ 같은 표현이 모호해요. 어떤 행동·기술로 그렇게 판단했는지 경험 기록에 적어 주세요."
+                } else {
+                    "이 수치를 객관화하려면 경험 기록에 구체적인 값(예: 100→200명, 300ms→210ms)을 적어 주세요."
+                }
                 findings += finding(
                     section, QualityCriterion.VAGUE_METRIC, TreatmentKind.SUGGESTION, evidenceText = term,
-                    suggestionGuide = guideFor(
-                        section, experiencesById,
-                        "이 수치를 객관화하려면 경험 기록에 구체적인 값(예: 100→200명, 300ms→210ms)을 적어 주세요.",
-                    ),
+                    suggestionGuide = guideFor(section, experiencesById, message),
                 )
             }
         }

@@ -39,6 +39,13 @@ class QualityCriteriaDictionary(
             ?: vagueMetricRegexes.firstNotNullOfOrNull { it.find(content)?.value }
 
     /**
+     * VAGUE_METRIC 근거가 **역할/규모 형용사**인지(AI-12). 안내 문구를 분기하는 데만 쓴다:
+     * true면 "어떤 행동·기술로 그렇게 판단했는지"(근거 보강), false면 "구체적인 값"(수치 객관화).
+     */
+    fun isVagueRoleAdjective(term: String): Boolean =
+        properties.vagueRoleAdjectives.any { it == term }
+
+    /**
      * I2 수동태(ACTIVE_VOICE): 매칭된 첫 수동 종결 패턴을 근거로 돌려준다.
      * 수동 종결("되었다"·"되어")은 **어간에 붙는 접미사**라 어절 시작 경계 매칭을 쓰지 않는다(예: "구현되어"의
      * "되어"는 앞 글자가 어간이므로 경계 매칭이면 못 잡는다). 사전 항목 중 유일하게 contains를 유지한다.
