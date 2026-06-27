@@ -18,19 +18,23 @@ class QualityCriteriaDictionary(
     private val properties: QualityCriteriaProperties,
 ) {
 
-    /** I1 약한 동사(STRONG_VERB): 사전 매칭된 첫 약한 동사를 근거로 돌려준다(없으면 null). */
+    /** I1 약한 동사(STRONG_VERB): 어절 시작 경계에서 매칭된 첫 약한 동사를 근거로 돌려준다(없으면 null). */
     fun findWeakVerb(content: String): String? =
-        properties.weakVerbs.firstOrNull { content.contains(it) }
+        properties.weakVerbs.firstOrNull { containsAtWordStart(content, it) }
 
-    /** C2 버즈워드(BUZZWORD): 사전 매칭된 첫 버즈워드를 근거로 돌려준다. */
+    /** C2 버즈워드(BUZZWORD): 어절 시작 경계에서 매칭된 첫 버즈워드를 근거로 돌려준다. */
     fun findBuzzword(content: String): String? =
-        properties.buzzwords.firstOrNull { content.contains(it) }
+        properties.buzzwords.firstOrNull { containsAtWordStart(content, it) }
 
-    /** I4 모호 수치·규모어(VAGUE_METRIC): 사전 매칭된 첫 규모어를 근거로 돌려준다. */
+    /** I4 모호 수치·규모어(VAGUE_METRIC): 어절 시작 경계에서 매칭된 첫 규모어를 근거로 돌려준다. */
     fun findVagueMetric(content: String): String? =
-        properties.vagueMetricTerms.firstOrNull { content.contains(it) }
+        properties.vagueMetricTerms.firstOrNull { containsAtWordStart(content, it) }
 
-    /** I2 수동태(ACTIVE_VOICE): 매칭된 첫 수동 종결 패턴을 근거로 돌려준다. */
+    /**
+     * I2 수동태(ACTIVE_VOICE): 매칭된 첫 수동 종결 패턴을 근거로 돌려준다.
+     * 수동 종결("되었다"·"되어")은 **어간에 붙는 접미사**라 어절 시작 경계 매칭을 쓰지 않는다(예: "구현되어"의
+     * "되어"는 앞 글자가 어간이므로 경계 매칭이면 못 잡는다). 사전 항목 중 유일하게 contains를 유지한다.
+     */
     fun findPassiveVoice(content: String): String? =
         properties.passiveSuffixes.firstOrNull { content.contains(it) }
 
@@ -62,6 +66,26 @@ class QualityCriteriaDictionary(
         val size = properties.duplicationShingleSize
         if (normalized.length < size) return emptySet()
         return (0..normalized.length - size).map { normalized.substring(it, it + size) }.toSet()
+    }
+
+    /**
+     * AI-06: 사전 항목이 **어절 시작 경계**에서 등장할 때만 매칭한다(바로 앞 글자가 글자/숫자가 아닐 때).
+     * `contains` 부분 문자열 매칭이 "소통"을 "의사소통"에서, "있었다"를 "재미있었다"에서 잘못 잡던 거짓 양성을
+     * 제거한다. 어절 시작에서만 보므로 "소통 능력"·"소통능력"·"담당했다"는 그대로 매칭된다. 유료 처치(AUTO_REWRITE)를
+     * 유발하는 전체-단어 사전(약한 동사·버즈워드·규모어)에 적용한다(수동태 접미는 제외 — 위 주석 참고).
+     *
+     * **알려진 잔여 한계:** 어절 시작에 진짜로 등장하는 단어의 의미적 거짓 양성(예: "복잡한 레거시를 모듈화"의
+     * "복잡한")은 형태소·문맥 분석 없이 결정적으로 가릴 수 없어 남는다(오너 사전 큐레이션 대상).
+     */
+    private fun containsAtWordStart(content: String, term: String): Boolean {
+        if (term.isEmpty()) return false
+        var idx = content.indexOf(term)
+        while (idx >= 0) {
+            val before = content.getOrNull(idx - 1)
+            if (before == null || !before.isLetterOrDigit()) return true
+            idx = content.indexOf(term, idx + 1)
+        }
+        return false
     }
 
     companion object {
