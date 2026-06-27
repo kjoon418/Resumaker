@@ -308,6 +308,30 @@ class ArtifactCreateViewModelTest {
         assertNotNull(vm.state.value.generationError)
         assertFalse(vm.state.value.submitted)
         assertFalse(vm.state.value.generating)
+        // UX-07: ADD_EXPERIENCE 권고 실패는 재시도가 아니라 경험 추가 CTA로 분기해야 한다.
+        assertTrue(vm.state.value.isAddExperienceAction)
+    }
+
+    @Test
+    fun addExperienceActionFlagIsFalseForOrdinaryFailure() = runTest(dispatcher) {
+        // UX-07: 일시적 실패(action 없음)는 경험 추가 분기가 아니라 재시도 분기를 타야 한다.
+        val api = FakeArtifactApi(
+            generateResumeResult = ApiResult.Failure(
+                message = "AI 생성 서비스를 일시적으로 사용할 수 없어요.",
+                code = "AI_GENERATION_UNAVAILABLE",
+            ),
+        )
+        val vm = vmWith(api)
+        testScheduler.advanceUntilIdle()
+
+        vm.toggleExperience("e-1")
+        vm.selectTarget("t-1")
+        vm.selectTemplate("tpl-1")
+        vm.generate()
+        testScheduler.advanceUntilIdle()
+
+        assertNotNull(vm.state.value.generationError)
+        assertFalse(vm.state.value.isAddExperienceAction)
     }
 
     @Test

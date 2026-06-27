@@ -69,6 +69,12 @@ data class ArtifactCreateUiState(
     val isGenerationQuotaExceeded: Boolean get() = generationErrorCode == ArtifactCreateViewModel.GENERATION_QUOTA_EXCEEDED
 
     /**
+     * 서버가 "경험을 추가하라(ADD_EXPERIENCE)"고 안내한 실패인지(409 EMPTY_EXPERIENCE_SELECTION 등). true면 같은
+     * 입력으로 재시도해도 또 실패하므로, 화면은 재시도 대신 경험 추가 CTA로 분기한다(UX-07 — 막다른 길 제거).
+     */
+    val isAddExperienceAction: Boolean get() = generationAction == ArtifactCreateViewModel.ADD_EXPERIENCE
+
+    /**
      * 양식 선택 단계 노출 여부(이력서만). 양식 자체는 더 이상 필수가 아니다 — "양식 자동"을 고르면 미지정으로
      * 생성된다(서버 §178). 포트폴리오는 양식이 없으므로 단계를 숨긴다.
      */
@@ -262,6 +268,9 @@ class ArtifactCreateViewModel(
     companion object {
         /** 1차 생성 일일 한도 초과 에러 코드(서버 `CountingGenerationQuotaGuard`와 1:1, 429). */
         const val GENERATION_QUOTA_EXCEEDED = "GENERATION_QUOTA_EXCEEDED"
+
+        /** 서버가 내려주는 "경험 추가" 권고 행동(409 EMPTY_EXPERIENCE_SELECTION 등의 action). */
+        const val ADD_EXPERIENCE = "ADD_EXPERIENCE"
 
         /**
          * 프리필 작업으로 초기 상태를 만든다(EDIT_INPUTS 재시도). 실패 작업이 보관한 종류·경험·목표·양식을 선택으로

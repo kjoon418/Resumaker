@@ -130,6 +130,7 @@ fun ArtifactCreateScreen(
                 onDismissError = viewModel::dismissGenerationError,
                 onRetryGenerate = viewModel::retryGenerate,
                 onAddTarget = onAddTarget,
+                onRecordExperience = onRecordExperience,
             )
         }
     }
@@ -151,6 +152,8 @@ private fun CreateForm(
     onRetryGenerate: () -> Unit,
     /** 목표가 없을 때 막다른 길을 막기 위한 "목표 추가하기" 이동(UX-02). */
     onAddTarget: () -> Unit,
+    /** 서버가 경험 추가를 권한 실패(ADD_EXPERIENCE)일 때 경험 기록 화면으로 보내는 CTA(UX-07). */
+    onRecordExperience: () -> Unit,
 ) {
     val scroll = rememberScrollState()
     Column(
@@ -218,13 +221,28 @@ private fun CreateForm(
         }
 
         if (state.generationError != null) {
-            // 한도 초과(429)는 재시도해도 같은 오류가 나므로 닫기만 제공하고 재요청하지 않는다.
-            // 그 외 실패(AI_GENERATION_UNAVAILABLE 등)는 onRetry로 직전 생성을 실제 재요청한다(#4).
-            ErrorBanner(
-                message = state.generationError,
-                onRetry = if (state.isGenerationQuotaExceeded) onDismissError else onRetryGenerate,
-                title = if (state.isGenerationQuotaExceeded) "오늘은 더 만들 수 없어요" else "생성하지 못했어요",
-            )
+            // 실패 종류별로 복구 액션을 분기한다(막다른 길 금지).
+            //  - 경험 추가 권고(ADD_EXPERIENCE): 같은 입력 재시도는 또 실패하므로 경험 기록 화면으로 보낸다(UX-07).
+            //  - 한도 초과(429): 재시도해도 같은 오류라 닫기만 제공하고 재요청하지 않는다.
+            //  - 그 외(AI_GENERATION_UNAVAILABLE 등): onRetry로 직전 생성을 실제 재요청한다(#4).
+            when {
+                state.isAddExperienceAction -> ErrorBanner(
+                    message = state.generationError,
+                    onRetry = onRecordExperience,
+                    title = "담을 경험이 필요해요",
+                    retryText = "경험 추가하러 가기",
+                )
+                state.isGenerationQuotaExceeded -> ErrorBanner(
+                    message = state.generationError,
+                    onRetry = onDismissError,
+                    title = "오늘은 더 만들 수 없어요",
+                )
+                else -> ErrorBanner(
+                    message = state.generationError,
+                    onRetry = onRetryGenerate,
+                    title = "생성하지 못했어요",
+                )
+            }
         }
 
         PrimaryButton(
