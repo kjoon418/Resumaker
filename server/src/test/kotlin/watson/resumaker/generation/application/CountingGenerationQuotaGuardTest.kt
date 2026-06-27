@@ -15,7 +15,6 @@ import watson.resumaker.account.domain.User
 import watson.resumaker.account.domain.UserId
 import watson.resumaker.account.domain.UserTimeZone
 import watson.resumaker.account.infrastructure.UserRepository
-import watson.resumaker.artifact.domain.SectionId
 import watson.resumaker.common.domain.QuotaExceededException
 import watson.resumaker.generation.infrastructure.GenerationQuotaCounter
 import watson.resumaker.generation.infrastructure.GenerationQuotaCounterRepository
@@ -46,7 +45,8 @@ class CountingGenerationQuotaGuardTest {
     )
 
     private val ownerId = UserId(UUID.randomUUID())
-    private val sectionId = SectionId(UUID.randomUUID())
+    private val artifactId = watson.resumaker.artifact.domain.ArtifactId(UUID.randomUUID())
+    private val definitionKey = "summary"
 
     /** UTC 09:00 — 서울(+09:00)에서는 같은 날 18:00(달력일 동일), UTC 16:00 — 서울에서는 다음 날 01:00(달력일 +1). */
     private fun guardAt(instant: Instant, zone: String = "Asia/Seoul"): CountingGenerationQuotaGuard {
@@ -142,47 +142,71 @@ class CountingGenerationQuotaGuardTest {
     }
 
     @Test
-    fun 재생성_한도는_항목당_카운트하며_상한_도달_시_차단된다() {
-        // given — 이 항목 오늘 5회(상한 5 도달).
+    fun 재생성_한도는_논리_항목당_카운트하며_상한_도달_시_차단된다() {
+        // given — 이 논리 항목 오늘 5회(상한 5 도달).
         whenever(counterRepository.findCountByScopeKeyAndQuotaDate(any(), any())).thenReturn(5)
         val guard = guardAt(Instant.parse("2026-06-17T03:00:00Z"))
 
         // when and then
-        assertThatThrownBy { guard.checkRegeneration(ownerId, sectionId) }
+        assertThatThrownBy { guard.checkRegeneration(ownerId, artifactId, definitionKey) }
             .isInstanceOf(QuotaExceededException::class.java)
             .extracting("code").isEqualTo(CountingGenerationQuotaGuard.REGENERATION_QUOTA_EXCEEDED)
     }
 
     @Test
-    fun 재생성_점검은_항목_식별자를_스코프로_구분한다() {
-        // given — 항목별로 다른 스코프 키를 써야 다른 항목의 사용량이 섞이지 않는다.
+    fun 재생성_점검은_버전_불변_논리항목_식별자를_스코프로_쓴다() {
+        // given (B1) — 재생성은 새 SectionId를 발급하므로 스코프는 버전 불변 논리 항목(artifactId+definitionKey)이어야
+        // 한도가 누적된다. SectionId가 키에 섞이면 매 재생성이 새 키 0회에서 시작해 한도가 무력화된다.
         whenever(counterRepository.findCountByScopeKeyAndQuotaDate(any(), any())).thenReturn(0)
         val guard = guardAt(Instant.parse("2026-06-17T03:00:00Z"))
 
         // when
-        guard.checkRegeneration(ownerId, sectionId)
+        guard.checkRegeneration(ownerId, artifactId, definitionKey)
 
-        // then — sectionId가 포함된 스코프 키로 조회한다(REGEN: 접두 + sectionId).
+        // then — REGEN:{artifactId}:{definitionKey} 형태의 키로 조회한다.
         verify(counterRepository).findCountByScopeKeyAndQuotaDate(
-            org.mockito.kotlin.argThat { contains(sectionId.value.toString()) },
+            eq("REGEN:${artifactId.value}:$definitionKey"),
             any(),
         )
     }
 
     @Test
-    fun 재생성_차감도_항목당_원자_증가로_수행된다() {
+    fun 재생성_차감도_논리_항목당_원자_증가로_수행된다() {
         // given
         whenever(counterRepository.increment(any(), any())).thenReturn(1)
         val guard = guardAt(Instant.parse("2026-06-17T03:00:00Z"))
 
         // when
-        guard.recordRegeneration(ownerId, sectionId)
+        guard.recordRegeneration(ownerId, artifactId, definitionKey)
 
         // then
         verify(counterRepository).increment(
-            org.mockito.kotlin.argThat { contains(sectionId.value.toString()) },
+            eq("REGEN:${artifactId.value}:$definitionKey"),
             eq(LocalDate.parse("2026-06-17")),
         )
+    }
+
+    @Test
+    fun 재생성_성공으로_SectionId가_바뀌어도_같은_논리항목의_한도가_누적되어_차단된다() {
+        // given (B1 회귀) — 재생성 성공마다 adoptSection이 새 SectionId를 발급하지만, 쿼터 키는 버전 불변
+        // 논리 항목(artifactId+definitionKey)이므로 같은 산출물·같은 definitionKey의 재생성은 같은 카운터에 누적된다.
+        // 두 차감이 모두 같은 스코프 키로 증가하는지(=교차-버전 우회 불가)를 검증한다.
+        whenever(counterRepository.increment(any(), any())).thenReturn(1)
+        val guard = guardAt(Instant.parse("2026-06-17T03:00:00Z"))
+        val expectedKey = "REGEN:${artifactId.value}:$definitionKey"
+
+        // when — 같은 논리 항목을 두 버전(서로 다른 SectionId 발급 상황)에 걸쳐 재생성·차감.
+        guard.recordRegeneration(ownerId, artifactId, definitionKey)
+        guard.recordRegeneration(ownerId, artifactId, definitionKey)
+
+        // then — 두 차감 모두 동일한 버전 불변 키로 증가(누적). 상한 도달 시 같은 키 카운트가 차단을 유발한다.
+        verify(counterRepository, org.mockito.kotlin.times(2)).increment(eq(expectedKey), eq(LocalDate.parse("2026-06-17")))
+
+        // and — 그 키가 상한에 도달하면 점검이 차단된다(누적이 실효함을 확인).
+        whenever(counterRepository.findCountByScopeKeyAndQuotaDate(eq(expectedKey), any())).thenReturn(5)
+        assertThatThrownBy { guard.checkRegeneration(ownerId, artifactId, definitionKey) }
+            .isInstanceOf(QuotaExceededException::class.java)
+            .extracting("code").isEqualTo(CountingGenerationQuotaGuard.REGENERATION_QUOTA_EXCEEDED)
     }
 
     @Test

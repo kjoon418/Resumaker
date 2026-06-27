@@ -63,7 +63,7 @@ class SectionRegenerationServiceTest {
         var regenerationRecorded = 0
         override fun checkInitialGeneration(ownerId: UserId) {}
         override fun recordInitialGeneration(ownerId: UserId) {}
-        override fun checkRegeneration(ownerId: UserId, sectionId: SectionId) {
+        override fun checkRegeneration(ownerId: UserId, artifactId: ArtifactId, definitionKey: String) {
             regenerationChecked++
             if (blockCheck) {
                 throw watson.resumaker.common.domain.QuotaExceededException(
@@ -73,7 +73,7 @@ class SectionRegenerationServiceTest {
                 )
             }
         }
-        override fun recordRegeneration(ownerId: UserId, sectionId: SectionId) { regenerationRecorded++ }
+        override fun recordRegeneration(ownerId: UserId, artifactId: ArtifactId, definitionKey: String) { regenerationRecorded++ }
         override fun checkQualityImprovement(ownerId: UserId) {}
         override fun recordQualityImprovement(ownerId: UserId) {}
     }

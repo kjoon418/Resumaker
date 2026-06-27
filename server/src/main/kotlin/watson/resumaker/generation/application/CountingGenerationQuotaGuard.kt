@@ -5,7 +5,7 @@ import org.springframework.stereotype.Component
 import watson.resumaker.account.domain.User
 import watson.resumaker.account.domain.UserId
 import watson.resumaker.account.infrastructure.UserRepository
-import watson.resumaker.artifact.domain.SectionId
+import watson.resumaker.artifact.domain.ArtifactId
 import watson.resumaker.common.domain.QuotaExceededException
 import watson.resumaker.common.domain.ResourceNotFoundException
 import watson.resumaker.generation.infrastructure.GenerationQuotaCounter
@@ -56,9 +56,9 @@ class CountingGenerationQuotaGuard(
         incrementOrInsert(initialScopeKey(ownerId), todayFor(ownerId))
     }
 
-    override fun checkRegeneration(ownerId: UserId, sectionId: SectionId) {
+    override fun checkRegeneration(ownerId: UserId, artifactId: ArtifactId, definitionKey: String) {
         val today = todayFor(ownerId)
-        val used = currentCount(regenerationScopeKey(sectionId), today)
+        val used = currentCount(regenerationScopeKey(artifactId, definitionKey), today)
         if (used >= properties.dailyRegenerationLimitPerSection) {
             throw QuotaExceededException(
                 message = "이 항목을 오늘 다시 만들 수 있는 횟수(${properties.dailyRegenerationLimitPerSection}회)를 모두 썼어요. " +
@@ -69,8 +69,8 @@ class CountingGenerationQuotaGuard(
         }
     }
 
-    override fun recordRegeneration(ownerId: UserId, sectionId: SectionId) {
-        incrementOrInsert(regenerationScopeKey(sectionId), todayFor(ownerId))
+    override fun recordRegeneration(ownerId: UserId, artifactId: ArtifactId, definitionKey: String) {
+        incrementOrInsert(regenerationScopeKey(artifactId, definitionKey), todayFor(ownerId))
     }
 
     override fun checkQualityImprovement(ownerId: UserId) {
@@ -127,7 +127,12 @@ class CountingGenerationQuotaGuard(
 
     private fun initialScopeKey(ownerId: UserId): String = "$INITIAL_SCOPE_PREFIX${ownerId.value}"
 
-    private fun regenerationScopeKey(sectionId: SectionId): String = "$REGEN_SCOPE_PREFIX${sectionId.value}"
+    /**
+     * 재생성 쿼터 스코프 키는 **버전 불변 논리 항목**(`REGEN:{artifactId}:{definitionKey}`)이다(B1).
+     * SectionId는 재생성 성공마다 새로 발급되므로 키로 쓰면 매번 0회에서 시작해 일일 상한이 무력화된다.
+     */
+    private fun regenerationScopeKey(artifactId: ArtifactId, definitionKey: String): String =
+        "$REGEN_SCOPE_PREFIX${artifactId.value}:$definitionKey"
 
     /** 품질 개선은 사용자당 합산 한도다(§5.1-3 별도 일일 한도 — 항목 재생성과 키 접두로 분리해 카운터가 섞이지 않음). */
     private fun qualityScopeKey(ownerId: UserId): String = "$QUALITY_SCOPE_PREFIX${ownerId.value}"

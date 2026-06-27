@@ -1,7 +1,7 @@
 package watson.resumaker.generation.application
 
 import watson.resumaker.account.domain.UserId
-import watson.resumaker.artifact.domain.SectionId
+import watson.resumaker.artifact.domain.ArtifactId
 
 /**
  * [GenerationQuotaGuard]의 항상-허용(no-op) 구현. 실제 카운트·차감·리셋은 [CountingGenerationQuotaGuard]가 한다.
@@ -20,11 +20,11 @@ class AllowingGenerationQuotaGuard : GenerationQuotaGuard {
         // no-op.
     }
 
-    override fun checkRegeneration(ownerId: UserId, sectionId: SectionId) {
+    override fun checkRegeneration(ownerId: UserId, artifactId: ArtifactId, definitionKey: String) {
         // no-op: 항상 허용.
     }
 
-    override fun recordRegeneration(ownerId: UserId, sectionId: SectionId) {
+    override fun recordRegeneration(ownerId: UserId, artifactId: ArtifactId, definitionKey: String) {
         // no-op.
     }
 

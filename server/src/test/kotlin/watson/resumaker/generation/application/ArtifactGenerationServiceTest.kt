@@ -64,8 +64,8 @@ class ArtifactGenerationServiceTest {
         var regenerationRecorded = 0
         override fun checkInitialGeneration(ownerId: UserId) {}
         override fun recordInitialGeneration(ownerId: UserId) { initialRecorded++ }
-        override fun checkRegeneration(ownerId: UserId, sectionId: watson.resumaker.artifact.domain.SectionId) {}
-        override fun recordRegeneration(ownerId: UserId, sectionId: watson.resumaker.artifact.domain.SectionId) { regenerationRecorded++ }
+        override fun checkRegeneration(ownerId: UserId, artifactId: watson.resumaker.artifact.domain.ArtifactId, definitionKey: String) {}
+        override fun recordRegeneration(ownerId: UserId, artifactId: watson.resumaker.artifact.domain.ArtifactId, definitionKey: String) { regenerationRecorded++ }
         override fun checkQualityImprovement(ownerId: UserId) {}
         override fun recordQualityImprovement(ownerId: UserId) {}
     }

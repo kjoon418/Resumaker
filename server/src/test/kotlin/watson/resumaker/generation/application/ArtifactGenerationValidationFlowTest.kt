@@ -70,8 +70,8 @@ class ArtifactGenerationValidationFlowTest {
         var checks = 0
         override fun checkInitialGeneration(ownerId: UserId) { checks++ }
         override fun recordInitialGeneration(ownerId: UserId) {}
-        override fun checkRegeneration(ownerId: UserId, sectionId: watson.resumaker.artifact.domain.SectionId) {}
-        override fun recordRegeneration(ownerId: UserId, sectionId: watson.resumaker.artifact.domain.SectionId) {}
+        override fun checkRegeneration(ownerId: UserId, artifactId: watson.resumaker.artifact.domain.ArtifactId, definitionKey: String) {}
+        override fun recordRegeneration(ownerId: UserId, artifactId: watson.resumaker.artifact.domain.ArtifactId, definitionKey: String) {}
         override fun checkQualityImprovement(ownerId: UserId) {}
         override fun recordQualityImprovement(ownerId: UserId) {}
     }

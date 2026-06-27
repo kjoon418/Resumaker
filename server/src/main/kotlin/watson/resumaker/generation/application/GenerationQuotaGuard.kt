@@ -1,7 +1,7 @@
 package watson.resumaker.generation.application
 
 import watson.resumaker.account.domain.UserId
-import watson.resumaker.artifact.domain.SectionId
+import watson.resumaker.artifact.domain.ArtifactId
 
 /**
  * 비용 가드레일(도메인 이해 §394~401·404, 수용 기준 15, 구현 설계 §5·§7). **Cycle 6에서 실 구현.**
@@ -34,11 +34,17 @@ interface GenerationQuotaGuard {
     /** 1차 생성 성공(최소 1항목)을 사용자당 1회 차감한다. 영속 후 호출한다. */
     fun recordInitialGeneration(ownerId: UserId)
 
-    /** 항목 재생성 시작 전 생성 항목당 잔여 횟수를 점검한다(상한 도달 시 [watson.resumaker.common.domain.QuotaExceededException]). */
-    fun checkRegeneration(ownerId: UserId, sectionId: SectionId)
+    /**
+     * 항목 재생성 시작 전 논리 항목당 잔여 횟수를 점검한다(상한 도달 시 [watson.resumaker.common.domain.QuotaExceededException]).
+     *
+     * **버전 불변 키(B1):** 재생성 성공은 새 SectionId를 발급해 버전마다 물리 식별자가 바뀌므로, 쿼터 스코프는
+     * 버전을 가로지르는 논리 항목(`{artifactId}:{definitionKey}`)으로 고정한다(도메인 §449·수용 기준 15).
+     * SectionId를 키로 쓰면 매 재생성이 새 키 0회에서 시작해 상한이 무력화된다.
+     */
+    fun checkRegeneration(ownerId: UserId, artifactId: ArtifactId, definitionKey: String)
 
-    /** 항목 재생성의 사용자 요청 최종 성공을 생성 항목당 1회 차감한다. 영속 후 호출한다. */
-    fun recordRegeneration(ownerId: UserId, sectionId: SectionId)
+    /** 항목 재생성의 사용자 요청 최종 성공을 논리 항목(`{artifactId}:{definitionKey}`)당 1회 차감한다. 영속 후 호출한다. */
+    fun recordRegeneration(ownerId: UserId, artifactId: ArtifactId, definitionKey: String)
 
     /**
      * 품질 개선 접수 전 사용자당 잔여 횟수를 점검한다(품질 개선 기획 §5.1-3 — 항목 재생성 상한과 **별개의** 자체 일일

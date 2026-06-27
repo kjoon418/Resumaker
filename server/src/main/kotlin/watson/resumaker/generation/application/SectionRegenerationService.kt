@@ -69,7 +69,8 @@ class SectionRegenerationService(
             ) { "항목 재생성 재료 적재 트랜잭션이 결과를 돌려주지 못했어요." }
 
             // 재생성 사전 점검(빠른 실패): 외부 LLM 호출 전에 항목당 잔여 횟수를 확인해 상한 도달 시 즉시 막는다(§397).
-            quotaGuard.checkRegeneration(ownerId, command.sectionId)
+            // 쿼터 키는 버전 불변 논리 항목(artifactId+definitionKey)이다 — 재생성이 새 SectionId를 발급해도 누적된다(B1).
+            quotaGuard.checkRegeneration(ownerId, command.artifactId, prepared.definitionKey)
 
             // 2. (tx 밖) 포트 생성 + 자동 검증 + 검증실패 자동 1회 재생성(공유 회복 규칙).
             //    포트가 대상 키 항목을 끝내 누락하면 resolved는 null(→ 영속 단계에서 거부).
@@ -198,7 +199,8 @@ class SectionRegenerationService(
         // 검증실패(VALIDATION_FAILED 등)는 미차감하며, 검증실패 자동 재시도는 프로세서가 가드를 호출하지 않아
         // 구조적으로 미차감이다. 영속 성공 후이므로 차감과 새 버전이 같은 tx2에서 원자적으로 함께 반영된다.
         if (resolved.status == SectionStatus.GENERATED) {
-            quotaGuard.recordRegeneration(ownerId, command.sectionId)
+            // 버전 불변 논리 항목 키로 차감해 새 SectionId 발급에도 일일 한도가 누적된다(B1).
+            quotaGuard.recordRegeneration(ownerId, command.artifactId, resolved.section.definitionKey)
         }
         return mapper.toResponse(saved, prunedVersionCount = pruned.size)
     }
