@@ -213,7 +213,8 @@ private fun StrategyAnalyzing() {
             )
         }
         Text(
-            text = "잠시 후 이 화면을 다시 열면 확인할 수 있어요.",
+            // 이 화면은 3초 간격으로 자동 폴링하므로 사용자가 다시 열 필요가 없다(UX-05 — 카피·동작 일치).
+            text = "분석이 끝나면 자동으로 보여드릴게요.",
             style = RmTextStyles.bodyS,
             color = colors.textTertiary,
         )
