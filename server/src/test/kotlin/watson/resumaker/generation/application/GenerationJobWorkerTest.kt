@@ -206,6 +206,23 @@ class GenerationJobWorkerTest {
     }
 
     @Test
+    fun 빈_경험_선택_예외는_SOURCE_MISSING으로_FAILED되어_EDIT_INPUTS로_분류된다() {
+        // given (B6) — 입력성 예외가 Throwable로 떨어져 GENERATION_FAILED(IN_PLACE)로 오분류되면 안 된다.
+        // 입력 수정이 필요하므로 SOURCE_MISSING(EDIT_INPUTS)으로 분류돼야 한다.
+        val job = pendingResume()
+        whenever(generationService.generateResume(any(), any(), anyOrNull()))
+            .thenThrow(watson.resumaker.common.domain.EmptyExperienceSelectionException("경험을 하나 이상 골라 주세요."))
+
+        // when
+        worker.process(job)
+
+        // then
+        assertThat(job.status).isEqualTo(GenerationJobStatus.FAILED)
+        assertThat(job.errorCode).isEqualTo("GENERATION_SOURCE_MISSING")
+        assertThat(job.retryMode()).isEqualTo(watson.resumaker.generation.domain.GenerationJobRetryMode.EDIT_INPUTS)
+    }
+
+    @Test
     fun 그_외_예외는_GENERATION_FAILED로_FAILED() {
         // given
         val job = pendingResume()

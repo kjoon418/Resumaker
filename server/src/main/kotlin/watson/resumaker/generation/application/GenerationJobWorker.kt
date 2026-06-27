@@ -3,6 +3,7 @@ package watson.resumaker.generation.application
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Component
 import watson.resumaker.common.domain.DomainValidationException
+import watson.resumaker.common.domain.EmptyExperienceSelectionException
 import watson.resumaker.common.domain.GenerationUnavailableException
 import watson.resumaker.common.domain.QuotaExceededException
 import watson.resumaker.common.domain.ResourceNotFoundException
@@ -123,6 +124,10 @@ class GenerationJobWorker(
         } catch (exception: DomainValidationException) {
             // 전 항목 실패 등으로 만들 산출물이 없는 경우(파이프라인이 "생성할 수 있는 항목이 없어요…"를 던짐).
             fail(job, GenerationErrorCode.NO_CONTENT, exception.message ?: "생성할 수 있는 항목이 없어요.")
+        } catch (exception: EmptyExperienceSelectionException) {
+            // B6: 빈 경험 묶음(입력성). 제출 DTO @NotEmpty로 실전 도달은 어렵지만, Throwable로 떨어져 IN_PLACE로
+            // 오분류되지 않도록 입력성으로 분류해 입력 수정(EDIT_INPUTS — SOURCE_MISSING)으로 보낸다.
+            fail(job, GenerationErrorCode.SOURCE_MISSING, exception.message ?: "생성에 쓸 경험을 하나 이상 골라 주세요.")
         } catch (exception: ResourceNotFoundException) {
             // 제출 후 경험·목표가 삭제돼 생성 재료를 적재하지 못한 경우.
             fail(job, GenerationErrorCode.SOURCE_MISSING, "생성에 쓸 경험이나 목표를 찾을 수 없어요.")
