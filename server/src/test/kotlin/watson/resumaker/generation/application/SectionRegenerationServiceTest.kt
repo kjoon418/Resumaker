@@ -234,6 +234,21 @@ class SectionRegenerationServiceTest {
     }
 
     @Test
+    fun 포트가_대상_항목을_끝내_누락하면_503계열_AI일시실패로_던진다() {
+        // given (B4) — 외부 LLM이 대상 키 항목을 끝내 못 돌려준 AI 일시 실패. 근거 0 같은 입력성 거부와 구분해
+        // ClaudeCliException(→503/RETRY_LATER)로 던져야 한다(400 INVALID_REQUEST가 아님).
+        val (artifact, summaryId, _) = resumeArtifact()
+        whenever(artifactRepository.findByIdAndOwnerId(artifact.id, ownerId)).thenReturn(artifact)
+        stubLoads()
+        val port = FakePort(GenerationOutput(emptyList()))
+
+        // when and then — 새 버전·저장 없이 503 계열 예외 전파.
+        assertThatThrownBy { service(port).regenerateSection(ownerId, command(artifact.id, summaryId)) }
+            .isInstanceOf(watson.resumaker.generation.infrastructure.ClaudeCliException::class.java)
+        verify(artifactRepository, never()).save(any<Artifact>())
+    }
+
+    @Test
     fun 재생성_반복으로_상한을_넘으면_가장_오래된_비활성_버전부터_정리되고_활성은_보존된다() {
         // given (수용 기준 11) — 보관 상한 2. 반복 재생성으로 버전이 늘면 상한 이하로 정리되고 활성은 남는다.
         val (artifact, _, _) = resumeArtifact()
