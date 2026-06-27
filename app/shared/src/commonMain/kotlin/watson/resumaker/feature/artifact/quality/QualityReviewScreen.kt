@@ -293,5 +293,12 @@ private fun SuggestionFindingRow(
             text = "경험 보강하러 가기",
             onClick = { onOpenExperience(finding.targetExperienceId) },
         )
+        // UX-11: 보강하러 이동하면 이 점검 결과는 보존되지 않고, 돌아와 다시 열면 새로 점검한다. 이를 미리 알려
+        // 사용자가 점검 결과가 사라진 듯한 혼란을 겪지 않게 한다(상태 보존은 구조상 과해 안내 카피로 대신함).
+        Text(
+            text = "보강한 뒤 이 화면을 다시 열면 새로 점검해 반영해요.",
+            style = RmTextStyles.caption,
+            color = colors.textTertiary,
+        )
     }
 }
