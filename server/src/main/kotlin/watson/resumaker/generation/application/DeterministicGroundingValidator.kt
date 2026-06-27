@@ -49,11 +49,24 @@ class DeterministicGroundingValidator(
 
     // ----- NUMERIC -----
 
+    /**
+     * 단위 인지 수치 대조(AI-07). 값별로 corpus에 등장한 단위 집합(흔한 단위 밖이면 null 포함)을 인덱싱한 뒤,
+     * content의 각 수치를 값+단위로 대조한다:
+     * - 단위 없는 수사적 수치(예: "3개"의 "개"는 흔한 단위 밖)는 대조에서 제외해 거짓 양성 드롭을 줄인다.
+     * - 단위 있는 수치는 같은 값이 corpus에 **같은 단위 또는 단위 없이** 등장해야 근거 있음으로 본다. 같은 값이지만
+     *   다른 단위로만 등장하면(예: content "40%" vs corpus "40명") 근거 없음으로 본다(단위 충돌 오음성 차단).
+     */
     private fun findUngroundedNumerics(content: String, corpus: String): List<UngroundedToken> {
-        val corpusValues = extractor.extractNumericValues(corpus)
-        return extractor.extractNumericTokens(content).mapNotNull { (raw, value) ->
-            if (value in corpusValues) null
-            else UngroundedToken(text = raw, kind = FactKind.NUMERIC)
+        val corpusUnitsByValue = HashMap<java.math.BigDecimal, MutableSet<String?>>()
+        extractor.extractNumericFacts(corpus).forEach { fact ->
+            corpusUnitsByValue.getOrPut(fact.value) { mutableSetOf() }.add(fact.unit)
+        }
+        return extractor.extractNumericFacts(content).mapNotNull { fact ->
+            // 단위 없는 순수 수량/순서 수사는 수사적 표현으로 보고 대조에서 제외(거짓 양성 방지).
+            if (fact.unit == null) return@mapNotNull null
+            val corpusUnits = corpusUnitsByValue[fact.value]
+            val grounded = corpusUnits != null && (fact.unit in corpusUnits || null in corpusUnits)
+            if (grounded) null else UngroundedToken(text = fact.value.toPlainString(), kind = FactKind.NUMERIC)
         }
     }
 

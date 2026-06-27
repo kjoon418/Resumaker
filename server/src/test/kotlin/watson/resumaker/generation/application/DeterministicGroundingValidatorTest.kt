@@ -306,17 +306,56 @@ class DeterministicGroundingValidatorTest {
         assertThat(result.ungroundedTokens.map { it.kind }).containsOnly(FactKind.PROPER_NOUN)
     }
 
-    // ----- [MED-1] NUMERIC 단위 충돌 오음성: 의도된 한계 회귀 고정 -----
+    // ----- [AI-07] NUMERIC 단위 인지 대조 -----
 
     @Test
-    fun 단위가_달라도_같은_수치값이면_통과한다_의도된_한계() {
-        // given — 산출물 "40%"(퍼센트) vs 출처 "40명"(인원). 단위는 다르나 값 40은 같다.
+    fun 같은_값이라도_단위가_충돌하면_근거없음으로_검출된다() {
+        // given (AI-07) — 산출물 "40%"(퍼센트) vs 출처 "40명"(인원). 값 40은 같지만 단위가 다르다.
         val result = validator.validate(
             section("만족도를 40% 높였다."),
             listOf(source(body = "팀원 40명과 협업했다.")),
         )
 
-        // then — 값 동치 판정이라 통과(단위 충돌 오음성 — 문서화된 의도된 한계, 우발적 변경 방지용 회귀 고정).
+        // then — 단위 충돌은 날조 누수이므로 근거 없음으로 검출한다(과거 오음성 통과를 차단).
+        assertThat(result.valid).isFalse()
+        assertThat(result.ungroundedTokens.map { it.kind }).containsOnly(FactKind.NUMERIC)
+        assertThat(result.ungroundedTokens.map { it.text }).contains("40")
+    }
+
+    @Test
+    fun 같은_값_같은_단위는_통과한다() {
+        // given — "40명" 산출물·출처가 값·단위 모두 일치.
+        val result = validator.validate(
+            section("팀원 40명을 이끌었다."),
+            listOf(source(body = "팀원 40명과 협업했다.")),
+        )
+
+        // then
+        assertThat(result.valid).isTrue()
+    }
+
+    @Test
+    fun 단위_없는_순수_수량_수사는_대조에서_제외된다() {
+        // given (AI-07) — 출처엔 "여러"(숫자 없음), 산출물엔 "3개"(흔한 단위 밖 수량사). 수사적 수치라 검증 제외.
+        val result = validator.validate(
+            section("핵심 기능 3개를 만들었다."),
+            listOf(source(body = "여러 핵심 기능을 만들었다.")),
+        )
+
+        // then — "3"이 출처에 없어도 단위 없는 수사적 수치라 드롭하지 않고 통과(거짓 양성 제거).
+        assertThat(result.valid).isTrue()
+        assertThat(result.ungroundedTokens).isEmpty()
+    }
+
+    @Test
+    fun 산출물_단위_수치가_출처에_단위없이_있으면_통과한다() {
+        // given — 산출물 "40%" vs 출처 "40"(단위 없는 순수 값). 단위 충돌이 아니므로 통과(스케일 동치 유지).
+        val result = validator.validate(
+            section("만족도를 40% 높였다."),
+            listOf(source(body = "지표 40을 기록했다.")),
+        )
+
+        // then
         assertThat(result.valid).isTrue()
     }
 

@@ -33,6 +33,29 @@ class FactTokenExtractorTest {
     }
 
     @Test
+    fun 단위_인지_수치는_값과_정규화_단위를_함께_추출한다() {
+        // given (AI-07) — %·ms·명은 흔한 단위로 정규화, "개"는 흔한 단위 밖이라 단위 null.
+        val facts = extractor.extractNumericFacts("응답을 40% 줄이고 30ms 단축, 팀원 5명, 기능 3개")
+
+        // then (BigDecimal 스케일 함정을 피해 값 문자열·단위 쌍으로 단언)
+        assertThat(facts.map { it.value.toPlainString() to it.unit }).contains(
+            "40" to "%",
+            "30" to "ms",
+            "5" to "명",
+            "3" to null,
+        )
+    }
+
+    @Test
+    fun 단위_동의어와_공백은_같은_단위로_정규화된다() {
+        // given — "40 퍼센트"(공백·동의어)는 "%"로 정규화.
+        val facts = extractor.extractNumericFacts("성능을 40 퍼센트 개선")
+
+        // then
+        assertThat(facts.map { it.value.toPlainString() to it.unit }).containsExactly("40" to "%")
+    }
+
+    @Test
     fun 라틴_기술명은_고유명사_후보로_추출된다() {
         // given
         val tokens = extractor.extract("Kotlin과 Spring Boot로 개발했다.")

@@ -16,9 +16,12 @@ import java.math.BigDecimal
  * ## NUMERIC 추출·정규화 규칙·한계(문서화 — §426)
  * - 추출: 텍스트에서 숫자 토큰을 뽑는다. 천단위 콤마(`12,000`)·소수점(`3.14`)·퍼센트/단위 접미는 숫자 본체만 취한다.
  * - 정규화: 콤마 제거 후 [BigDecimal]로 파싱해 **수치 값**으로 비교한다(스케일 무시: `3.0` ≡ `3`).
- *   그래서 표기 차이가 있어도 같은 값이면 동치다: `40%` ≡ `40 퍼센트` ≡ `40`, `12,000` ≡ `12000`.
- * - **알려진 한계(단위 충돌 오음성):** 판정은 단위를 무시한 순수 값 동치다(`40%`가 출처 `40명`으로도 통과).
- *   단위가 다른 값을 같은 근거로 보는 오음성은 의도된 트레이드오프다(한국어에서 결정적 단위 정규화 불가).
+ *   그래서 표기 차이가 있어도 같은 값이면 동치다: `40%` ≡ `40 퍼센트`, `12,000` ≡ `12000`.
+ * - **단위 인지 대조(AI-07):** [extractNumericFacts]는 숫자 뒤의 **흔한 단위**(%, 명, ms, 건, 원, 배 등)를 함께 뽑아
+ *   값+단위 쌍으로 비교할 수 있게 한다. 단위가 충돌하면(`40%`↔`40명`) 근거 없음으로 본다(거짓 음성 차단).
+ *   단위 동의어(`%`≡`퍼센트`, `ms`≡`밀리초`)는 같은 단위로 정규화한다.
+ * - **단위 없는 순수 수량/순서 수사:** 단위가 붙지 않은 숫자(`3개`의 `개`는 흔한 단위 목록 밖 — 일반 수량사)는 단위
+ *   null로 본다. 신뢰성 검증은 이런 수사적 수치를 대조에서 제외해 거짓 양성 드롭을 줄인다([NumericFact.unit]==null).
  *
  * ## PROPER_NOUN 추출·정규화 규칙·한계(문서화 — §426)
  * 한국어 고유명사의 결정적 추출은 근본적으로 어렵다(형태소·사전 없이 완전 추출 불가). 균형을 위해
@@ -68,6 +71,19 @@ class FactTokenExtractor {
     /** content에서 정규화한 숫자 값 집합을 만든다(코퍼스 인덱싱·근거 대조용). */
     fun extractNumericValues(text: String): Set<BigDecimal> =
         NUMBER_REGEX.findAll(text).mapNotNull { normalizeNumber(it.value) }.toSet()
+
+    /**
+     * 단위 인지 수치 사실 추출(AI-07). 숫자 뒤에 **흔한 단위**(공백 허용)가 붙으면 [NumericFact.unit]에 정규화 단위를,
+     * 단위가 없거나 흔한 단위 밖이면 null을 담는다. 신뢰성 검증이 값+단위 쌍으로 대조해 단위 충돌 오음성(`40%`↔`40명`)을
+     * 막고, 단위 없는 수사적 수치(`3개`)는 대조에서 제외한다. 정규화는 [normalizeNumber]와 동일(스케일 무시).
+     */
+    fun extractNumericFacts(text: String): List<NumericFact> =
+        NUMBER_UNIT_REGEX.findAll(text).mapNotNull { match ->
+            val value = normalizeNumber(match.groupValues[1]) ?: return@mapNotNull null
+            val rawUnit = match.groupValues[2]
+            val unit = if (rawUnit.isBlank()) null else UNIT_CANONICAL[rawUnit.lowercase()]
+            NumericFact(value = value, unit = unit)
+        }.toList()
 
     /**
      * 고유명사 후보 목록. 각 원소는 (원문 후보, 라틴 단어 여부). 라틴 단어는 공백 구분 단어 *하나*씩 독립 후보로 둔다
@@ -142,8 +158,33 @@ class FactTokenExtractor {
     private fun Char.isLatinLetter(): Boolean = this in 'a'..'z' || this in 'A'..'Z'
 
     companion object {
+        /** 정수/소수/천단위 콤마 수치 본체 패턴. */
+        private const val NUMBER_PATTERN = """\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?"""
+
         /** 정수/소수/천단위 콤마 수치 토큰. 앞뒤 단위·기호는 별도(값만 비교). */
-        private val NUMBER_REGEX = Regex("""\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?""")
+        private val NUMBER_REGEX = Regex(NUMBER_PATTERN)
+
+        /**
+         * 단위 인지 대조(AI-07)용 흔한 단위 사전. 키는 소문자 원문, 값은 정규화 단위(동의어 통합: 퍼센트→%, 밀리초→ms).
+         * 여기 없는 접미사("개"·"가지" 등 일반 수량사)는 단위 없음(null)으로 본다 — 수사적 수치를 대조에서 제외하기 위함.
+         * 알파벳 단위(ms·gb 등)는 숫자 바로 뒤(`30ms`)에 붙고, 한글 단위는 공백 허용(`40 퍼센트`)으로 매칭한다.
+         */
+        private val UNIT_CANONICAL: Map<String, String> = linkedMapOf(
+            "퍼센트" to "%", "밀리초" to "ms", "개월" to "개월", "시간" to "시간",
+            "ms" to "ms", "gb" to "gb", "mb" to "mb", "kb" to "kb", "tb" to "tb",
+            "%" to "%", "명" to "명", "건" to "건", "원" to "원", "배" to "배",
+            "회" to "회", "점" to "점", "위" to "위",
+            "초" to "초", "분" to "분", "일" to "일", "주" to "주", "년" to "년",
+        )
+
+        /** 흔한 단위 alternation(긴 리터럴 우선 — 정규식 alternation은 앞선 항이 우선). */
+        private val UNIT_PATTERN = UNIT_CANONICAL.keys
+            .sortedByDescending { it.length }
+            .joinToString("|") { Regex.escape(it) }
+
+        /** 수치 본체 + (공백 허용) 흔한 단위(선택). group1=숫자, group2=단위(없으면 빈 문자열). */
+        private val NUMBER_UNIT_REGEX =
+            Regex("""($NUMBER_PATTERN)\s*($UNIT_PATTERN)?""", RegexOption.IGNORE_CASE)
 
         /**
          * 라틴 알파벳을 포함하는 **단어 하나**(영문 기술명/제품명 패턴). 공백/한글/일반 구두점 경계로 끊는다.
@@ -169,4 +210,13 @@ data class ExtractedToken(
     val text: String,
     val kind: FactKind,
     val normalized: String,
+)
+
+/**
+ * 단위 인지 수치 사실(AI-07). [value]는 정규화 수치 값(스케일 무시), [unit]은 정규화 단위(흔한 단위면 그 값, 없거나
+ * 흔한 단위 밖이면 null). 값+단위 쌍으로 대조해 단위 충돌 오음성을 막고, 단위 없는 수사적 수치는 검증에서 제외한다.
+ */
+data class NumericFact(
+    val value: java.math.BigDecimal,
+    val unit: String?,
 )
