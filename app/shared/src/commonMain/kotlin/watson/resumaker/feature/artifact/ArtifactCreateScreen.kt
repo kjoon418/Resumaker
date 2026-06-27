@@ -233,15 +233,20 @@ private fun CreateForm(
             enabled = state.canSubmit,
             loading = state.generating,
         )
-        if (state.generating) {
-            Text(
+        when {
+            state.generating -> Text(
                 text = "생성을 시작하고 있어요. 잠시 후 목록에서 진행 상황을 확인할 수 있어요.",
                 style = RmTextStyles.caption,
                 color = RmTheme.colors.textTertiary,
             )
-        } else if (state.selectedTargetStrategyNotReady) {
-            // 선택한 목표 전략이 아직 준비되지 않아도 생성은 가능하다 — 공고 원문 기반으로 만든다는 안내.
-            Text(
+            // 비활성 사유를 구체적으로 안내(UX-04 — 무엇이 부족한지 모르는 막연한 비활성 제거).
+            state.submitBlockReason != null -> Text(
+                text = state.submitBlockReason!!,
+                style = RmTextStyles.caption,
+                color = RmTheme.colors.textTertiary,
+            )
+            state.selectedTargetStrategyNotReady -> Text(
+                // 선택한 목표 전략이 아직 준비되지 않아도 생성은 가능하다 — 공고 원문 기반으로 만든다는 안내.
                 text = "선택한 목표의 전략이 아직 준비되지 않았어요. 공고 원문을 바탕으로 만들어 드릴게요.",
                 style = RmTextStyles.caption,
                 color = RmTheme.colors.textTertiary,

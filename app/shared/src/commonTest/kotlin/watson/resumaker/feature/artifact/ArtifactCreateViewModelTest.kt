@@ -108,6 +108,57 @@ class ArtifactCreateViewModelTest {
     }
 
     @Test
+    fun submitBlockReasonListsMissingRequirementsForResume() = runTest(dispatcher) {
+        // UX-04: 만들기 버튼이 비활성일 때 무엇이 부족한지 구체적으로 도출한다(이력서는 경험·목표·양식 필수).
+        val vm = vmWith(FakeArtifactApi())
+        testScheduler.advanceUntilIdle()
+
+        // 아무 것도 선택 안 함 → 세 항목 모두 부족.
+        assertEquals("경험, 목표, 이력서 양식 선택이 필요해요", vm.state.value.submitBlockReason)
+
+        vm.toggleExperience("e-1")
+        assertEquals("목표, 이력서 양식 선택이 필요해요", vm.state.value.submitBlockReason)
+
+        vm.selectTarget("t-1")
+        assertEquals("이력서 양식 선택이 필요해요", vm.state.value.submitBlockReason)
+
+        vm.selectTemplate("tpl-1")
+        // 모두 충족 → 비활성 사유 없음.
+        assertTrue(vm.state.value.canSubmit)
+        assertNull(vm.state.value.submitBlockReason)
+    }
+
+    @Test
+    fun submitBlockReasonExcludesTemplateForPortfolio() = runTest(dispatcher) {
+        // 포트폴리오는 양식 단계가 없으므로 양식을 미충족 항목으로 세지 않는다.
+        val vm = vmWith(FakeArtifactApi())
+        testScheduler.advanceUntilIdle()
+
+        vm.selectKind(ArtifactKind.PORTFOLIO)
+        assertEquals("경험, 목표 선택이 필요해요", vm.state.value.submitBlockReason)
+
+        vm.toggleExperience("e-1")
+        vm.selectTarget("t-1")
+        assertTrue(vm.state.value.canSubmit)
+        assertNull(vm.state.value.submitBlockReason)
+    }
+
+    @Test
+    fun submitBlockReasonIsNullWhileGenerating() = runTest(dispatcher) {
+        // 생성 중에는 비활성 사유 대신 진행 안내를 보여주므로 사유는 null이다.
+        val vm = vmWith(FakeArtifactApi())
+        testScheduler.advanceUntilIdle()
+
+        vm.toggleExperience("e-1")
+        vm.selectTarget("t-1")
+        vm.selectTemplate("tpl-1")
+        vm.generate() // generating=true 상태 진입(코루틴 미실행).
+
+        assertTrue(vm.state.value.generating)
+        assertNull(vm.state.value.submitBlockReason)
+    }
+
+    @Test
     fun selectedTargetStrategyNotReadyReflectsTargetStatus() = runTest(dispatcher) {
         val ready = TargetResponse(id = "t-ready", recruitDirection = "방향", strategyStatus = StrategyStatus.READY)
         val pending = TargetResponse(id = "t-pending", recruitDirection = "방향", strategyStatus = StrategyStatus.PENDING)

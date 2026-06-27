@@ -86,6 +86,22 @@ data class ArtifactCreateUiState(
             templateChoiceSatisfied
 
     /**
+     * 만들기 버튼이 비활성일 때 무엇이 부족한지 알려주는 caption(UX-04). 충족됐거나 생성 중이면 null.
+     * 미충족 항목(경험·목표·이력서 양식)을 구체적으로 짚어, 왜 못 누르는지 모르는 막연한 비활성 상태를 없앤다.
+     * 양식은 이력서일 때만(포트폴리오는 양식 단계 자체가 없음) 미충족 항목으로 센다.
+     */
+    val submitBlockReason: String?
+        get() {
+            if (generating || canSubmit) return null
+            val missing = buildList {
+                if (selectedExperienceIds.isEmpty()) add("경험")
+                if (selectedTargetId == null) add("목표")
+                if (templateStepVisible && !templateChoiceSatisfied) add("이력서 양식")
+            }
+            return missing.takeIf { it.isNotEmpty() }?.let { "${it.joinToString(", ")} 선택이 필요해요" }
+        }
+
+    /**
      * 선택된 목표가 있고 그 전략이 아직 READY가 아닌지. true면 "공고 원문 기반으로 만들어 드린다"는 안내 caption을
      * 노출한다(전략 없어도 생성은 항상 가능 — 막다른 길 금지). 미선택이면 false.
      */
