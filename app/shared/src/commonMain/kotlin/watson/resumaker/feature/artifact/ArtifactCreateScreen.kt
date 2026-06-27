@@ -37,6 +37,7 @@ import watson.resumaker.ui.component.HeaderTab
 import watson.resumaker.ui.component.PageHeader
 import watson.resumaker.ui.component.headerWidthForTab
 import watson.resumaker.ui.component.PrimaryButton
+import watson.resumaker.ui.component.SecondaryButton
 import watson.resumaker.ui.component.SegmentedToggle
 import watson.resumaker.ui.component.SkeletonList
 import watson.resumaker.ui.component.StatusBadge
@@ -128,6 +129,7 @@ fun ArtifactCreateScreen(
                 onGenerate = viewModel::generate,
                 onDismissError = viewModel::dismissGenerationError,
                 onRetryGenerate = viewModel::retryGenerate,
+                onAddTarget = onAddTarget,
             )
         }
     }
@@ -147,6 +149,8 @@ private fun CreateForm(
     onDismissError: () -> Unit,
     /** 생성 실패 후 직전 선택 그대로 API를 재호출한다(#4). 한도 초과가 아닌 실패에만 배선. */
     onRetryGenerate: () -> Unit,
+    /** 목표가 없을 때 막다른 길을 막기 위한 "목표 추가하기" 이동(UX-02). */
+    onAddTarget: () -> Unit,
 ) {
     val scroll = rememberScrollState()
     Column(
@@ -176,7 +180,9 @@ private fun CreateForm(
 
         SectionLabel("어디에 지원하나요?")
         if (state.targets.isEmpty()) {
-            EmptyHint("아직 목표가 없어요. 먼저 목표를 추가해 주세요.")
+            // 막다른 길 금지(UX-02): 안내만 하지 않고 곧장 목표를 추가하러 갈 수 있게 한다.
+            EmptyHint("아직 목표가 없어요. 먼저 지원할 목표를 추가해 주세요.")
+            SecondaryButton(text = "목표 추가하기", onClick = onAddTarget)
         } else {
             Column(verticalArrangement = Arrangement.spacedBy(RmSpacing.space2)) {
                 state.targets.forEach { target ->
