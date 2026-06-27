@@ -205,6 +205,32 @@ class QualityReviewViewModelTest {
     }
 
     @Test
+    fun `startReview 실패 후 재시도 - 점검을 다시 요청하고 성공하면 소견을 적재한다`() = runTest(dispatcher) {
+        // UX-01: 진입 1회 호출이 실패하면(IDLE+errorMessage) 화면이 ErrorBanner로 재시도를 노출한다.
+        // 재시도(startReview)가 실제로 점검을 다시 요청하고, 성공하면 FINDINGS로 회복함을 검증한다.
+        val api = FakeQualityApi(reviewResult = ApiResult.Failure("서버 오류"))
+        val vm = vm(api)
+        vm.startReview()
+        testScheduler.advanceUntilIdle()
+
+        // 첫 호출 실패: 에러가 세팅되고 점검은 1회 요청됐다.
+        assertEquals(QualityStep.IDLE, vm.state.value.step)
+        assertNotNull(vm.state.value.errorMessage)
+        assertEquals(1, api.reviewCount)
+
+        // 재시도: 이번엔 성공으로 교체.
+        api.reviewResult = ApiResult.Success(reviewResponse(autoFinding()))
+        vm.startReview()
+        testScheduler.advanceUntilIdle()
+
+        // 점검이 다시 요청됐고 소견이 적재되며 에러가 사라진다.
+        assertEquals(2, api.reviewCount)
+        assertEquals(QualityStep.FINDINGS, vm.state.value.step)
+        assertNull(vm.state.value.errorMessage)
+        assertEquals(1, vm.state.value.findings.size)
+    }
+
+    @Test
     fun `startReview 진행 중 중복 호출은 무시된다`() = runTest(dispatcher) {
         val api = FakeQualityApi(reviewResult = ApiResult.Success(reviewResponse(autoFinding())))
         val vm = vm(api)

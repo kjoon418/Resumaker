@@ -95,10 +95,22 @@ fun QualityReviewScreen(
         val pad = windowSize.pagePadding()
 
         when (state.step) {
-            QualityStep.IDLE, QualityStep.REVIEWING -> Box(
-                contentModifier.padding(horizontal = pad).padding(top = RmSpacing.space6),
-            ) {
-                SkeletonList(showLeadingChip = false)
+            QualityStep.IDLE, QualityStep.REVIEWING -> {
+                // 진입 1회 호출이라 실패하면 자동 복구가 없다 — 스켈레톤에 갇히지 않도록 에러·재시도를 먼저 노출한다(UX-01).
+                if (state.errorMessage != null) {
+                    Box(contentModifier.padding(pad)) {
+                        ErrorBanner(
+                            message = state.errorMessage!!,
+                            onRetry = viewModel::startReview,
+                        )
+                    }
+                } else {
+                    Box(
+                        contentModifier.padding(horizontal = pad).padding(top = RmSpacing.space6),
+                    ) {
+                        SkeletonList(showLeadingChip = false)
+                    }
+                }
             }
 
             QualityStep.FINDINGS -> {
