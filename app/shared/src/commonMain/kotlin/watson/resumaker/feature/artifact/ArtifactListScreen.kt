@@ -16,9 +16,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
@@ -152,9 +150,9 @@ fun ArtifactListScreen(
 }
 
 /**
- * 생성 작업 카드(상태별). PENDING/RUNNING은 진행 표시(클릭 불가), FAILED는 클릭 시 인라인 오류 배너를 펼쳐
- * 다시 만들기 액션(서버 [GenerationJobResponse.retryMode] 분류)·"기록 삭제"를 제공한다. SUCCEEDED는 이 카드로
- * 렌더하지 않는다(완성 산출물 카드로 표시).
+ * 생성 작업 카드(상태별). PENDING/RUNNING은 진행 표시(클릭 불가), FAILED는 인라인 오류 사유와 복구 액션
+ * (서버 [GenerationJobResponse.retryMode] 분류)·"기록 삭제"를 **항상 펼쳐서** 보여준다(UX-03 — 단서 없는
+ * 탭 뒤에 숨기지 않음). SUCCEEDED는 이 카드로 렌더하지 않는다(완성 산출물 카드로 표시).
  *
  * 다시 만들기 액션은 retryMode로 갈린다: IN_PLACE면 "다시 만들기"(그 자리에서 저장된 입력으로 재요청),
  * EDIT_INPUTS면 "경험 다시 고르기"(입력 프리필 제작 화면), NONE이면 액션 없음(한도 초과 등).
@@ -169,13 +167,9 @@ private fun ArtifactJobCard(
     onDelete: () -> Unit,
 ) {
     val colors = RmTheme.colors
-    var expanded by remember(job.jobId) { mutableStateOf(false) }
     val failed = job.status == GenerationJobStatus.FAILED
 
-    RmCard(
-        // 실패 카드만 클릭으로 오류 상세를 펼친다. 진행 중 카드는 클릭 불가.
-        onClick = if (failed) ({ expanded = !expanded }) else null,
-    ) {
+    RmCard {
         Column {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 // 진행 중이면 좌측에 작은 스피너 칩.
@@ -216,8 +210,8 @@ private fun ArtifactJobCard(
                 )
             }
 
-            // FAILED + 펼침: 인라인 오류 + 액션.
-            if (failed && expanded) {
+            // FAILED: 인라인 오류 사유 + 복구 액션을 항상 노출(단서 없는 탭 뒤에 숨기지 않음).
+            if (failed) {
                 Column(
                     modifier = Modifier.padding(top = RmSpacing.space3),
                     verticalArrangement = Arrangement.spacedBy(RmSpacing.space2),
