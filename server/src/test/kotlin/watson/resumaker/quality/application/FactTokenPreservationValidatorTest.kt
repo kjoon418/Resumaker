@@ -29,16 +29,30 @@ class FactTokenPreservationValidatorTest {
     }
 
     @Test
-    fun 원본_수치를_흘리면_실패한다() {
-        // given — 후보가 500을 빠뜨렸다.
+    fun 파생_수치를_축약한_압축_후보는_통과한다() {
+        // given (AI-02) — 길이/압축 처치가 군더더기 파생 수치(500)를 덜어내고 표현만 다듬었다. 새 수치를 만들지
+        //                 않았으므로(후보 ⊆ 원본) 보존 검증은 통과해야 한다(수치는 "변형·날조 금지"로 좁힘).
         val preserved = validator.preserves(
             original = "초당 500건을 처리했다.",
             candidate = "많은 요청을 빠르게 처리했어요.",
         )
 
-        // then
+        // then — 파생 수치 제거는 위반이 아니다.
+        assertThat(preserved).isTrue()
+        assertThat(validator.missingTokens("초당 500건을 처리했다.", "많은 요청을 처리했어요.")).isEmpty()
+    }
+
+    @Test
+    fun 원본에_없던_새_수치를_더한_후보는_실패한다() {
+        // given (AI-02) — 후보가 원본에 없던 수치(99)를 새로 만들어 넣었다(날조). 보존 검증이 막아야 한다.
+        val preserved = validator.preserves(
+            original = "요청을 처리했다.",
+            candidate = "요청 99건을 처리했어요.",
+        )
+
+        // then — 새 수치는 위반.
         assertThat(preserved).isFalse()
-        assertThat(validator.missingTokens("초당 500건을 처리했다.", "많은 요청을 처리했어요.")).contains("500")
+        assertThat(validator.missingTokens("요청을 처리했다.", "요청 99건을 처리했어요.")).contains("99")
     }
 
     @Test

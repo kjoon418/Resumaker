@@ -44,7 +44,8 @@ class QualityImprovementProcessor(
         val grounding = groundingValidator.validate(candidate, input.experiences)
         if (!grounding.valid) return null
 
-        // QC4: 원본 사실 토큰 보존(다듬다 흘린 사실 차단 — 개선 특유 불변식). experiences의 skillTags를 한글
+        // QC4: 원본 사실 보존(개선 특유 불변식). 고유명사는 전수 보존, 수치는 "변형·날조 금지"로 좁혀 파생 수치
+        // 축약을 허용한다(AI-02 — 길이/압축 처치가 항상 막히던 no-op 해소). experiences의 skillTags를 한글
         // 고유명사 보강 사전으로 넘긴다(M2 — 따옴표 없는 한글 기술명 누락·변형 차단).
         if (!preservationValidator.preserves(input.originalContent, candidate.content, input.experiences)) return null
 

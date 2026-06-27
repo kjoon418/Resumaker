@@ -90,12 +90,13 @@ class QualityImprovementProcessorTest {
     }
 
     @Test
-    fun 원본_사실_토큰을_흘린_후보는_제외된다_QC4() {
-        // given — 원본의 수치 500을 후보가 빠뜨렸다(다듬다 사실 누락). 두 번 다 누락 → null.
+    fun 원본_고유명사_토큰을_흘린_후보는_제외된다_QC4() {
+        // given (AI-02) — QC4 보존은 수치 축약은 허용하되 **고유명사**는 전수 보존이다. 후보가 원본 고유명사
+        //                 Kotlin을 흘리면(다듬다 변형·누락) 제외돼야 한다. 두 번 다 누락 → null.
         val port = QueuePort(
             mutableListOf(
-                candidate("Kotlin으로 많은 요청을 처리했어요."),
-                candidate("Kotlin으로 많은 요청을 처리했어요."),
+                candidate("초당 500건을 안정적으로 처리했어요."),
+                candidate("초당 500건을 안정적으로 처리했어요."),
             ),
         )
         val processor = QualityImprovementProcessor(port, groundingValidator, preservationValidator)
@@ -103,17 +104,17 @@ class QualityImprovementProcessorTest {
         // when
         val result = processor.process(input("초당 500건을 Kotlin으로 처리했다."))
 
-        // then — 500 누락으로 보존 검증 실패 → 제외.
+        // then — Kotlin 누락으로 보존 검증 실패 → 제외.
         assertThat(result).isNull()
         assertThat(port.calls).isEqualTo(2)
     }
 
     @Test
     fun 첫_시도_검증실패해도_재시도가_통과하면_채택한다() {
-        // given — 첫 후보는 500 누락(QC4 실패), 두 번째는 보존.
+        // given — 첫 후보는 고유명사 Kotlin 누락(QC4 실패), 두 번째는 보존.
         val port = QueuePort(
             mutableListOf(
-                candidate("Kotlin으로 많은 요청을 처리했어요."),
+                candidate("초당 500건을 안정적으로 처리했어요."),
                 candidate("Kotlin으로 초당 500건을 처리했어요."),
             ),
         )
@@ -124,24 +125,24 @@ class QualityImprovementProcessorTest {
 
         // then — 자동 1회 재시도가 통과 → 채택.
         assertThat(result).isNotNull
-        assertThat(result!!.content).contains("500")
+        assertThat(result!!.content).contains("Kotlin")
         assertThat(port.calls).isEqualTo(2)
     }
 
     @Test
     fun 재시도는_딱_한_번이다_이중비용_금지() {
-        // given — 계속 실패하는 후보. 호출은 정확히 2회(첫 시도 + 자동 1회)여야 한다.
+        // given — 계속 실패하는 후보(고유명사 Kotlin 누락). 호출은 정확히 2회(첫 시도 + 자동 1회)여야 한다.
         val port = QueuePort(
             mutableListOf(
                 candidate("많은 요청을 처리했어요."),
                 candidate("많은 요청을 처리했어요."),
-                candidate("초당 500건을 처리했어요."), // 세 번째는 절대 호출되면 안 됨.
+                candidate("Kotlin으로 초당 500건을 처리했어요."), // 세 번째는 절대 호출되면 안 됨.
             ),
         )
         val processor = QualityImprovementProcessor(port, groundingValidator, preservationValidator)
 
         // when
-        val result = processor.process(input("초당 500건을 처리했다."))
+        val result = processor.process(input("초당 500건을 Kotlin으로 처리했다."))
 
         // then
         assertThat(result).isNull()
