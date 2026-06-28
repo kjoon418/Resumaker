@@ -246,6 +246,77 @@ class ArtifactListViewModelTest {
         assertTrue(vm.state.value.retryingJobIds.isEmpty())
     }
 
+    // --- 대기 시간 광고 슬롯 게이팅(§6.1 8개 상태). 순수 파생 프로퍼티라 UiState를 직접 구성해 단언한다. ---
+
+    @Test
+    fun showAdSlotFalseWhenEmpty() {
+        // 1) 빈 상태: 작업·산출물 없음 → 노출 금지.
+        val state = ArtifactListUiState(loading = false)
+        assertFalse(state.showAdSlot)
+        assertNull(state.adSelectorJobId)
+    }
+
+    @Test
+    fun showAdSlotFalseWhenFailedOnly() {
+        // 2) 실패만: 활성 작업 0 → 노출 금지.
+        val state = ArtifactListUiState(loading = false, jobs = listOf(job("j-1", GenerationJobStatus.FAILED)))
+        assertFalse(state.showAdSlot)
+        assertNull(state.adSelectorJobId)
+    }
+
+    @Test
+    fun showAdSlotTrueWhenSinglePending() {
+        // 3) 단일 PENDING: 활성 → 노출.
+        val state = ArtifactListUiState(loading = false, jobs = listOf(job("j-1", GenerationJobStatus.PENDING)))
+        assertTrue(state.showAdSlot)
+        assertEquals("j-1", state.adSelectorJobId)
+    }
+
+    @Test
+    fun showAdSlotTrueWhenSingleRunning() {
+        // 4) 단일 RUNNING: 활성 → 노출.
+        val state = ArtifactListUiState(loading = false, jobs = listOf(job("j-1", GenerationJobStatus.RUNNING)))
+        assertTrue(state.showAdSlot)
+        assertEquals("j-1", state.adSelectorJobId)
+    }
+
+    @Test
+    fun showAdSlotTrueWhenPendingAndFailedMixed() {
+        // 5) PENDING+FAILED 혼재: 활성 1개라도 있으면 노출, 선택 키는 첫 활성 작업.
+        val state = ArtifactListUiState(
+            loading = false,
+            jobs = listOf(
+                job("j-failed", GenerationJobStatus.FAILED),
+                job("j-pending", GenerationJobStatus.PENDING),
+            ),
+        )
+        assertTrue(state.showAdSlot)
+        assertEquals("j-pending", state.adSelectorJobId)
+    }
+
+    @Test
+    fun showAdSlotFalseWhenSucceededOnly() {
+        // 6) 성공만: SUCCEEDED는 renderJobs에서 제외돼 활성 0 → 노출 금지.
+        val state = ArtifactListUiState(loading = false, jobs = listOf(job("j-1", GenerationJobStatus.SUCCEEDED)))
+        assertFalse(state.showAdSlot)
+        assertNull(state.adSelectorJobId)
+    }
+
+    @Test
+    fun showAdSlotFalseWhileLoadingEvenWithActiveJob() {
+        // 7) loading=true: 활성 작업이 있어도 초기 로딩 동안에는 노출 금지(스켈레톤만).
+        val state = ArtifactListUiState(loading = true, jobs = listOf(job("j-1", GenerationJobStatus.RUNNING)))
+        assertFalse(state.showAdSlot)
+    }
+
+    @Test
+    fun showAdSlotFalseWhenArtifactsOnly() {
+        // 8) 완성 산출물만: 활성 작업 0 → 노출 금지.
+        val state = ArtifactListUiState(loading = false, artifacts = listOf(artifact("a-1")))
+        assertFalse(state.showAdSlot)
+        assertNull(state.adSelectorJobId)
+    }
+
     @Test
     fun emptyStateWhenNoJobsOrArtifacts() = runTest(dispatcher) {
         val api = FakeArtifactApi(

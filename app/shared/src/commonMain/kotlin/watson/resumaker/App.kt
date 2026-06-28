@@ -13,6 +13,7 @@ import watson.resumaker.feature.artifact.ArtifactScreen
 import watson.resumaker.feature.artifact.ArtifactVersionsScreen
 import watson.resumaker.feature.artifact.ArtifactVersionsViewModel
 import watson.resumaker.feature.artifact.ArtifactViewModel
+import watson.resumaker.feature.artifact.ad.AdDestination
 import watson.resumaker.feature.artifact.quality.QualityImprovementScreen
 import watson.resumaker.feature.artifact.quality.QualityReviewScreen
 import watson.resumaker.feature.artifact.quality.QualityReviewViewModel
@@ -293,6 +294,14 @@ fun App(container: AppContainer = remember { AppContainer() }) {
                     onCreate = { navigator.push(Screen.Artifact()) },
                     // 입력 관련 실패 '경험 다시 고르기' → 실패 작업 입력을 프리필한 생성 화면.
                     onEditInputs = { job -> navigator.push(Screen.Artifact(prefillJob = job)) },
+                    // 대기 시간 광고 슬롯 CTA → 앱 내 다음 행동으로 이동. 목표 추가는 push(편집)로, 나머지는 탭 전환.
+                    onAdNavigate = { dest ->
+                        when (dest) {
+                            AdDestination.EXPERIENCE_LIST -> navigator.switchRoot(Screen.ExperienceList)
+                            AdDestination.TEMPLATE_LIST -> navigator.switchRoot(Screen.TemplateList)
+                            AdDestination.TARGET_CREATE -> navigator.push(Screen.TargetEdit(null))
+                        }
+                    },
                 )
             }
 

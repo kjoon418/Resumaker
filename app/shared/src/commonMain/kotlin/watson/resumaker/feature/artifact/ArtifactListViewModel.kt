@@ -48,6 +48,15 @@ data class ArtifactListUiState(
 
     /** 진행 중/실패 작업도, 완성 산출물도 없는 완전 빈 상태(EmptyState 분기). */
     val isEmpty: Boolean get() = renderJobs.isEmpty() && artifacts.isEmpty()
+
+    /**
+     * 대기 시간 광고 슬롯을 노출할지. 활성(PENDING/RUNNING) 작업이 하나라도 있고 초기 로딩이 끝났을 때만 true.
+     * 로딩·빈 상태·실패만·완성만에서는 노출하지 않는다(생성을 기다리는 동안에만 보였다 사라진다).
+     */
+    val showAdSlot: Boolean get() = !loading && renderJobs.any { it.status.isActive }
+
+    /** 광고 콘텐츠를 결정적으로 고르기 위한 키 = 첫 활성 작업 id. 활성 작업이 없으면 null. */
+    val adSelectorJobId: String? get() = renderJobs.firstOrNull { it.status.isActive }?.jobId
 }
 
 /**

@@ -21,6 +21,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import watson.resumaker.feature.artifact.ad.AdDestination
+import watson.resumaker.feature.artifact.ad.AdSlot
+import watson.resumaker.feature.artifact.ad.SelfPromoAdContentProvider
 import watson.resumaker.model.dto.ArtifactSummaryResponse
 import watson.resumaker.model.dto.GenerationJobResponse
 import watson.resumaker.model.type.ArtifactKind
@@ -68,9 +71,12 @@ fun ArtifactListScreen(
      * 화면 이동 없이 ViewModel이 그 자리에서 재요청하므로 콜백이 필요 없다.
      */
     onEditInputs: (GenerationJobResponse) -> Unit,
+    /** 대기 시간 광고 슬롯 CTA → 앱 내 목적지로 이동(경험 점검·양식 둘러보기·목표 추가). */
+    onAdNavigate: (AdDestination) -> Unit = {},
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
+    val adProvider = remember { SelfPromoAdContentProvider() }
 
     LaunchedEffect(state.snackbarMessage) {
         state.snackbarMessage?.let {
@@ -136,6 +142,19 @@ fun ArtifactListScreen(
                         onRetryInPlace = { viewModel.retryJob(job) },
                         onEditInputs = { onEditInputs(job) },
                         onDelete = { viewModel.requestDeleteJob(job) },
+                    )
+                }
+                // 대기 시간 광고 슬롯: 활성 작업이 있을 때만 진행 카드와 완성 카드 사이에 1개 노출한다.
+                // 같은 활성 작업(adSelectorJobId)에는 같은 광고를 유지해 폴링 중 깜빡임을 막는다.
+                val placeholder = remember(state.adSelectorJobId) {
+                    state.adSelectorJobId?.takeIf { state.showAdSlot }?.let { adProvider.pick(it) }
+                }
+                if (placeholder != null) {
+                    AdSlot(
+                        placeholder = placeholder,
+                        // 형제 Spacer 대신 슬롯 자체 top 패딩(8dp) → spacedBy(12dp)와 합쳐 20dp 분리.
+                        modifier = Modifier.padding(top = RmSpacing.space2),
+                        onNavigate = onAdNavigate,
                     )
                 }
                 // 완성 산출물(하단, 최신순).
