@@ -14,6 +14,8 @@ import watson.resumaker.feature.artifact.ArtifactVersionsScreen
 import watson.resumaker.feature.artifact.ArtifactVersionsViewModel
 import watson.resumaker.feature.artifact.ArtifactViewModel
 import watson.resumaker.feature.artifact.ad.AdDestination
+import watson.resumaker.feature.artifact.ad.ConsoleAdMetricsReporter
+import watson.resumaker.config.adsEnabled
 import watson.resumaker.feature.artifact.quality.QualityImprovementScreen
 import watson.resumaker.feature.artifact.quality.QualityReviewScreen
 import watson.resumaker.feature.artifact.quality.QualityReviewViewModel
@@ -284,6 +286,7 @@ fun App(container: AppContainer = remember { AppContainer() }) {
 
             Screen.ArtifactList -> {
                 val vm = remember { ArtifactListViewModel(container.artifactApi) }
+                val adMetrics = remember { ConsoleAdMetricsReporter() }
                 ArtifactListScreen(
                     viewModel = vm,
                     selectedTab = HeaderTab.ARTIFACT,
@@ -302,6 +305,9 @@ fun App(container: AppContainer = remember { AppContainer() }) {
                             AdDestination.TARGET_CREATE -> navigator.push(Screen.TargetEdit(null))
                         }
                     },
+                    onAdImpression = { adMetrics.onImpression(it) },
+                    onAdClick = { adMetrics.onClick(it) },
+                    adsEnabled = adsEnabled(),
                 )
             }
 

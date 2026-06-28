@@ -81,6 +81,8 @@ fun ArtifactListScreen(
     onAdImpression: (AdPlaceholder) -> Unit = {},
     /** 광고 CTA 클릭 계측 훅(FR-8). */
     onAdClick: (AdPlaceholder) -> Unit = {},
+    /** 광고 슬롯 노출 여부(런타임 플래그). false면 슬롯을 완전히 숨긴다 — baseline 측정·킬스위치용. */
+    adsEnabled: Boolean = true,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -156,7 +158,7 @@ fun ArtifactListScreen(
                 val placeholder = remember(state.adSelectorJobId) {
                     state.adSelectorJobId?.takeIf { state.showAdSlot }?.let { adContentProvider.pick(it) }
                 }
-                if (placeholder != null) {
+                if (adsEnabled && placeholder != null) {
                     AdSlot(
                         placeholder = placeholder,
                         // 형제 Spacer 대신 슬롯 자체 top 패딩(8dp) → spacedBy(12dp)와 합쳐 20dp 분리.
