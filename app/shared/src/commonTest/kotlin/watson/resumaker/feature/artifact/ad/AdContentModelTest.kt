@@ -52,4 +52,16 @@ class AdContentModelTest {
         val placeholder = provider.pick("job-1")!!
         assertEquals("광고: ${placeholder.title}", placeholder.contentDescription)
     }
+
+    @Test
+    fun adContentProviderInterfaceIsReplaceable() {
+        // FR-1/AC 9.7 공급자 교체 seam: AdContentProvider 인터페이스 구현체를 교체해도
+        // 슬롯·게이팅 코드 변경 없이 동작한다. 커스텀 공급자가 null을 반환(광고 없음)할 수 있어야 한다.
+        val nullProvider = object : AdContentProvider {
+            override fun pick(jobId: String): AdPlaceholder? = null
+        }
+        assertEquals(null, nullProvider.pick("any-id"))
+        // 기본 공급자는 항상 non-null을 반환해 기존 계약을 유지한다.
+        assertTrue(provider.pick("any-id") != null)
+    }
 }

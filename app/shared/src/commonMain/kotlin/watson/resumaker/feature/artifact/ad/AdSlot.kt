@@ -2,6 +2,7 @@ package watson.resumaker.feature.artifact.ad
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -50,7 +51,7 @@ fun AdSlot(
 ) {
     val colors = RmTheme.colors
 
-    LaunchedEffect(Unit) { onImpression() }
+    LaunchedEffect(placeholder) { onImpression() }
 
     Column(
         modifier = modifier
@@ -59,7 +60,7 @@ fun AdSlot(
             .border(RmSize.hairline, colors.border, RoundedCornerShape(RmRadius.card))
             .padding(RmSpacing.space4)
             .semantics(mergeDescendants = true) {
-                contentDescription = "광고 영역"
+                contentDescription = "광고 영역. ${placeholder.contentDescription}"
                 traversalIndex = Float.MAX_VALUE
             },
     ) {
@@ -79,7 +80,10 @@ fun AdSlot(
                         .padding(end = RmSpacing.space3)
                         .size(24.dp),
                 )
-                Column(modifier = Modifier.fillMaxWidth()) {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(RmSpacing.space1),
+                ) {
                     Text(
                         text = placeholder.title,
                         style = RmTextStyles.bodyS.copy(fontWeight = FontWeight.Bold),
@@ -91,7 +95,6 @@ fun AdSlot(
                         color = colors.textSecondary,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.padding(top = RmSpacing.space1),
                     )
                     TextLink(
                         text = placeholder.ctaText,
