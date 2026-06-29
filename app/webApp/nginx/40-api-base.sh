@@ -21,4 +21,13 @@ else
   echo "# ads.txt — ADSENSE_CLIENT 미설정. AdSense 퍼블리셔 ID 발급 후 환경변수로 주입하면 유효 행이 자동 생성됩니다." > /usr/share/nginx/html/ads.txt
 fi
 
+# index.html의 AdSense 소유권 확인 메타 태그 토큰을 치환한다. ID가 있으면 정적 <meta>로, 없으면 빈 값(태그 제거).
+# 메타 태그는 정적 HTML에 박혀야 크롤러가 JS 실행 없이 읽는다(소유권 확인 = ads.txt와 병행하면 더 빠름).
+if [ -n "${ADSENSE_CLIENT}" ]; then
+  meta="<meta name=\"google-adsense-account\" content=\"${ADSENSE_CLIENT}\">"
+else
+  meta=""
+fi
+sed -i "s|<!--__ADSENSE_META__-->|${meta}|" /usr/share/nginx/html/index.html
+
 echo "[40-api-base] config.js API_BASE=${API_BASE} ADS_ENABLED=${ADS_ENABLED} ADSENSE_CLIENT=${ADSENSE_CLIENT:-(unset)}"

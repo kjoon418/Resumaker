@@ -105,6 +105,11 @@ services:
     environment:
       # 브라우저가 호출할 백엔드 주소. 다른 도메인 배포 시 실제 API 도메인으로 지정한다(런타임 config.js로 주입).
       API_BASE: ${API_BASE:-http://localhost:8082}
+      # 대기 시간 광고 슬롯 on/off. baseline 측정·킬스위치용. 미지정 시 켜짐(기본 true).
+      ADS_ENABLED: ${ADS_ENABLED:-true}
+      # AdSense 퍼블리셔 ID(ca-pub-…). 컨테이너 기동 시 ads.txt·소유권 확인 메타 태그·config.js 전역을 굽는다.
+      # 미지정(빈 값)이면 AdSense 관련은 전부 무동작. 발급 전까지 비워 둔다.
+      ADSENSE_CLIENT: ${ADSENSE_CLIENT:-}
     ports:
       - '${FRONTEND_PORT:-8081}:80'
 

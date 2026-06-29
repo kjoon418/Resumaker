@@ -21,6 +21,12 @@
     <link rel="stylesheet" as="style" crossorigin
           href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
     <link type="text/css" rel="stylesheet" href="styles.css">
+    <!--
+      AdSense 소유권 확인 메타 태그 자리. 배포 시 nginx(40-api-base.sh)가 ADSENSE_CLIENT 환경변수로 아래 토큰을
+      <meta name="google-adsense-account" content="ca-pub-…">로 치환한다(미설정이면 빈 값=태그 없음). 정적 HTML에
+      박혀 크롤러가 JS 실행 없이도 읽는다. 로컬 dev에선 주석 토큰 그대로 남아 무해하다.
+    -->
+    <!--__ADSENSE_META__-->
 </head>
 <body style="text-align: center; align-content: center">
 <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 50 50" role="presentation">
