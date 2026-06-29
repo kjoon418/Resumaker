@@ -110,6 +110,8 @@ services:
       # AdSense 퍼블리셔 ID(ca-pub-…). 컨테이너 기동 시 ads.txt·소유권 확인 메타 태그·config.js 전역을 굽는다.
       # 미지정(빈 값)이면 AdSense 관련은 전부 무동작. 발급 전까지 비워 둔다.
       ADSENSE_CLIENT: ${ADSENSE_CLIENT:-}
+      # 공개 콘텐츠 표면(가이드/소개/개인정보)의 절대 URL 기준. canonical·sitemap·robots에 박힌다. 운영은 프런트 공개 도메인.
+      SITE_ORIGIN: ${SITE_ORIGIN:-http://localhost:8081}
     ports:
       - '${FRONTEND_PORT:-8081}:80'
 

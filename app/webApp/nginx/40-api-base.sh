@@ -6,6 +6,8 @@ set -e
 : "${ADS_ENABLED:=true}"
 # AdSense 퍼블리셔 ID(예: ca-pub-1234567890). 미설정(빈 값)이면 AdSense 관련은 전부 무동작(graceful).
 : "${ADSENSE_CLIENT:=}"
+# 공개 콘텐츠 표면(가이드/소개)의 절대 URL 기준. robots.txt·sitemap.xml·canonical/og 태그에 박힌다. 운영은 프런트 공개 오리진.
+: "${SITE_ORIGIN:=http://localhost:8081}"
 cat > /usr/share/nginx/html/config.js <<EOF
 window.__RESUMAKER_API_BASE__ = "${API_BASE}";
 window.__RESUMAKER_ADS_ENABLED__ = "${ADS_ENABLED}";
@@ -30,4 +32,12 @@ else
 fi
 sed -i "s|<!--__ADSENSE_META__-->|${meta}|" /usr/share/nginx/html/index.html
 
-echo "[40-api-base] config.js API_BASE=${API_BASE} ADS_ENABLED=${ADS_ENABLED} ADSENSE_CLIENT=${ADSENSE_CLIENT:-(unset)}"
+# 공개 콘텐츠 표면의 __SITE_ORIGIN__ 토큰을 실제 오리진으로 치환한다(canonical·og·robots·sitemap의 절대 URL).
+# 대상 파일만 정확히 돈다(webApp.js·wasm 등 대용량 자산엔 손대지 않음). 빠진 파일이 있어도 멈추지 않는다.
+root=/usr/share/nginx/html
+for f in robots.txt sitemap.xml guide.html guide-resume-basics.html guide-achievement.html \
+         guide-portfolio.html guide-tailoring.html about.html privacy.html; do
+  [ -f "${root}/${f}" ] && sed -i "s|__SITE_ORIGIN__|${SITE_ORIGIN}|g" "${root}/${f}"
+done
+
+echo "[40-api-base] config.js API_BASE=${API_BASE} ADS_ENABLED=${ADS_ENABLED} ADSENSE_CLIENT=${ADSENSE_CLIENT:-(unset)} SITE_ORIGIN=${SITE_ORIGIN}"
